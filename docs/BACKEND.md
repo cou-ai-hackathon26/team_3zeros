@@ -258,6 +258,24 @@ Ownership follows the architecture's table (Architecture §4.1). Implementation:
 
 FHIR resource mapping: Architecture §4.3 (unchanged).
 
+Implementation notes (as built):
+
+- `apps/fhir/sync.py` holds `complete_fhir_transition(obj)`. It builds the
+  transaction bundle (ServiceRequest + Task for referrals, DiagnosticReport +
+  Observations for documents, each with a conditional-create identifier),
+  writes it, then calls the engine's `finalize_fhir_transition`. Bundles use
+  base R4 until Q-01 is answered and are not yet validated against a live HAPI.
+- `FHIR_SYNC_MODE` is `live` (default) or `stub`. `stub` skips the write and is
+  set only in `config.settings.local` so tests and local development can run
+  without HAPI. Staging and production must stay `live`.
+- System-only actions (`workflow.engine.is_system`) pass their permission check
+  only when called with no actor. The consent service, workers and the OCR
+  pipeline call them that way; the generic action endpoints always pass the
+  signed-in user, so users cannot trigger them.
+- A referral points at its current `ConsentRequest` (`consent_request`); the
+  granted `Consent` is stored on `consent`. `approve` and `send` require an
+  active consent whose `content_hash` matches the referral.
+
 ---
 
 ## 6. State-machine engine

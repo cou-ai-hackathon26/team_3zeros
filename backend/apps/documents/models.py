@@ -28,6 +28,9 @@ class Document(TimeStamped):
     sha256 = models.CharField(max_length=64)
     state = models.CharField(max_length=30, choices=STATE_CHOICES, default="UPLOADED", db_index=True)
     fhir_document_reference_id = models.CharField(max_length=100, blank=True, null=True)
+    # FHIR-gated `verify` (MASTERPLAN §5.8): state stays until the FHIR write succeeds.
+    pending_action = models.CharField(max_length=50, null=True, blank=True)
+    fhir_sync_status = models.CharField(max_length=20, default="NOT_REQUIRED")
 
     class Meta:
         ordering = ["-created_at"]
@@ -71,3 +74,4 @@ class ExtractedField(TimeStamped):
 
     def __str__(self):
         return f"ExtractedField({self.name}={self.value} {self.unit}, status={self.status})"
+

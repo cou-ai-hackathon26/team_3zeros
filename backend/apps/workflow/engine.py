@@ -19,6 +19,18 @@ class Transition:
     requires: List[Any] = field(default_factory=list)
     fhir_required: bool = False
     on_fhir_failure: Optional[str] = None
+    # For transitions whose target depends on the object (retry_sync re-applies
+    # the action that failed). Receives the object, returns a state name.
+    resolve_target: Optional[Callable[[Any], str]] = None
+
+
+def is_system(actor, obj, payload) -> bool:
+    """Permission for system-only actions (jobs, consent services): no user actor.
+
+    A request made by a signed-in user always has an actor, so these actions can
+    never be triggered through the generic action endpoints (INV-6, INV-10).
+    """
+    return actor is None
 
 def compute_allowed_actions(obj: Any, actor: Any) -> List[str]:
     """
@@ -145,48 +157,71 @@ def execute_transition(
 
         obj.save(increment_version=True)
 
-        User = get_user_model()
-        actor_user_instance = actor if isinstance(actor, User) and getattr(actor, "is_authenticated", False) else None
-
-        # Record HistoryEntry
-        HistoryEntry.objects.create(
-            aggregate_type=obj._meta.model_name,
-            aggregate_id=obj.public_id,
-            from_state=old_state,
-            to_state=new_state,
-            action=action,
-            actor_user=actor_user_instance,
-            actor_role=getattr(actor, "current_role", "") if actor else "",
-            reason=payload.get("reason", ""),
-            extra_data={"payload": payload},
-        )
-
-        # Record AuditEvent
-        patient_ref = getattr(obj, "patient_id", None) or getattr(getattr(obj, "patient", None), "public_id", None)
-        record_audit_event(
-            action="transition",
-            object_type=obj._meta.model_name,
-            object_id=str(obj.public_id),
-            actor_user=actor_user_instance,
-            actor_role=getattr(actor, "current_role", "") if actor else "",
-            patient_id=str(patient_ref) if patient_ref else None,
-            outcome="success",
-            reason=payload.get("reason", ""),
-            request_id=request_id or "",
-        )
-
-        # Record OutboxEvent
-        OutboxEvent.objects.create(
-            aggregate_type=obj._meta.model_name,
-            aggregate_id=obj.public_id,
-            event_type=f"{obj._meta.model_name}.state_changed",
-            payload={
-                "id": str(obj.public_id),
-                "state": obj.state,
-                "version": obj.version,
-                "action": action,
-            },
-        )
+        _record_transition(obj, action, old_state, new_state, actor, payload, request_id)
 
     allowed_actions = compute_allowed_actions(obj, actor)
     return obj, allowed_actions
+
+
+def _record_transition(obj, action, old_state, new_state, actor, payload, request_id):
+    """Write HistoryEntry, AuditEvent and OutboxEvent. Call inside a transaction."""
+    User = get_user_model()
+    actor_user_instance = actor if isinstance(actor, User) and getattr(actor, "is_authenticated", False) else None
+    actor_role = getattr(actor, "current_role", "") if actor else "system"
+
+    HistoryEntry.objects.create(
+        aggregate_type=obj._meta.model_name,
+        aggregate_id=obj.public_id,
+        from_state=old_state,
+        to_state=new_state,
+        action=action,
+        actor_user=actor_user_instance,
+        actor_role=actor_role,
+        reason=payload.get("reason", ""),
+        extra_data={"payload": payload},
+    )
+
+    patient_ref = getattr(getattr(obj, "patient", None), "public_id", None)
+    record_audit_event(
+        action="transition",
+        object_type=obj._meta.model_name,
+        object_id=str(obj.public_id),
+        actor_user=actor_user_instance,
+        actor_role=actor_role,
+        patient_id=str(patient_ref) if patient_ref else None,
+        outcome="success",
+        reason=payload.get("reason", ""),
+        request_id=request_id or "",
+    )
+
+    OutboxEvent.objects.create(
+        aggregate_type=obj._meta.model_name,
+        aggregate_id=obj.public_id,
+        event_type=f"{obj._meta.model_name}.state_changed",
+        payload={
+            "id": str(obj.public_id),
+            "state": obj.state,
+            "version": obj.version,
+            "action": action,
+        },
+    )
+
+
+def finalize_fhir_transition(obj: Any, actor: Any = None, request_id: Optional[str] = None) -> Any:
+    """
+    Apply the target state of a FHIR-gated transition after its FHIR write
+    succeeded (MASTERPLAN §5.8, INV-12). The object must have `pending_action`.
+    """
+    action = getattr(obj, "pending_action", None)
+    if not action:
+        raise TransitionNotAllowedError("No pending FHIR action to finalize.")
+    transition: Transition = obj.TRANSITIONS[action]
+    target = transition.resolve_target(obj) if transition.resolve_target else transition.target
+    old_state = obj.state
+    with transaction.atomic():
+        obj.state = target
+        obj.pending_action = None
+        obj.fhir_sync_status = "SYNCED"
+        obj.save(increment_version=True)
+        _record_transition(obj, action, old_state, target, actor, {}, request_id)
+    return obj

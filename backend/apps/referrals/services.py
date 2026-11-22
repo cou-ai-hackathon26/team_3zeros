@@ -4,7 +4,9 @@ from django.db import transaction
 from django.utils import timezone
 from .models import Referral, EmergencyReferral, ReferralDraftVersion, compute_content_hash
 from .transitions import REFERRAL_TRANSITIONS
-from apps.workflow.engine import execute_transition
+from apps.workflow.engine import execute_transition, compute_allowed_actions
+from apps.fhir.sync import complete_fhir_transition
+from apps.consent.services import create_consent_request_for_referral, supersede_pending_consent_request
 from apps.common.exceptions import (
     NotFoundError,
     ValidationError,
@@ -217,8 +219,14 @@ def create_emergency_referral(user, validated_data, request_id=""):
         return referral
 
 
-def execute_referral_transition(user, referral_public_id, action, payload=None, if_match=None, request_id=""):
+def execute_referral_transition(user, referral_public_id, action, payload=None, if_match=None, request_id="", as_system=False):
+    """
+    Run a referral action. `as_system=True` is for internal callers (consent
+    service, jobs) and executes with no user actor, which is the only way
+    system-only actions pass their permission check.
+    """
     payload = payload or {}
+    actor = None if as_system else user
 
     with transaction.atomic():
         referral = Referral.objects.select_for_update().filter(public_id=referral_public_id).first()
@@ -242,20 +250,33 @@ def execute_referral_transition(user, referral_public_id, action, payload=None, 
         referral, allowed_actions = execute_transition(
             obj=referral,
             action=action,
-            actor=user,
+            actor=actor,
             payload=payload,
             expected_version=if_match,
             request_id=request_id,
         )
+
+        if action == "request_consent":
+            create_consent_request_for_referral(referral, request_id=request_id)
+        elif action == "reopen_draft":
+            supersede_pending_consent_request(referral)
+
+        # FHIR-gated actions (send, record_outcome, retry_sync) apply their
+        # target state only after the FHIR write succeeds (INV-12). If FHIR is
+        # unavailable the referral stays pending and the view answers 202.
+        if referral.pending_action:
+            complete_fhir_transition(referral, actor=actor, request_id=request_id)
+            allowed_actions = compute_allowed_actions(referral, user)
 
         # If outcome recorded, auto-trigger return_outcome per MASTERPLAN §5.2
         if action == "record_outcome" and referral.state == "OUTCOME_RECORDED":
             referral, allowed_actions = execute_transition(
                 obj=referral,
                 action="return_outcome",
-                actor=user,
+                actor=None,
                 payload={},
                 request_id=request_id,
             )
 
         return referral, allowed_actions
+

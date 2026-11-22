@@ -83,7 +83,9 @@ class ReferralActionView(views.APIView):
             if_match=if_match,
             request_id=request_id,
         )
-        return Response(ReferralSerializer(referral, context={"request": request}).data)
+        # 202: the action is accepted but its FHIR write is still pending (INV-12).
+        http_status = status.HTTP_202_ACCEPTED if referral.pending_action else status.HTTP_200_OK
+        return Response(ReferralSerializer(referral, context={"request": request}).data, status=http_status)
 
 
 class EmergencyReferralView(views.APIView):
@@ -106,3 +108,4 @@ class ReferralByReferenceView(views.APIView):
     def get(self, request, code):
         referral = get_referral_by_code(request.user, code)
         return Response(ReferralSerializer(referral, context={"request": request}).data)
+

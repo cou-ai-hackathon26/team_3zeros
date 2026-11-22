@@ -1,4 +1,5 @@
-from apps.workflow.engine import Transition
+from apps.workflow.engine import Transition, is_system
+from apps.workflow.models import HistoryEntry
 
 def is_sender_clinician(actor, obj, payload):
     if not actor or not actor.is_authenticated:
@@ -31,6 +32,23 @@ def is_receiver_clinician_or_coordinator(actor, obj, payload):
 
 def is_either_clinician(actor, obj, payload):
     return is_sender_clinician(actor, obj, payload) or is_receiver_clinician(actor, obj, payload)
+
+FHIR_GATED_ACTIONS = ("send", "record_outcome")
+
+
+def retry_target(referral):
+    """State reached by the FHIR-gated action that failed (MASTERPLAN §5.2 retry_sync)."""
+    last = (
+        HistoryEntry.objects.filter(
+            aggregate_type=referral._meta.model_name,
+            aggregate_id=referral.public_id,
+            action__in=FHIR_GATED_ACTIONS,
+        )
+        .order_by("-at", "-id")
+        .first()
+    )
+    return REFERRAL_TRANSITIONS[last.action].target if last else REFERRAL_TRANSITIONS["send"].target
+
 
 def guard_require_decline_reason(actor, obj, payload):
     if not payload or not payload.get("reason"):
@@ -70,12 +88,12 @@ REFERRAL_TRANSITIONS = {
     "consent_granted": Transition(
         source={"AWAITING_PATIENT_CONSENT"},
         target="READY_FOR_SENDER_APPROVAL",
-        permission=lambda a, o, p: True,  # system or patient action
+        permission=is_system,
     ),
     "consent_refused": Transition(
         source={"AWAITING_PATIENT_CONSENT"},
         target="DRAFT",
-        permission=lambda a, o, p: True,
+        permission=is_system,
     ),
     "reopen_draft": Transition(
         source={"AWAITING_PATIENT_CONSENT", "READY_FOR_SENDER_APPROVAL", "APPROVED_BY_SENDER"},
@@ -85,17 +103,19 @@ REFERRAL_TRANSITIONS = {
     "consent_revoked": Transition(
         source={"READY_FOR_SENDER_APPROVAL", "APPROVED_BY_SENDER"},
         target="DRAFT",
-        permission=lambda a, o, p: True,
+        permission=is_system,
     ),
     "approve": Transition(
         source={"READY_FOR_SENDER_APPROVAL"},
         target="APPROVED_BY_SENDER",
         permission=is_sender_clinician,
+        requires=[guard_active_consent],
     ),
     "send": Transition(
         source={"APPROVED_BY_SENDER"},
         target="SENT",
         permission=is_sender_clinician,
+        requires=[guard_active_consent],
         fhir_required=True,
         on_fhir_failure="FAILED_TO_SYNC",
     ),
@@ -125,7 +145,7 @@ REFERRAL_TRANSITIONS = {
     "return_outcome": Transition(
         source={"OUTCOME_RECORDED"},
         target="OUTCOME_RETURNED",
-        permission=lambda a, o, p: True,
+        permission=is_system,
     ),
     "close": Transition(
         source={"OUTCOME_RETURNED"},
@@ -157,23 +177,25 @@ REFERRAL_TRANSITIONS = {
     "expire": Transition(
         source={"AWAITING_PATIENT_CONSENT"},
         target="EXPIRED",
-        permission=lambda a, o, p: True,
+        permission=is_system,
     ),
     "escalate": Transition(
         source={"SENT"},
         target="ESCALATED",
-        permission=lambda a, o, p: True,
+        permission=is_system,
         requires=[guard_emergency_only],
     ),
     "sync_failed": Transition(
         source={"APPROVED_BY_SENDER", "IN_PROGRESS"},
         target="FAILED_TO_SYNC",
-        permission=lambda a, o, p: True,
+        permission=is_system,
     ),
     "retry_sync": Transition(
         source={"FAILED_TO_SYNC"},
-        target="SENT",  # or target of pending_action
+        target="SENT",  # placeholder; resolve_target picks the failed action's target
         permission=is_either_clinician,
         fhir_required=True,
+        resolve_target=retry_target,
     ),
 }
+

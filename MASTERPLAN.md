@@ -417,6 +417,7 @@ backend must match it. Paths are relative to `/api/v1`.
 | triage | `POST /triage/sessions/{id}/voice-credentials` | Short-lived provider credentials |
 | triage | `POST /triage/sessions/{id}/turns` | Text-mode turn (voice turns arrive via provider adapter) |
 | triage | `GET /triage/sessions/{id}` | State, turns, summary draft |
+| triage | `POST /triage/sessions/{id}/finish` | Patient is done answering; moves the session to summary review (`finish_questions`) |
 | triage | `POST /triage/sessions/{id}/summary/confirm` | Patient confirms (optionally edits) summary |
 | triage | `POST /triage/sessions/{id}/end` | Patient ends session |
 | triage | `POST /triage/provider-events` | Server-to-server webhook from voice provider (signed) |
@@ -588,5 +589,6 @@ Record every change to §4–§7 here so both ends see it. Newest first.
 
 | Date | Change | Backend updated | Frontend updated | By |
 |---|---|---|---|---|
+| 2026-11-22 | Added `POST /triage/sessions/{id}/finish` so `finish_questions` is reachable by the patient; backend implements §5.3, §5.4 and §5.8 (FHIR-gated completion, `FHIR_SYNC_MODE`); system-only actions can no longer be called by users | yes | n/a (not built) | Backend |
 | 2026-11-21 | Review fixes: PATIENT_ACCEPTED appointment state; referral `reopen_draft`, `consent_refused`, `consent_revoked`, `use_existing_consent`; FHIR-gated transitions (§5.8) with `pending_action`; triage/document action tables; ConsentRequest states; `content_hash`, `emergency_mode`, `provisional_code`, triage consent; device endpoints (Q-09); D-13 | n/a (not built) | n/a (not built) | Planning |
 | 2026-11-21 | Initial contract set derived from architecture and project plan | n/a (not built) | n/a (not built) | Planning |

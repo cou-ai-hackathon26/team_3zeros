@@ -77,6 +77,14 @@ class Referral(TimeStamped):
         blank=True,
         related_name="referrals",
     )
+    # The consent request currently awaiting the patient's decision (MASTERPLAN §5.6).
+    consent_request = models.OneToOneField(
+        "consent.ConsentRequest",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referral",
+    )
     reference_code = models.CharField(max_length=12, unique=True, default=generate_reference_code, db_index=True)
     provisional_code = models.CharField(max_length=50, null=True, blank=True, db_index=True)
     outcome = models.JSONField(default=dict, blank=True)
@@ -127,3 +135,4 @@ class ReferralDraftVersion(TimeStamped):
 
     def __str__(self):
         return f"DraftVersion({self.referral.reference_code} v{self.version_number})"
+

@@ -9,7 +9,7 @@ from .serializers import (
     TurnSerializer,
     SummaryConfirmSerializer,
 )
-from .services import create_triage_session, process_patient_turn
+from .services import create_triage_session, process_patient_turn, run_triage_action
 from apps.common.exceptions import NotFoundError, TransitionNotAllowedError
 from apps.audit.services import record_audit_event
 
@@ -72,15 +72,26 @@ class TriageSummaryConfirmView(views.APIView):
         serializer = SummaryConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        session.state = "CONFIRMED_BY_PATIENT"
         session.ended_at = timezone.now()
-        session.save()
+        run_triage_action(session, "confirm_summary", request.user, request_id=getattr(request, "request_id", ""))
 
         summary, _ = TriageSummary.objects.get_or_create(session=session)
         summary.patient_confirmed_at = timezone.now()
         summary.patient_edits = serializer.validated_data.get("edits", {})
         summary.save()
 
+        return Response(TriageSessionSerializer(session).data)
+
+
+class TriageFinishView(views.APIView):
+    """Patient says they are done answering; the summary is then ready to review (§5.3 finish_questions)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, public_id):
+        session = TriageSession.objects.filter(public_id=public_id).first()
+        if not session:
+            raise NotFoundError("Triage session not found.")
+        run_triage_action(session, "finish_questions", request.user, request_id=getattr(request, "request_id", ""))
         return Response(TriageSessionSerializer(session).data)
 
 
@@ -92,7 +103,7 @@ class TriageEndView(views.APIView):
         if not session:
             raise NotFoundError("Triage session not found.")
 
-        session.state = "ENDED_BY_PATIENT"
         session.ended_at = timezone.now()
-        session.save()
+        run_triage_action(session, "end", request.user, request_id=getattr(request, "request_id", ""))
         return Response(TriageSessionSerializer(session).data)
+

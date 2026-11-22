@@ -66,13 +66,7 @@ def test_referral_draft_and_transitions(referral_setup):
     with pytest.raises(TransitionNotAllowedError):
         update_referral_draft(user_s, referral.public_id, {"reason": "Should fail"})
 
-    # 4. Patient grants consent -> READY_FOR_SENDER_APPROVAL
-    referral, _ = execute_referral_transition(user_s, referral.public_id, "consent_granted")
-    assert referral.state == "READY_FOR_SENDER_APPROVAL"
-
-    # 5. Sender approves -> APPROVED_BY_SENDER
-    referral, _ = execute_referral_transition(user_s, referral.public_id, "approve")
-    assert referral.state == "APPROVED_BY_SENDER"
+    # Consent, approval and sending are covered in test_referral_lifecycle.py
 
 @pytest.mark.django_db
 def test_emergency_referral_idempotency_and_state(referral_setup):
@@ -106,3 +100,4 @@ def test_emergency_referral_idempotency_and_state(referral_setup):
     conflict_payload["reason"] = "Different reason entirely"
     with pytest.raises(IdempotencyConflictError):
         create_emergency_referral(user_s, conflict_payload)
+

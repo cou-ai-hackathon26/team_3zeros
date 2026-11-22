@@ -4,13 +4,43 @@ from .models import ConsentRequest, Consent
 from apps.audit.services import record_audit_event
 from apps.common.exceptions import NotFoundError, TransitionNotAllowedError, PermissionDeniedError
 
+def _require_patient(user, patient, message):
+    """Only the patient who owns the record may decide on consent (INV-10)."""
+    account = getattr(user, "patient_account", None) if user and getattr(user, "is_authenticated", False) else None
+    if account is None or account.patient_id != patient.id:
+        raise PermissionDeniedError(message)
+
+
+def create_consent_request_for_referral(referral, request_id=""):
+    """Create the patient's pending consent request for the referral's current content."""
+    with transaction.atomic():
+        req = ConsentRequest.objects.create(
+            patient=referral.patient,
+            recipient_facility=referral.receiver_facility,
+            recipient_practitioner=referral.receiver_practitioner,
+            purpose="referral_treatment",
+            categories=["demographics", "observations", "conditions", "reports"],
+            content_hash=referral.content_hash,
+        )
+        type(referral).objects.filter(pk=referral.pk).update(consent_request=req)
+        referral.consent_request = req
+        return req
+
+
+def supersede_pending_consent_request(referral):
+    """Referral content changed or was reopened: the pending request no longer matches it."""
+    req = referral.consent_request
+    if req and req.state == "PENDING":
+        req.state = "SUPERSEDED"
+        req.save()
+
+
 def grant_consent_request(user, request_public_id, method="web_app", request_id=""):
     req = ConsentRequest.objects.filter(public_id=request_public_id).first()
     if not req:
         raise NotFoundError("Consent request not found.")
 
-    if hasattr(user, "patient_account") and user.patient_account.patient != req.patient:
-        raise PermissionDeniedError("Only the patient can grant consent.")
+    _require_patient(user, req.patient, "Only the patient can grant consent.")
 
     if req.state != "PENDING":
         raise TransitionNotAllowedError(f"Cannot grant consent request in state '{req.state}'.")
@@ -36,7 +66,8 @@ def grant_consent_request(user, request_public_id, method="web_app", request_id=
             referral = req.referral
             if referral.state == "AWAITING_PATIENT_CONSENT":
                 from apps.referrals.services import execute_referral_transition
-                execute_referral_transition(user, referral.public_id, "consent_granted", request_id=request_id)
+                type(referral).objects.filter(pk=referral.pk).update(consent=consent)
+                execute_referral_transition(user, referral.public_id, "consent_granted", request_id=request_id, as_system=True)
 
         record_audit_event(
             action="transition",
@@ -56,8 +87,7 @@ def refuse_consent_request(user, request_public_id, request_id=""):
     if not req:
         raise NotFoundError("Consent request not found.")
 
-    if hasattr(user, "patient_account") and user.patient_account.patient != req.patient:
-        raise PermissionDeniedError("Only the patient can refuse consent.")
+    _require_patient(user, req.patient, "Only the patient can refuse consent.")
 
     if req.state != "PENDING":
         raise TransitionNotAllowedError(f"Cannot refuse consent request in state '{req.state}'.")
@@ -70,7 +100,7 @@ def refuse_consent_request(user, request_public_id, request_id=""):
             referral = req.referral
             if referral.state == "AWAITING_PATIENT_CONSENT":
                 from apps.referrals.services import execute_referral_transition
-                execute_referral_transition(user, referral.public_id, "consent_refused", request_id=request_id)
+                execute_referral_transition(user, referral.public_id, "consent_refused", request_id=request_id, as_system=True)
 
         record_audit_event(
             action="transition",
@@ -90,8 +120,7 @@ def revoke_consent(user, consent_public_id, request_id=""):
     if not consent:
         raise NotFoundError("Consent not found.")
 
-    if hasattr(user, "patient_account") and user.patient_account.patient != consent.patient:
-        raise PermissionDeniedError("Only the patient can revoke consent.")
+    _require_patient(user, consent.patient, "Only the patient can revoke consent.")
 
     if consent.state != "ACTIVE":
         raise TransitionNotAllowedError(f"Cannot revoke consent in state '{consent.state}'.")
@@ -107,7 +136,7 @@ def revoke_consent(user, consent_public_id, request_id=""):
             referral = consent.request.referral
             if referral.state in ("READY_FOR_SENDER_APPROVAL", "APPROVED_BY_SENDER"):
                 from apps.referrals.services import execute_referral_transition
-                execute_referral_transition(user, referral.public_id, "consent_revoked", request_id=request_id)
+                execute_referral_transition(user, referral.public_id, "consent_revoked", request_id=request_id, as_system=True)
 
         record_audit_event(
             action="transition",
@@ -120,3 +149,4 @@ def revoke_consent(user, consent_public_id, request_id=""):
             request_id=request_id,
         )
         return consent
+

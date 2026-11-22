@@ -16,3 +16,5 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer"
     }
 }
+
+FHIR_SYNC_MODE = "stub"

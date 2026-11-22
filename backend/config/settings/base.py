@@ -17,6 +17,7 @@ env = environ.Env(
     FEATURE_OFFLINE_EMERGENCY=(bool, False), # Q-09
     FHIR_SERVER_URL=(str, "http://localhost:8080/fhir"),
     FHIR_TIMEOUT_SECONDS=(int, 5),
+    FHIR_SYNC_MODE=(str, "live"),
 )
 
 # Read .env if present
@@ -38,6 +39,9 @@ FEATURE_OFFLINE_EMERGENCY = env("FEATURE_OFFLINE_EMERGENCY")
 # FHIR configuration
 FHIR_SERVER_URL = env("FHIR_SERVER_URL")
 FHIR_TIMEOUT_SECONDS = env("FHIR_TIMEOUT_SECONDS")
+# "live" writes to HAPI. "stub" skips the write and is for local/test only:
+# it would violate INV-12 in production, so production/staging must stay "live".
+FHIR_SYNC_MODE = env("FHIR_SYNC_MODE")
 
 # Application definition
 DJANGO_APPS = [
@@ -156,3 +160,4 @@ SPECTACULAR_SETTINGS = {
     "OAS_VERSION": "3.1.0",
     "COMPONENT_SPLIT_REQUEST": True,
 }
+

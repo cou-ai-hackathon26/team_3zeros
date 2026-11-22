@@ -1,4 +1,4 @@
-from apps.workflow.engine import Transition
+from apps.workflow.engine import Transition, is_system
 
 def is_patient_owner(actor, obj, payload):
     if not actor or not actor.is_authenticated:
@@ -74,7 +74,7 @@ APPOINTMENT_TRANSITIONS = {
     "expire": Transition(
         source={"REQUESTED", "ALTERNATE_SLOT_PROPOSED", "PATIENT_ACCEPTED"},
         target="EXPIRED",
-        permission=lambda actor, obj, payload: True,  # system job or staff
+        permission=is_system,  # system job only (Q-04 policy)
     ),
     "cancel": Transition(
         source={"REQUESTED", "ALTERNATE_SLOT_PROPOSED", "PATIENT_ACCEPTED", "CONFIRMED"},
@@ -92,3 +92,4 @@ APPOINTMENT_TRANSITIONS = {
         permission=is_clinician_or_staff,
     ),
 }
+

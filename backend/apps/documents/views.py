@@ -10,6 +10,10 @@ from apps.records.models import Encounter, ClinicalObservation
 from apps.common.exceptions import NotFoundError, ValidationError, TransitionNotAllowedError
 from apps.audit.services import record_audit_event
 from apps.workflow.models import OutboxEvent
+from apps.workflow.engine import execute_transition
+from apps.fhir.sync import complete_fhir_transition
+from django.db import transaction
+from .transitions import DOCUMENT_TRANSITIONS
 
 class DocumentUploadView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -59,9 +63,10 @@ class DocumentUploadView(views.APIView):
             request_id=getattr(request, "request_id", ""),
         )
 
-        # Trigger OCR job creation / event
-        doc.state = "OCR_QUEUED"
-        doc.save()
+        # UPLOADED -> OCR_QUEUED is a system transition. Virus scanning
+        # (quarantine) is not implemented yet: [⏳ ACK] BACKEND §9 step 1.
+        doc.TRANSITIONS = DOCUMENT_TRANSITIONS
+        execute_transition(doc, "queue_ocr", None, request_id=getattr(request, "request_id", ""))
 
         OutboxEvent.objects.create(
             aggregate_type="document",
@@ -102,62 +107,73 @@ class DocumentExtractionView(views.APIView):
         })
 
 
+def _get_document_for_clinician(request, public_id):
+    """Find the document and enforce patient access; unknown or inaccessible -> 404."""
+    with transaction.atomic():
+        doc = Document.objects.select_for_update().filter(public_id=public_id).first()
+        if not doc:
+            raise NotFoundError("Document not found.")
+        get_patient_by_public_id(request.user, doc.patient.public_id)
+        doc.TRANSITIONS = DOCUMENT_TRANSITIONS
+        return doc
+
+
 class DocumentVerifyView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, public_id):
-        doc = Document.objects.filter(public_id=public_id).first()
-        if not doc:
-            raise NotFoundError("Document not found.")
-
         serializer = ExtractionVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        fields = serializer.validated_data["fields"]
+        request_id = getattr(request, "request_id", "")
 
-        # Create or update verified observations in patient chart
-        for f in serializer.validated_data["fields"]:
+        with transaction.atomic():
+            doc = Document.objects.select_for_update().filter(public_id=public_id).first()
+            if not doc:
+                raise NotFoundError("Document not found.")
+            get_patient_by_public_id(request.user, doc.patient.public_id)
+            doc.TRANSITIONS = DOCUMENT_TRANSITIONS
+
+            # Only a clinician may verify, and only from EXTRACTED_UNVERIFIED (engine checks).
+            execute_transition(doc, "verify", request.user, request_id=request_id)
+
             if doc.encounter:
-                ClinicalObservation.objects.create(
-                    encounter=doc.encounter,
-                    patient=doc.patient,
-                    code=f.get("name", "UNSPECIFIED"),
-                    display_name=f.get("name", "Lab Result"),
-                    value_string=str(f.get("value", "")),
-                    unit=f.get("unit", ""),
-                    observed_date=timezone.now(),
-                )
+                for f in fields:
+                    ClinicalObservation.objects.create(
+                        encounter=doc.encounter,
+                        patient=doc.patient,
+                        code=f.get("name", "UNSPECIFIED"),
+                        display_name=f.get("name", "Lab Result"),
+                        value_string=str(f.get("value", "")),
+                        unit=f.get("unit", ""),
+                        observed_date=timezone.now(),
+                    )
 
-        doc.state = "VERIFIED"
-        doc.save()
+            record_audit_event(
+                action="verify",
+                object_type="document",
+                object_id=str(doc.public_id),
+                actor_user=request.user,
+                patient_id=str(doc.patient.public_id),
+                request_id=request_id,
+            )
 
-        record_audit_event(
-            action="verify",
-            object_type="document",
-            object_id=str(doc.public_id),
-            actor_user=request.user,
-            patient_id=str(doc.patient.public_id),
-            request_id=getattr(request, "request_id", ""),
-        )
-        return Response(DocumentSerializer(doc).data)
+        # INV-12: VERIFIED only after the FHIR write succeeds; otherwise 202 and a worker retries.
+        complete_fhir_transition(doc, actor=request.user, request_id=request_id, extra={"fields": fields})
+        http_status = status.HTTP_202_ACCEPTED if doc.pending_action else status.HTTP_200_OK
+        return Response(DocumentSerializer(doc).data, status=http_status)
 
 
 class DocumentRejectView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, public_id):
-        doc = Document.objects.filter(public_id=public_id).first()
-        if not doc:
-            raise NotFoundError("Document not found.")
-
-        doc.state = "REJECTED"
-        doc.save()
-
-        record_audit_event(
-            action="update",
-            object_type="document",
-            object_id=str(doc.public_id),
-            actor_user=request.user,
-            patient_id=str(doc.patient.public_id),
-            reason="Clinician rejected extraction",
-            request_id=getattr(request, "request_id", ""),
-        )
+        with transaction.atomic():
+            doc = _get_document_for_clinician(request, public_id)
+            execute_transition(
+                doc, "reject", request.user,
+                payload={"reason": "Clinician rejected extraction"},
+                request_id=getattr(request, "request_id", ""),
+            )
         return Response(DocumentSerializer(doc).data)
+

@@ -5,6 +5,14 @@ from .rules.engine import evaluate_red_flags
 from apps.audit.services import record_audit_event
 from apps.common.exceptions import NotFoundError, ConsentRequiredError, TransitionNotAllowedError
 from apps.workflow.models import OutboxEvent
+from apps.workflow.engine import execute_transition
+from .transitions import TRIAGE_TRANSITIONS
+
+
+def run_triage_action(session, action, actor=None, payload=None, request_id=""):
+    """Apply a MASTERPLAN §5.3 action. `actor=None` means the system."""
+    session.TRANSITIONS = TRIAGE_TRANSITIONS
+    return execute_transition(session, action, actor, payload=payload, request_id=request_id)[0]
 
 def create_triage_session(user, language="bn", mode="text", disclosure_version="", request_id=""):
     if not disclosure_version:
@@ -23,8 +31,8 @@ def create_triage_session(user, language="bn", mode="text", disclosure_version="
             mode=mode,
             triage_disclosure_version=disclosure_version,
             triage_disclosure_accepted_at=timezone.now(),
-            state="ACTIVE",  # Starts in ACTIVE on first interaction
         )
+        run_triage_action(session, "connect", request_id=request_id)  # CREATED -> ACTIVE
 
         # Initial assistant greeting
         greeting = (
@@ -69,9 +77,8 @@ def process_patient_turn(session: TriageSession, text: str, user=None, request_i
         is_emergency, hits, instruction = evaluate_red_flags(text, language=session.language)
 
         if is_emergency:
-            session.state = "EMERGENCY_PATHWAY"
             session.ended_at = timezone.now()
-            session.save()
+            run_triage_action(session, "red_flag", request_id=request_id)
 
             # Record emergency assistant turn
             assistant_turn = Turn.objects.create(
