@@ -53,3 +53,4 @@ def get_appointment_by_public_id(user, appointment_id):
             raise NotFoundError("Appointment not found.")
 
     return appointment
+

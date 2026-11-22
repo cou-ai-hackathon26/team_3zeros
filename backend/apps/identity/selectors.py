@@ -36,3 +36,4 @@ def get_duplicate_candidates_for_patient(patient):
     return DuplicateCandidate.objects.filter(
         Q(patient_a=patient) | Q(patient_b=patient)
     ).select_related("patient_a", "patient_b", "resolved_by")
+

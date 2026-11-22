@@ -34,3 +34,4 @@ testpaths = ["tests", "apps"]
 python_files = ["test_*.py", "*_test.py"]
 DJANGO_SETTINGS_MODULE = "config.settings.local"
 pythonpath = ["."]
+

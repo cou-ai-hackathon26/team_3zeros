@@ -77,3 +77,4 @@ class Consent(TimeStamped):
 
     def __str__(self):
         return f"Consent({self.public_id}, {self.state}, patient={self.patient_id})"
+

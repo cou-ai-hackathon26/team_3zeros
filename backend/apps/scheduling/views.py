@@ -97,3 +97,4 @@ class AppointmentActionView(views.APIView):
             request_id=request_id,
         )
         return Response(AppointmentSerializer(appointment, context={"request": request}).data)
+

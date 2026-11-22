@@ -5,3 +5,4 @@ urlpatterns = [
     path("", NotificationListView.as_view(), name="notification-list"),
     path("<uuid:public_id>/read", NotificationReadView.as_view(), name="notification-read"),
 ]
+

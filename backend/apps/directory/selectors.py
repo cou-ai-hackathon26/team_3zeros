@@ -32,3 +32,4 @@ def list_practitioners(area_id=None, specialty_code=None, facility_id=None):
     if facility_id:
         queryset = queryset.filter(roles__facility__public_id=facility_id)
     return queryset.distinct()
+

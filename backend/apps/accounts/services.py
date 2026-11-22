@@ -112,3 +112,4 @@ def verify_phone_otp_and_login(request, phone: str, code: str):
         request_id=getattr(request, "request_id", ""),
     )
     return user
+

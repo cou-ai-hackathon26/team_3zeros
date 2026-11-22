@@ -58,3 +58,4 @@ class RevokeConsentView(views.APIView):
         request_id = getattr(request, "request_id", "")
         consent = revoke_consent(request.user, public_id, request_id=request_id)
         return Response(ConsentSerializer(consent).data)
+

@@ -14,3 +14,4 @@ urlpatterns = [
     path("requests/<uuid:public_id>/refuse", RefuseConsentRequestView.as_view(), name="consent-request-refuse"),
     path("<uuid:public_id>/revoke", RevokeConsentView.as_view(), name="consent-revoke"),
 ]
+

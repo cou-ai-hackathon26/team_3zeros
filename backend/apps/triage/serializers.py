@@ -61,3 +61,4 @@ class TurnCreateSerializer(serializers.Serializer):
 
 class SummaryConfirmSerializer(serializers.Serializer):
     edits = serializers.DictField(required=False, default=dict)
+

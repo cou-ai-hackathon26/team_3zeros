@@ -101,3 +101,4 @@ def custom_exception_handler(exc, context):
         }
     }
     return Response(payload, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

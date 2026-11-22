@@ -86,3 +86,4 @@ def test_workflow_engine_permission_denied():
 
     with pytest.raises(PermissionDeniedError):
         execute_transition(obj, "approve", actor)
+

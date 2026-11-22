@@ -35,3 +35,4 @@ class NotificationReadView(views.APIView):
         notif.read_at = timezone.now()
         notif.save()
         return Response(NotificationSerializer(notif).data)
+

@@ -14,3 +14,4 @@ urlpatterns = [
     path("<uuid:public_id>/extraction/verify", DocumentVerifyView.as_view(), name="document-extraction-verify"),
     path("<uuid:public_id>/extraction/reject", DocumentRejectView.as_view(), name="document-extraction-reject"),
 ]
+

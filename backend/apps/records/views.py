@@ -111,3 +111,4 @@ class EncounterObservationCreateView(views.APIView):
             observed_date=serializer.validated_data.get("observed_date"),
         )
         return Response(ClinicalObservationSerializer(observation).data, status=status.HTTP_201_CREATED)
+

@@ -41,3 +41,4 @@ class DocumentSerializer(serializers.ModelSerializer):
 
 class ExtractionVerificationSerializer(serializers.Serializer):
     fields = serializers.ListField(child=serializers.DictField())
+

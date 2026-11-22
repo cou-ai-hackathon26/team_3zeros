@@ -28,3 +28,4 @@ class CursorPagination(DRFCursorPagination):
             "results": data,
             "next_cursor": next_cursor,
         })
+

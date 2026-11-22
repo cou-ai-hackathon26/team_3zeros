@@ -34,3 +34,4 @@ def test_directory_endpoints(api_client):
     assert "results" in resp.data
     assert len(resp.data["results"]) == 1
     assert resp.data["results"][0]["name"] == "Gazipur Sadar Hospital"
+

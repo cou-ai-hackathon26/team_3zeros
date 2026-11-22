@@ -78,3 +78,4 @@ class PractitionerDirectorySerializer(serializers.ModelSerializer):
             {"id": str(r.facility.public_id), "name": r.facility.name, "name_bn": r.facility.name_bn, "type": r.facility.type}
             for r in roles
         ]
+

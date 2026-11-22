@@ -69,3 +69,4 @@ def test_mock_llm_adapter():
     result = adapter.generate(schema={}, messages=[])
     assert "sections" in result
     validate_referral_draft_schema(result)
+

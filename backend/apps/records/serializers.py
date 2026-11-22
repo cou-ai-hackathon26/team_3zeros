@@ -52,3 +52,4 @@ class ObservationCreateSerializer(serializers.Serializer):
     value_numeric = serializers.FloatField(required=False, allow_null=True)
     unit = serializers.CharField(required=False, allow_blank=True)
     observed_date = serializers.DateTimeField(required=False, allow_null=True)
+

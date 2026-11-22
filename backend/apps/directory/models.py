@@ -104,3 +104,4 @@ class CapacityReport(TimeStamped):
         # Default stale threshold: 6 hours (configurable per Q-08)
         threshold = timezone.now() - timedelta(hours=6)
         return self.reported_at < threshold
+

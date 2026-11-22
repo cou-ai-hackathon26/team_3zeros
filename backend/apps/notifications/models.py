@@ -34,3 +34,4 @@ class Notification(TimeStamped):
 
     def __str__(self):
         return f"Notification({self.type} to user={self.recipient_id})"
+

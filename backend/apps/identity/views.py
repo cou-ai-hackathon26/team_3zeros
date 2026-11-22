@@ -67,3 +67,4 @@ class ResolveDuplicateCandidateView(views.APIView):
             request_id=request_id,
         )
         return Response(DuplicateCandidateSerializer(candidate).data)
+

@@ -12,3 +12,4 @@ urlpatterns = [
     path("appointments/<uuid:public_id>", AppointmentDetailView.as_view(), name="appointment-detail"),
     path("appointments/<uuid:public_id>/actions/<str:action>", AppointmentActionView.as_view(), name="appointment-action"),
 ]
+

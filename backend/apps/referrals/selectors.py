@@ -72,3 +72,4 @@ def get_referral_by_code(user, code):
             raise NotFoundError("Referral not found.")
 
     return referral
+

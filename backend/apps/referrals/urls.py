@@ -14,3 +14,4 @@ urlpatterns = [
     path("<uuid:public_id>", ReferralDetailView.as_view(), name="referral-detail"),
     path("<uuid:public_id>/actions/<str:action>", ReferralActionView.as_view(), name="referral-action"),
 ]
+

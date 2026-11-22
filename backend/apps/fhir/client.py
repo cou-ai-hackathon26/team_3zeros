@@ -54,3 +54,4 @@ class FhirClient:
                 raise FhirUnavailableError(f"FHIR transaction bundle failed: {resp.status_code}")
         except requests.RequestException as e:
             raise FhirUnavailableError(f"Cannot connect to FHIR server: {e}")
+

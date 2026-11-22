@@ -110,3 +110,4 @@ class PlatformAdmin(TimeStamped):
 
     def __str__(self):
         return f"PlatformAdmin({self.user_id})"
+

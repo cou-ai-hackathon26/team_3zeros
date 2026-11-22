@@ -29,3 +29,4 @@ def get_user_permissions(user: User, active_facility_id: Optional[str] = None) -
         for p in (m.permissions or []):
             perms.add(p)
     return sorted(list(perms))
+

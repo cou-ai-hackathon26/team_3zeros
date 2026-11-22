@@ -11,3 +11,4 @@ application = ProtocolTypeRouter({
     "http": django_asgi_app,
     # WebSocket routing will be mounted here under /ws/events
 })
+

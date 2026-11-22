@@ -20,3 +20,4 @@ urlpatterns = [
     path("api/v1/triage/", include("apps.triage.urls")),
     path("api/v1/audit/", include("apps.audit.urls")),
 ]
+

@@ -74,3 +74,4 @@ class DuplicateCandidateSerializer(serializers.ModelSerializer):
 class ResolveDuplicateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=["same_person", "different"])
     notes = serializers.CharField(required=False, allow_blank=True)
+

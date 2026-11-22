@@ -86,3 +86,4 @@ def evaluate_red_flags(utterance: str, language: str = "bn") -> Tuple[bool, List
 
     is_emergency = len(hits) > 0
     return is_emergency, hits, instruction_text
+

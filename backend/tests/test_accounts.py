@@ -60,3 +60,4 @@ def test_otp_auth_flow(api_client):
     })
     assert ver_resp.status_code == 200
     assert "user_id" in ver_resp.data
+

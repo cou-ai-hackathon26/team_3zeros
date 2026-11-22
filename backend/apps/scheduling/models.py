@@ -86,3 +86,4 @@ class Appointment(TimeStamped):
 
     def __str__(self):
         return f"Appointment({self.public_id}, {self.state}, patient={self.patient_id})"
+

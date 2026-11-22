@@ -91,3 +91,4 @@ class DuplicateCandidate(TimeStamped):
 
     def __str__(self):
         return f"DuplicateCandidate({self.patient_a.public_id} <-> {self.patient_b.public_id}, score={self.score})"
+

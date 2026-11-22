@@ -46,3 +46,4 @@ class ConsentSerializer(serializers.ModelSerializer):
             "revoked_at",
             "created_at",
         ]
+

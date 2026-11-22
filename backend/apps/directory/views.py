@@ -54,3 +54,4 @@ class PractitionerDiscoveryView(views.APIView):
         page = paginator.paginate_queryset(queryset, request)
         serializer = PractitionerDirectorySerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
+

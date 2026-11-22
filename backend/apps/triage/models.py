@@ -81,3 +81,4 @@ class TriageSummary(TimeStamped):
 
     def __str__(self):
         return f"TriageSummary for {self.session_id}"
+

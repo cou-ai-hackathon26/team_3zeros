@@ -110,3 +110,4 @@ class EmergencyReferralCreateSerializer(serializers.Serializer):
 class ReferralActionSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True)
     outcome = serializers.DictField(required=False)
+

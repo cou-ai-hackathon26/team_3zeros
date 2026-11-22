@@ -12,3 +12,4 @@ urlpatterns = [
     path("facilities", FacilityDiscoveryView.as_view(), name="directory-facilities"),
     path("practitioners", PractitionerDiscoveryView.as_view(), name="directory-practitioners"),
 ]
+

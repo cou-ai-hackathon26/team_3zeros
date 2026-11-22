@@ -87,3 +87,4 @@ def test_appointment_propose_alternate_slot(scheduling_setup):
     assert slot2.state == "HELD"       # alternate slot held
     assert appt.slot == slot2
     assert appt.original_slot == slot1
+

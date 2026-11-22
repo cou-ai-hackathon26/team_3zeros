@@ -47,3 +47,4 @@ class AuditEvent(models.Model):
 
     def __str__(self):
         return f"AuditEvent({self.action} on {self.object_type}:{self.object_id} by {self.actor_user_id})"
+

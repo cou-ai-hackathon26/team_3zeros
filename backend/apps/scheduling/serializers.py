@@ -79,3 +79,4 @@ class AppointmentCreateSerializer(serializers.Serializer):
 class AppointmentActionSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True)
     alternate_slot_id = serializers.UUIDField(required=False, allow_null=True)
+

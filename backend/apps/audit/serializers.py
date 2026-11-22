@@ -18,3 +18,4 @@ class AuditEventSerializer(serializers.ModelSerializer):
             "reason",
             "request_id",
         ]
+

@@ -29,3 +29,4 @@ def record_audit_event(
         ip=ip,
         user_agent_hash=user_agent_hash,
     )
+

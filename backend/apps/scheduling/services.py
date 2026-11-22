@@ -98,3 +98,4 @@ def execute_appointment_transition(user, appointment_public_id, action, payload=
             request_id=request_id,
         )
         return appointment, allowed_actions
+

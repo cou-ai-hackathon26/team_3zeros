@@ -101,3 +101,4 @@ class ProviderUnavailableError(BaseAPIException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     code = "provider_unavailable"
     default_message = "The external service provider is currently unavailable."
+

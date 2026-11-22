@@ -12,3 +12,4 @@ urlpatterns = [
     path("encounters/<uuid:public_id>", EncounterDetailView.as_view(), name="encounter-detail"),
     path("encounters/<uuid:public_id>/observations", EncounterObservationCreateView.as_view(), name="encounter-observations"),
 ]
+

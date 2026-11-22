@@ -86,3 +86,4 @@ class PractitionerRole(TimeStamped):
 
     def __str__(self):
         return f"{self.practitioner.name} @ {self.facility.name} ({self.specialty.name_en})"
+

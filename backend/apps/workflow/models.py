@@ -49,3 +49,4 @@ class HistoryEntry(models.Model):
 
     def __str__(self):
         return f"HistoryEntry({self.action}: {self.from_state} -> {self.to_state} on {self.aggregate_id})"
+

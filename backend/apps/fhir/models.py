@@ -20,3 +20,4 @@ class FhirIndex(TimeStamped):
 
     def __str__(self):
         return f"FhirIndex({self.resource_type}/{self.fhir_id})"
+

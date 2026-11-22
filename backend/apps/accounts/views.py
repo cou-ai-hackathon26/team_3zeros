@@ -130,3 +130,4 @@ class ActiveFacilityView(views.APIView):
             "message": "Active facility updated.",
             "active_facility_id": facility_id,
         })
+

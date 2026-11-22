@@ -55,3 +55,4 @@ class ClinicalObservation(TimeStamped):
 
     def __str__(self):
         return f"Observation({self.code}: {self.value_string or self.value_numeric} {self.unit})"
+

@@ -82,3 +82,4 @@ def resolve_duplicate_candidate(user, candidate_public_id, status: str, notes: s
         request_id=request_id,
     )
     return candidate
+
