@@ -1,0 +1,62 @@
+import pytest
+from rest_framework.test import APIClient
+from apps.accounts.models import User, Membership
+from apps.organizations.models import Facility
+
+@pytest.fixture
+def api_client():
+    return APIClient()
+
+@pytest.fixture
+def auth_setup(db):
+    user = User.objects.create_user(
+        phone="+8801712345678",
+        email="doctor@medidemo.com",
+        password="secretpassword123",
+        display_name="Dr. Nasreen",
+    )
+    facility = Facility.objects.create(name="Upazila Health Complex Savar", name_bn="সাভার উপজেলা স্বাস্থ্য কমপ্লেক্স")
+    Membership.objects.create(user=user, facility=facility, role="clinician", permissions=["referral.create", "schedule.manage"])
+    return {"user": user, "facility": facility}
+
+@pytest.mark.django_db
+def test_login_and_me_endpoint(api_client, auth_setup):
+    data = auth_setup
+    # 1. Login with password
+    login_resp = api_client.post("/api/v1/auth/login", {
+        "email": "doctor@medidemo.com",
+        "password": "secretpassword123",
+    })
+    assert login_resp.status_code == 200
+    assert "user_id" in login_resp.data
+
+    # 2. Call /auth/me
+    me_resp = api_client.get("/api/v1/auth/me")
+    assert me_resp.status_code == 200
+    assert me_resp.data["email"] == "doctor@medidemo.com"
+    assert me_resp.data["display_name"] == "Dr. Nasreen"
+    assert "clinician" in me_resp.data["roles"]
+
+    # 3. Switch active facility
+    fac_resp = api_client.post("/api/v1/auth/active-facility", {
+        "facility_id": str(data["facility_facility_id"] if "facility_facility_id" in data else data["facility"].public_id)
+    })
+    assert fac_resp.status_code == 200
+
+    # 4. Logout
+    logout_resp = api_client.post("/api/v1/auth/logout")
+    assert logout_resp.status_code == 200
+
+@pytest.mark.django_db
+def test_otp_auth_flow(api_client):
+    # 1. Request OTP
+    req_resp = api_client.post("/api/v1/auth/otp/request", {"phone": "+8801999999999"})
+    assert req_resp.status_code == 200
+
+    # 2. Verify OTP -> logs in patient
+    ver_resp = api_client.post("/api/v1/auth/otp/verify", {
+        "phone": "+8801999999999",
+        "code": "123456",
+    })
+    assert ver_resp.status_code == 200
+    assert "user_id" in ver_resp.data
