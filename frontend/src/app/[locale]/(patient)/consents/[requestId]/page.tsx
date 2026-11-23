@@ -1,121 +1,86 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
-import { ConsentSheet } from "@/components/ConsentSheet/ConsentSheet";
-import { StatusLabel } from "@/components/StatusLabel/StatusLabel";
-import { Toast } from "@/components/Toast/Toast";
-import { type LocalePageProps } from "@/app/resolveLocale";
-import { usePageLocale } from "@/app/usePageLocale";
-import styles from "@/app/[locale]/screens.module.css";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { usePageLocale } from "../../../../usePageLocale";
+import { createIntentIdempotencyKey } from "../../../../../api/client";
+import { t } from "../../../../../i18n/format";
+import { useConsentAction, useConsentRequest } from "../../../../../api/queries/hooks";
+import { ConsentSheet } from "../../../../../components/ConsentSheet/ConsentSheet";
+import { Column, QueryBoundary } from "../../../../../components/QueryBoundary";
+import { StatusBadge } from "../../../../../components/StatusBadge/StatusBadge";
+import { useToast } from "../../../../../components/Toast/Toast";
+import { humanizeCode } from "../../../../../features/patient/display";
+import { Alert } from "../../../../../components/ui/states";
 
 /**
- * UIUX §6.7: Consent request (patient).
+ * `/consents/[requestId]`: decide. Two buttons of equal size and weight (INV-10). The request,
+ * its purpose and its categories come from the backend, not from message files.
+ * The sender's approval is a separate step (INV-10): agreeing here sends nothing by itself.
  */
-export default function PatientConsentRequestPage({ params }: LocalePageProps) {
-  const locale = usePageLocale(params, "bn");
-  const [consentState, setConsentState] = useState<"PENDING" | "GRANTED" | "REFUSED">("PENDING");
-  const [decisionMsg, setDecisionMsg] = useState<string | null>(null);
+export default function ConsentRequestPage() {
+  const locale = usePageLocale(undefined, "bn");
+  const requestId = String(useParams<{ requestId: string }>()?.requestId ?? "");
+  const query = useConsentRequest(requestId);
+  const action = useConsentAction();
+  const toast = useToast();
+  const [outcome, setOutcome] = useState<"granted" | "refused" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const L = (k: string) => t(locale, `consents.${k}`);
+
+  async function decide(kind: "grant" | "refuse") {
+    if (action.isPending) return; // one decision per press
+    setError(null);
+    try {
+      await action.mutateAsync({ kind, id: requestId, idempotencyKey: createIntentIdempotencyKey() });
+      setOutcome(kind === "grant" ? "granted" : "refused");
+      toast({ message: kind === "grant" ? L("granted") : L("refused") });
+    } catch (e) {
+      // Whatever the cause, say plainly that nothing was shared, and keep both buttons available.
+      void e;
+      setError(L("error"));
+      await query.refetch();
+    }
+  }
 
   return (
-    <main className={styles.pageShell}>
-      <header className={styles.topBar}>
-        <div>
-          <h1 className={styles.patientTitle}>
-            {locale === "bn"
-              ? "তথ্য শেয়ারের অনুমতি ও গোপনীয়তা"
-              : "Record sharing & privacy consent"}
-          </h1>
-          <p className={styles.capacityMeta}>
-            {locale === "bn"
-              ? "আপনার অনুমতি ছাড়া কোনো হাসপাতাল বা ডাক্তারের কাছে আপনার পূর্ববর্তী রেকর্ড পাঠানো হয় না (INV-10)।"
-              : "Your clinical record is never shared with another facility without your explicit permission (INV-10)."}
-          </p>
-        </div>
-        <StatusLabel
-          entity="consent_request"
-          state={consentState}
-          stopStatus={consentState === "GRANTED" ? "completed" : consentState === "REFUSED" ? "exception" : "current"}
-          locale={locale}
-        />
-      </header>
-
-      <ConsentSheet
-        recipientPractitioner={locale === "bn" ? "ডা. রহিমা খাতুন" : "Dr. Rahima Khatun"}
-        recipientFacility={
-          locale === "bn"
-            ? "টাঙ্গাইল ২৫০ শয্যা জেলা হাসপাতাল"
-            : "Tangail 250-Bed District Hospital"
-        }
-        purpose={
-          locale === "bn"
-            ? "মির্জাপুর উপজেলা স্বাস্থ্য কমপ্লেক্স থেকে বিশেষজ্ঞ রেফারেল পরামর্শের জন্য"
-            : "Specialist referral consultation from Mirzapur Upazila Health Complex"
-        }
-        categories={
-          locale === "bn"
-            ? [
-                "সাক্ষাতের বিবরণ (২২ নভেম্বর ২০২৬ — বহির্বিভাগ)",
-                "ল্যাব রিপোর্ট (সিবিসি ও হিমোগ্লোবিন ১০.২ g/dL)",
-                "বর্তমান ওষুধের তালিকা (অ্যামলোডিপিন ৫ মি.গ্রা.)",
-              ]
-            : [
-                "Clinical encounters (22 Nov 2026 — Outpatient visit)",
-                "Verified lab reports (CBC & Hemoglobin 10.2 g/dL)",
-                "Current medications (Amlodipine 5mg)",
-              ]
-        }
-        expiresAt="2026-12-23T00:00:00Z"
-        locale={locale}
-        onGrant={() => {
-          setConsentState("GRANTED");
-          setDecisionMsg(
-            locale === "bn"
-              ? "ডা. রহিমা খাতুনের সাথে তথ্য শেয়ারের অনুমতি দেওয়া হয়েছে।"
-              : "Record sharing granted for Dr. Rahima Khatun."
+    <Column>
+      <Link href={`/${locale}/consents`} className="text-dense text-indigo underline underline-offset-2">{L("back")}</Link>
+      <QueryBoundary query={query} locale={locale} loadingLabel={L("loading")} errorMessage={L("error")} notFoundMessage={L("notFound")}>
+        {(r) => {
+          const decided = outcome ?? (r.state === "GRANTED" ? "granted" : r.state === "REFUSED" ? "refused" : null);
+          return (
+            <>
+              {error && <Alert tone="attention" title={error} />}
+              {decided ? (
+                <section aria-live="polite" className="flex flex-col gap-3 rounded-tile border border-line bg-surface p-5">
+                  <h1 className="m-0 font-serif text-title">{L("requestTitle")}</h1>
+                  <StatusBadge entity="consent_request" state={decided === "granted" ? "GRANTED" : "REFUSED"} tone={decided === "granted" ? "positive" : "neutral"} locale={locale} />
+                  <p className="m-0 text-body">{decided === "granted" ? L("decidedGranted") : L("decidedRefused")}</p>
+                </section>
+              ) : r.state !== "PENDING" ? (
+                <section className="flex flex-col gap-3 rounded-tile border border-line bg-surface p-5">
+                  <h1 className="m-0 font-serif text-title">{L("requestTitle")}</h1>
+                  <StatusBadge entity="consent_request" state={r.state} tone="neutral" locale={locale} />
+                  <p className="m-0 text-body">{L("alreadyDecided")}</p>
+                </section>
+              ) : (
+                <ConsentSheet
+                  recipientPractitioner={r.recipient_practitioner_name}
+                  recipientFacility={r.recipient_facility_name}
+                  purpose={humanizeCode(r.purpose)}
+                  categories={r.categories.map(humanizeCode)}
+                  expiresAt={r.expires_at}
+                  locale={locale}
+                  onGrant={() => decide("grant")}
+                  onRefuse={() => decide("refuse")}
+                />
+              )}
+            </>
           );
         }}
-        onRefuse={() => {
-          setConsentState("REFUSED");
-          setDecisionMsg(
-            locale === "bn"
-              ? "তথ্য শেয়ার করা হয়নি। প্রেরক ডাক্তারকে জানানো হয়েছে।"
-              : "Sharing refused. Your sending doctor has been notified."
-          );
-        }}
-      />
-
-      {consentState === "GRANTED" && (
-        <section className={styles.formStack}>
-          <div className={styles.topBar}>
-            <div>
-              <h2 className={styles.sectionHeading}>
-                {locale === "bn" ? "সক্রিয় সম্মতি" : "Active sharing permission"}
-              </h2>
-              <p className={styles.capacityMeta}>
-                {locale === "bn"
-                  ? "আপনি যেকোনো সময় এই অনুমতি প্রত্যাহার করতে পারেন।"
-                  : "You can revoke this permission at any time to stop future access."}
-              </p>
-            </div>
-            <button
-              type="button"
-              className={styles.filterChip}
-              onClick={() => {
-                setConsentState("REFUSED");
-                setDecisionMsg(
-                  locale === "bn"
-                    ? "তথ্য শেয়ারের অনুমতি প্রত্যাহার করা হয়েছে।"
-                    : "Sharing permission revoked."
-                );
-              }}
-            >
-              {locale === "bn" ? "অনুমতি প্রত্যাহার করুন" : "Revoke sharing"}
-            </button>
-          </div>
-        </section>
-      )}
-
-      {decisionMsg && <Toast message={decisionMsg} onDismiss={() => setDecisionMsg(null)} />}
-    </main>
+      </QueryBoundary>
+    </Column>
   );
 }

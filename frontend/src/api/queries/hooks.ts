@@ -1,10 +1,10 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import type { RequestOptions } from "../client";
 import { queryKeys } from "./index";
 import { useApi } from "./provider";
-import type { Appointment, ConsentRequest, NotificationItem, Page, QueryFilters, Referral } from "./types";
+import type { Appointment, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot } from "./types";
 
 /** Builds `?a=1&b=2`, skipping undefined and empty values. */
 export function withQuery(path: string, params?: QueryFilters): string {
@@ -53,14 +53,38 @@ export function useSpecialties() {
     staleTime: 10 * 60_000,
   });
 }
-export const usePractitioners = (filters?: QueryFilters) =>
-  useGet<Page<unknown>>(queryKeys.practitioners(filters as Record<string, string>), withQuery("/directory/practitioners", filters));
-export const usePractitionerSlots = (practitionerId: string, facilityId?: string, enabled = true) =>
-  useGet<Page<unknown>>(
-    queryKeys.slots(practitionerId, facilityId),
-    withQuery(`/practitioners/${practitionerId}/slots`, { facility: facilityId }),
+/** Doctor discovery, loaded a cursor page at a time (`next_cursor`). */
+export function usePractitioners(filters?: QueryFilters) {
+  const api = useApi();
+  return useInfiniteQuery({
+    queryKey: queryKeys.practitioners(filters as Record<string, string>),
+    initialPageParam: "",
+    queryFn: async ({ pageParam }) =>
+      (await api.get<Page<DirectoryPractitioner>>(withQuery("/directory/practitioners", { ...filters, cursor: pageParam || undefined }))).data,
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+  });
+}
+
+/** Facilities with their latest dated capacity report (INV-14). */
+export function useFacilityDirectory() {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.facilities(),
+    queryFn: async () => asList((await api.get<Page<DirectoryFacilityEntry> | DirectoryFacilityEntry[]>(withQuery("/directory/facilities", { limit: "100" }))).data),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Open slots of one practitioner. The endpoint returns a bare array today (audit A-15 family). */
+export function usePractitionerSlots(practitionerId: string, facilityId?: string, enabled = true) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.slots(practitionerId, facilityId),
+    queryFn: async () => asList((await api.get<Page<Slot> | Slot[]>(withQuery(`/practitioners/${practitionerId}/slots`, { facility: facilityId }))).data),
     enabled,
-  );
+    staleTime: 0,
+  });
+}
 
 export const useAppointments = (filters?: QueryFilters) =>
   useGet<Page<Appointment>>(queryKeys.appointments(filters as Record<string, string>), withQuery("/appointments", filters));
@@ -70,7 +94,8 @@ export const useReferrals = (direction?: "incoming" | "outgoing", state?: string
   useGet<Page<Referral>>(queryKeys.referrals(direction, state), withQuery("/referrals", { direction, state }));
 export const useReferral = (id: string) => useGet<Referral>(queryKeys.referral(id), `/referrals/${id}`);
 
-export const useConsents = () => useGet<Page<unknown>>(queryKeys.consents, "/consents?patient=me");
+// The backend serves this list at `/consents/` with the trailing slash (audit A-21); next.config keeps the slash.
+export const useConsents = () => useGet<ConsentsResponse>(queryKeys.consents, "/consents/?patient=me");
 export const useConsentRequest = (id: string) => useGet<ConsentRequest>(queryKeys.consentRequest(id), `/consent-requests/${id}`);
 export const useNotifications = () => useGet<Page<NotificationItem>>(queryKeys.notifications, "/notifications");
 
@@ -102,5 +127,30 @@ export function useTransition(entity: "appointments" | "referrals") {
       qc.invalidateQueries({ queryKey: [entity === "appointments" ? "scheduling" : "referrals"] });
       qc.invalidateQueries({ queryKey: entity === "appointments" ? queryKeys.appointment(v.id) : queryKeys.referral(v.id) });
     },
+  });
+}
+
+
+/** Patient asks for a slot (`POST /appointments`). A `409 slot_unavailable` means someone else took it: the caller refetches slots. */
+export function useRequestAppointment() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { slotId: string; triageSessionId?: string; idempotencyKey: string }) =>
+      (await api.post<Appointment>("/appointments", { body: { slot_id: v.slotId, ...(v.triageSessionId ? { triage_session_id: v.triageSessionId } : {}) }, idempotencyKey: v.idempotencyKey })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["scheduling"] }),
+  });
+}
+
+/** Patient decision on a consent request, and revocation of an active consent. Equal weight: INV-10. */
+export function useConsentAction() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { kind: "grant" | "refuse" | "revoke"; id: string; idempotencyKey: string }) => {
+      const path = v.kind === "revoke" ? `/consents/${v.id}/revoke` : `/consent-requests/${v.id}/${v.kind}`;
+      return (await api.post<unknown>(path, { body: {}, idempotencyKey: v.idempotencyKey })).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["consents"] }),
   });
 }

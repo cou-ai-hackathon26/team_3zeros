@@ -21,7 +21,7 @@ export function useMe() {
       try {
         return (await api.get<UserMe>("/auth/me")).data;
       } catch (e) {
-        if (e instanceof ApiError && e.status === 401) return null;
+        if (e instanceof ApiError && (e.status === 401 || e.code === "not_authenticated")) return null;
         throw e;
       }
     },
@@ -60,7 +60,8 @@ export function useAuth() {
       try {
         return await api.post(path, options);
       } catch (e) {
-        if (e instanceof ApiError && e.code === "csrf_failed") {
+        // Django reports a CSRF failure as `permission_denied` with a "CSRF Failed" message (audit A-22), not `csrf_failed`.
+        if (e instanceof ApiError && (e.code === "csrf_failed" || /^CSRF Failed/i.test(e.message))) {
           await api.get("/auth/me").catch(() => undefined);
           return api.post(path, options);
         }

@@ -21,7 +21,7 @@ export function NotAuthorisedBody({ me, noAccess = false }: { me: UserMe; noAcce
   return (
     <>
       <h1 className="m-0 font-serif text-title">{t(locale, "notAuthorised.title")}</h1>
-      <p className="m-0 text-body text-ink-muted">{noAccess ? t(locale, "auth.staff.noAccess") : t(locale, "notAuthorised.body")}</p>
+      <p className="m-0 text-body text-ink-muted">{noAccess ? t(locale, "notAuthorised.noAccess") : t(locale, "notAuthorised.body")}</p>
       <div className="flex flex-wrap gap-3">
         <Link href={`/${locale}${home}`} className={buttonVariants({ variant: "primary", size: "lg" })}>
           {t(locale, "notAuthorised.home")}

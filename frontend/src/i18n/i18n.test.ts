@@ -59,3 +59,23 @@ describe("FRONTEND §6-7 i18n & Digit Normalization", () => {
     expect(flatEn).not.toMatch(/\bSorry\b|\bapologize\b|\bdiagnosis\b/i);
   });
 });
+
+import { formatTimeAgo } from "./format";
+
+describe("formatTimeAgo (INV-14: dated capacity text)", () => {
+  const now = Date.parse("2026-11-23T12:00:00Z");
+  it("uses minutes, hours and days in English", () => {
+    expect(formatTimeAgo("2026-11-23T11:55:00Z", "en", now)).toBe("5 minutes ago");
+    expect(formatTimeAgo("2026-11-23T09:00:00Z", "en", now)).toBe("3 hours ago");
+    expect(formatTimeAgo("2026-11-22T12:00:00Z", "en", now)).toBe("1 day ago");
+    expect(formatTimeAgo("2026-11-20T12:00:00Z", "en", now)).toBe("3 days ago");
+  });
+  it("uses Bangla words and digits in Bangla", () => {
+    expect(formatTimeAgo("2026-11-23T09:00:00Z", "bn", now)).toBe("৩ ঘণ্টা আগে");
+    expect(formatTimeAgo("2026-11-20T12:00:00Z", "bn", now)).toBe("৩ দিন আগে");
+  });
+  it("says 'just now' under a minute and returns empty for an invalid date", () => {
+    expect(formatTimeAgo("2026-11-23T11:59:40Z", "en", now)).toBe("just now");
+    expect(formatTimeAgo("nope", "en", now)).toBe("");
+  });
+});

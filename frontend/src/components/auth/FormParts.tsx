@@ -1,5 +1,6 @@
 "use client";
 
+import "../../i18n/auth";
 import React, { useEffect, useRef } from "react";
 import { TriangleAlert } from "lucide-react";
 import { ApiError } from "../../api/client";

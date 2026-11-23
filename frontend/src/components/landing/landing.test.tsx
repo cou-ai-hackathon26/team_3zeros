@@ -17,8 +17,13 @@ import { PublicHeader } from "../shell/PublicHeader";
 import { LandingPage, type LandingClaims } from "./LandingPage";
 import { generateMetadata } from "../../app/[locale]/(public)/page";
 import { landingKeyDiff, launchProblems } from "../../../scripts/check-content.mjs";
-import en from "../../i18n/messages/en.json";
-import bn from "../../i18n/messages/bn.json";
+import enBase from "../../i18n/messages/en.json";
+import bnBase from "../../i18n/messages/bn.json";
+import enLanding from "../../i18n/messages/landing.en.json";
+import bnLanding from "../../i18n/messages/landing.bn.json";
+
+const en = { ...enBase, landing: enLanding };
+const bn = { ...bnBase, landing: bnLanding };
 import review from "../../content/landing-review.json";
 
 const OFF: LandingClaims = { voice: false, offlineEmergency: false, rulesApproved: false, consentWordingApproved: false, otpIsReal: false };

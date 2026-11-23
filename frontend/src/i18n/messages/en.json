@@ -215,7 +215,8 @@
     "close": "Close",
     "more": "More",
     "requestId": "Request ID",
-    "back": "Back"
+    "back": "Back",
+    "facility": "Facility"
   },
   "nav": {
     "home": "Home",
@@ -263,7 +264,8 @@
   "notAuthorised": {
     "title": "This area is not part of your account",
     "body": "You are signed in, but this page belongs to another part of Medi Waypoint.",
-    "home": "Go to my home"
+    "home": "Go to my home",
+    "noAccess": "Your account has no facility access yet."
   },
   "notFound": {
     "title": "We could not find that, or you do not have access to it.",
@@ -272,134 +274,6 @@
   "errorPage": {
     "title": "Something went wrong on our side.",
     "body": "Try again. If it keeps happening, tell your facility desk and give this reference."
-  },
-  "auth": {
-    "patient": {
-      "title": "Sign in with your mobile number",
-      "help": "We will send a 6-digit code by SMS.",
-      "phone": "Mobile number",
-      "sendCode": "Send code",
-      "sending": "Sending…",
-      "codeTitle": "Enter the code",
-      "codeSent": "Sent to {phone}.",
-      "changeNumber": "Change number",
-      "code": "Code",
-      "signIn": "Sign in",
-      "signingIn": "Signing in…",
-      "resend": "Send a new code",
-      "resendIn": "Send a new code in {s} seconds",
-      "notSetUp": "Your account is not set up yet. Please ask the facility desk.",
-      "staffLink": "Staff sign in",
-      "orStaff": "Are you a doctor or facility staff?",
-      "privacy": "Your record is shared only when you agree."
-    },
-    "staff": {
-      "title": "Staff sign in",
-      "identifier": "Email or phone",
-      "password": "Password",
-      "show": "Show password",
-      "hide": "Hide password",
-      "signIn": "Sign in",
-      "signingIn": "Signing in…",
-      "forgotAsk": "Forgot your password? Ask your facility admin.",
-      "forgotLink": "Forgot password?",
-      "howAccess": "How do I get access?",
-      "mfaTitle": "Enter your verification code",
-      "mfaHelp": "Enter the 6-digit code from your verification method.",
-      "verify": "Verify",
-      "verifying": "Verifying…",
-      "back": "Back to sign in",
-      "patientLink": "Patient sign in",
-      "orPatient": "Are you a patient?",
-      "privacy": "Every record access is logged.",
-      "noAccess": "Your account has no facility access yet."
-    },
-    "error": {
-      "badCredentials": "Email, phone or password is not right.",
-      "inactive": "This account is not active. Contact your facility admin.",
-      "badCode": "That code is not right or has expired.",
-      "badMfa": "That code is not right.",
-      "mfaLost": "Please sign in again.",
-      "rateLimited": "Too many attempts. Try again in a few minutes.",
-      "offline": "No connection. Check your internet and try again.",
-      "required": "This field is required."
-    },
-    "brand": {
-      "patientLine": "Find the right doctor and keep your care in one place.",
-      "staffLine": "Send a patient on with their record, and hear what happened.",
-      "you": "You",
-      "doctor": "Doctor",
-      "hospital": "Hospital",
-      "sender": "Sender",
-      "receiver": "Receiver",
-      "returned": "Outcome returned"
-    },
-    "choose": {
-      "title": "Continue as",
-      "help": "Your account can use more than one part of Medi Waypoint."
-    },
-    "signedOut": {
-      "title": "You are signed out",
-      "expiredTitle": "You were signed out to keep your information private.",
-      "expiredBody": "Sign in to continue.",
-      "signIn": "Sign in",
-      "staff": "Staff sign in",
-      "home": "Go to home"
-    },
-    "access": {
-      "title": "How staff get access",
-      "intro": "Staff accounts are created by your facility admin. You cannot sign up on your own.",
-      "step1": "Your facility admin creates your account using your BMDC registration number.",
-      "step2": "You receive your sign-in details.",
-      "step3": "You sign in and set up your verification code.",
-      "signIn": "Staff sign in",
-      "requestTitle": "Request access",
-      "requestHelp": "This sends a request to the facility's admin. It does not create an account.",
-      "name": "Your name",
-      "bmdc": "BMDC registration number",
-      "facility": "Facility",
-      "contact": "Work phone or email",
-      "send": "Send request",
-      "sending": "Sending…",
-      "sent": "Request sent to {facility}. You will be contacted when it is reviewed.",
-      "reference": "Reference"
-    },
-    "welcome": {
-      "title": "Tell us who you are",
-      "help": "Doctors see this with your requests.",
-      "givenName": "Name",
-      "familyName": "Family name",
-      "nameBn": "Name in Bangla",
-      "birth": "Date of birth",
-      "age": "Or your age",
-      "sex": "Sex",
-      "female": "Female",
-      "male": "Male",
-      "other": "Other",
-      "area": "Area",
-      "language": "Language",
-      "continue": "Continue",
-      "duplicate": "We may already have a record for you. The facility desk will confirm."
-    },
-    "reset": {
-      "title": "Reset your password",
-      "help": "Enter your email or phone. If an account matches, we will send instructions.",
-      "identifier": "Email or phone",
-      "send": "Send reset instructions",
-      "neutral": "If an account matches, we have sent instructions.",
-      "newTitle": "Set a new password",
-      "rules": "Use at least 12 characters. Do not use a password that has appeared in a known breach.",
-      "newPassword": "New password",
-      "save": "Save password",
-      "done": "Password changed. Sign in with your new password.",
-      "expired": "This link has expired. Request a new one."
-    },
-    "verifyEmail": {
-      "success": "Email confirmed. You can sign in.",
-      "expired": "This link has expired.",
-      "used": "This link was already used.",
-      "signIn": "Sign in"
-    }
   },
   "place": {
     "division": "Division",
@@ -411,164 +285,100 @@
     "title": "Session timeout warning",
     "body": "For patient privacy on shared computers, you will be signed out in {s} seconds."
   },
-  "landing": {
-    "meta": {
-      "title": "Medi Waypoint: your care, handed over properly",
-      "description": "Describe your problem in Bangla or English, get guided to a suitable doctor, and always see who has your request."
+  "home": {
+    "title": "Home",
+    "consent": {
+      "line": "{name} asks to see your record",
+      "button": "Review request"
     },
-    "skip": "Skip to content",
-    "nav": {
-      "how": "How it works",
-      "features": "What it does",
-      "safety": "Safety",
-      "forDoctors": "For doctors",
-      "label": "Page sections"
+    "alternate": {
+      "line": "With you: the doctor proposed a new time",
+      "button": "See new time"
     },
-    "hero": {
-      "headline": "Your care, handed over properly.",
-      "text": "Describe your problem in Bangla or English. We guide you to a suitable doctor, and you can always see who has your request.",
-      "sample": "Example with sample data",
-      "sampleDoctor": "Dr. Rahima Khatun",
-      "sampleFacility": "Tangail District Hospital",
-      "samplePurpose": "Referral to a specialist",
-      "sampleCategoryVisit": "Visit summary",
-      "sampleCategoryLabs": "Lab reports"
+    "requested": {
+      "line": "With {name}: waiting for a decision",
+      "button": "View request"
     },
-    "problem": {
-      "title": "Where care gets lost",
-      "closing": "Medi Waypoint keeps track at each handover.",
-      "items": {
-        "which": {
-          "h": "Which doctor?",
-          "p": "When you are unwell it is hard to know what kind of doctor you need, or where to find one near you."
-        },
-        "records": {
-          "h": "Records stay behind",
-          "p": "Reports and notes often do not reach the next doctor, so tests and questions are repeated."
-        },
-        "word": {
-          "h": "No word back",
-          "p": "The doctor who refers a patient to a hospital often never learns what happened."
-        }
-      }
+    "confirmed": {
+      "line": "Visit confirmed: {when}, {facility}",
+      "button": "View visit"
     },
-    "how": {
-      "title": "From first symptom to the right doctor",
-      "alert": "If your answers suggest an emergency, the guide stops and tells you to get emergency care. It does not continue with questions.",
-      "steps": {
-        "tell": {
-          "title": "Tell us what is wrong",
-          "text": "Speak or type in Bangla or English. Switch language whenever you like.",
-          "sample": "Sample caption",
-          "assistant": "What is troubling you today?",
-          "patient": "I have had a fever for three days."
-        },
-        "check": {
-          "title": "Check the summary",
-          "text": "Read back what you said and correct anything before a doctor sees it.",
-          "sample": "Fever for three days"
-        },
-        "choose": {
-          "title": "Choose a doctor and a time",
-          "text": "See doctors by area and specialty, and ask for a time that suits you.",
-          "sampleSpecialty": "Medicine, Tangail",
-          "sampleSlot": "Thu 28 Nov, 10:30"
-        },
-        "decide": {
-          "title": "The doctor decides, and you see it",
-          "text": "The doctor accepts, suggests another time, or declines. Your request shows who has it now."
-        }
-      }
-    },
-    "features": {
-      "title": "What it does",
-      "tiles": {
-        "voice": {
-          "title": "Speak in Bangla or English",
-          "text": "Use your phone's microphone, or type. Captions are always shown."
-        },
-        "typed": {
-          "title": "Type in Bangla or English",
-          "text": "Write what is wrong in your own words. You can switch language whenever you like."
-        },
-        "track": {
-          "title": "Always know who has your request",
-          "text": "Each request shows whether it is with you, the doctor or the hospital."
-        },
-        "consent": {
-          "title": "You decide who sees your record",
-          "text": "A doctor must ask before your record is shared with another hospital. You can say no, and you can withdraw later."
-        },
-        "reports": {
-          "title": "Reports checked by a clinician",
-          "text": "Values read from an uploaded report are marked as drafts until a clinician confirms them."
-        },
-        "loop": {
-          "title": "Referrals that come back",
-          "text": "The receiving hospital acknowledges the referral and records the outcome, and the referring doctor sees it.",
-          "sender": "Sending facility",
-          "receiver": "Receiving facility",
-          "returned": "Outcome returned"
-        },
-        "emergency": {
-          "title": "Emergency referral without internet",
-          "text": "Facility staff can record five essential details offline, print a slip, and the referral is sent when the connection returns."
-        }
-      }
-    },
-    "safety": {
-      "title": "What we do with your information",
-      "doesTitle": "What the system does",
-      "doesNotTitle": "What it does not do",
-      "does": {
-        "automated": "The guide is automated. It does not diagnose, prescribe or decide for a doctor.",
-        "rules": "Danger signs are checked by fixed rules written by clinicians before anything else.",
-        "consent": "Your record is shared with another hospital only after you agree, and you can withdraw.",
-        "audit": "Each time someone opens your record, it is logged.",
-        "approval": "Doctors approve appointments and referrals themselves. A text message can never approve anything.",
-        "code": "You sign in with a code sent to your phone. We do not keep a password for you."
-      },
-      "doesNot": {
-        "emergency": "It is not an emergency service.",
-        "doctor": "It does not replace seeing a doctor.",
-        "training": "It does not use your information to train AI models without your explicit permission."
-      }
-    },
-    "audiences": {
-      "patient": {
-        "title": "For you and your family",
-        "points": {
-          "words": "Explain your problem in your own words",
-          "find": "Find a doctor by area and specialty",
-          "see": "See what is happening with your request",
-          "control": "Control who sees your record"
-        }
-      },
-      "staff": {
-        "title": "For doctors and facility staff",
-        "points": {
-          "queue": "One queue of decisions: requests, referrals, reports to verify",
-          "drafts": "AI drafts are marked and need your approval before anything is sent",
-          "ack": "Know when the receiving facility acknowledges, and get the outcome back",
-          "emergency": "Send an emergency referral in five fields, even offline"
-        },
-        "access": "How do I get access?"
-      }
-    },
-    "final": {
-      "title": "Tell us what is wrong.",
-      "text": "It takes a few minutes. You can stop at any time."
-    },
-    "footer": {
-      "description": "Care that is handed over properly, from the first symptom to the outcome.",
-      "patients": "Patients",
-      "staff": "Doctors and staff",
-      "about": "About",
-      "patientSignIn": "Patient sign in",
-      "bottom": "Language"
-    },
-    "sticky": {
-      "label": "Start"
-    }
+    "describe": "Describe a problem",
+    "nextStep": "Next step",
+    "appointmentsEmpty": "Your requests will appear here.",
+    "reportsEmpty": "Reports your doctor adds will appear here.",
+    "consentsEmpty": "Nobody has asked to see your record.",
+    "appointmentsInProgress": "{n} in progress",
+    "consentsWaiting": "{n} waiting for your answer",
+    "consentsActive": "Sharing with {n}",
+    "loading": "Loading your home"
+  },
+  "doctors": {
+    "title": "Find a doctor",
+    "filters": "Filters",
+    "area": "Area",
+    "specialty": "Specialty",
+    "anySpecialty": "Any specialty",
+    "clear": "Clear filters",
+    "empty": "No doctors match. Try a wider area.",
+    "loading": "Loading doctors",
+    "chooseTime": "Choose a time",
+    "noTimes": "No times are open right now.",
+    "request": "Request this time",
+    "requesting": "Sending…",
+    "taken": "That time was just taken. Choose another.",
+    "sent": "Request sent",
+    "viewRequest": "View your request",
+    "more": "Show more doctors",
+    "reported": "Reported {ago} by {source}",
+    "stale": "This figure may be out of date.",
+    "slots": "Open times",
+    "error": "We could not load doctors.",
+    "errorSlots": "We could not load times.",
+    "requestError": "We could not send your request."
+  },
+  "appointments": {
+    "title": "Your appointments",
+    "inProgress": "In progress",
+    "past": "Past",
+    "empty": "You have no requests yet.",
+    "find": "Find a doctor",
+    "describe": "Describe your problem",
+    "loading": "Loading your appointments",
+    "error": "We could not load your appointments.",
+    "notFound": "We could not find that request, or you do not have access to it.",
+    "expires": "This request expires on {date}.",
+    "summary": "Triage summary attached",
+    "with": "With {name}",
+    "at": "{facility}",
+    "cancelTitle": "Cancel this request?",
+    "cancelBody": "The time will be released for someone else. You can request another time.",
+    "keep": "Keep request",
+    "back": "Back to appointments",
+    "when": "Time"
+  },
+  "consents": {
+    "title": "Sharing permissions",
+    "waiting": "Waiting for your answer",
+    "active": "Sharing now",
+    "past": "Past",
+    "empty": "Nobody has asked to see your record.",
+    "loading": "Loading sharing permissions",
+    "error": "We could not save your answer. Nothing was shared.",
+    "open": "Review request",
+    "revoke": "Stop sharing",
+    "revokeTitle": "Stop sharing with {facility}?",
+    "revokeBody": "{facility} will no longer be able to open your record.",
+    "keep": "Keep sharing",
+    "requestTitle": "Permission to share your record",
+    "notFound": "We could not find that request, or you do not have access to it.",
+    "decidedGranted": "You agreed to share. Your doctor has been told.",
+    "decidedRefused": "You said no. Your record will not be sent, and your doctor has been told.",
+    "alreadyDecided": "This request has already been answered.",
+    "granted": "Sharing agreed",
+    "refused": "Sharing refused",
+    "revoked": "Sharing stopped",
+    "until": "Valid until {date}",
+    "back": "Back to sharing permissions"
   }
 }

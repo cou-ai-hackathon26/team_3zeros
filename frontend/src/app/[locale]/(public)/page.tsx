@@ -1,3 +1,4 @@
+import "../../../i18n/landing";
 import React from "react";
 import type { Metadata } from "next";
 import { LandingPage } from "../../../components/landing/LandingPage";

@@ -182,7 +182,8 @@ export function createApiClient(options?: ApiClientOptions) {
     const response = await fetchImpl(req);
     if (!response.ok) {
       const apiError = await toApiError(response);
-      if (apiError.status === 401) {
+      // The contract says 401, but DRF session auth answers 403 with the same code (audit A-20): go by the code.
+      if (apiError.status === 401 || apiError.code === "not_authenticated" || apiError.code === "mfa_required") {
         if (apiError.code === "mfa_required") {
           options?.onMfaRequired?.();
         } else if (!path.startsWith("/auth/")) {

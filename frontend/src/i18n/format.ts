@@ -85,13 +85,35 @@ export function formatWaitingAge(iso: string, locale: Locale, nowMs: number = Da
   return `Waiting ${hText}${mins} min`;
 }
 
+/** "3 hours ago" / "৩ ঘণ্টা আগে": how old a reported figure is (INV-14, capacity is never shown as live). */
+export function formatTimeAgo(iso: string, locale: Locale, nowMs: number = Date.now()): string {
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) return "";
+  const minutes = Math.floor((nowMs - ms) / 60000);
+  if (minutes < 1) return locale === "bn" ? "এইমাত্র" : "just now";
+  const [n, unitEn, unitBn] =
+    minutes < 60 ? [minutes, "minute", "মিনিট"] : minutes < 1440 ? [Math.floor(minutes / 60), "hour", "ঘণ্টা"] : [Math.floor(minutes / 1440), "day", "দিন"];
+  return locale === "bn" ? `${toBanglaDigits(String(n))} ${unitBn} আগে` : `${n} ${unitEn}${n === 1 ? "" : "s"} ago`;
+}
+
 export function getMessages(locale: Locale) {
   return locale === "bn" ? bn : en;
 }
 
+/**
+ * Message namespaces that only some routes need (landing, auth). Each is registered by a module
+ * that only those routes import, so its copy is not shipped in every route's JavaScript.
+ */
+const extraNamespaces: Record<Locale, Record<string, unknown>> = { bn: {}, en: {} };
+
+export function registerMessages(namespace: string, messages: { en: unknown; bn: unknown }): void {
+  extraNamespaces.en[namespace] = messages.en;
+  extraNamespaces.bn[namespace] = messages.bn;
+}
+
 export function t(locale: Locale, dotPath: string): string {
-  const dict = getMessages(locale) as Record<string, unknown>;
   const parts = dotPath.split(".");
+  const dict = (parts[0] in extraNamespaces[locale] ? extraNamespaces[locale] : getMessages(locale)) as Record<string, unknown>;
   let cur: unknown = dict;
   for (const part of parts) {
     if (cur && typeof cur === "object" && part in (cur as Record<string, unknown>)) {

@@ -1,3 +1,4 @@
+import "../../i18n/landing";
 import React from "react";
 import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";

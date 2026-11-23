@@ -1,260 +1,186 @@
-﻿"use client";
+"use client";
 
-import React, { useState, useEffect } from "react";
-import { RouteLine } from "../../../../components/RouteLine/RouteLine";
-import { type LocalePageProps } from "../../../resolveLocale";
-import { usePageLocale } from "@/app/usePageLocale";
-import styles from "../../screens.module.css";
+import React, { useMemo, useState } from "react";
+import Link from "next/link";
+import { ChevronDown } from "lucide-react";
+import { usePageLocale } from "../../../usePageLocale";
+import { ApiError, createIntentIdempotencyKey } from "../../../../api/client";
+import { t, formatDhakaDateTime, formatTimeAgo } from "../../../../i18n/format";
+import { useFacilityDirectory, usePractitionerSlots, usePractitioners, useRequestAppointment, useSpecialties } from "../../../../api/queries/hooks";
+import type { DirectoryFacilityEntry, DirectoryPractitioner } from "../../../../api/queries/types";
+import { useMe } from "../../../../auth/me";
+import { fill, pickName } from "../../../../features/patient/display";
+import { AreaPicker } from "../../../../components/AreaPicker/AreaPicker";
+import { Column } from "../../../../components/QueryBoundary";
+import { Button, buttonVariants } from "../../../../components/ui/button";
+import { Alert, EmptyState, ErrorState, Skeleton } from "../../../../components/ui/states";
+import { PageHeader } from "../../../../components/ui/surfaces";
+import { cn } from "../../../../lib/cn";
 
-interface DoctorDirectoryEntry {
-  id: string;
-  registrationNumber: string;
-  nameEn: string;
-  nameBn: string;
-  specialtyCode: string;
-  specialtyEn: string;
-  specialtyBn: string;
-  facilityEn: string;
-  facilityBn: string;
-  areaEn: string;
-  areaBn: string;
-  nextSlot: string;
-  slots: string[];
-  capacityNoteEn: string;
-  capacityNoteBn: string;
+interface SpecialtyOption {
+  code: string;
+  name_en: string;
+  name_bn: string;
 }
 
-const INITIAL_DOCTORS: DoctorDirectoryEntry[] = [
-  {
-    id: "prac-1",
-    registrationNumber: "BMDC-A-41209",
-    nameEn: "Dr. Rahima Khatun",
-    nameBn: "ডা. রহিমা খাতুন",
-    specialtyCode: "medicine",
-    specialtyEn: "Medicine",
-    specialtyBn: "মেডিসিন",
-    facilityEn: "Tangail 250-Bed District Hospital",
-    facilityBn: "টাঙ্গাইল ২৫০ শয্যা জেলা হাসপাতাল",
-    areaEn: "Tangail Sadar",
-    areaBn: "টাঙ্গাইল সদর",
-    nextSlot: "Thu 10:30",
-    slots: ["Thu 10:30", "Thu 11:30", "Sun 09:30"],
-    capacityNoteEn: "Reported 3 hours ago by Tangail Facility Desk (18 beds open, ~25m OPD wait)",
-    capacityNoteBn: "৩ ঘণ্টা আগে টাঙ্গাইল হাসপাতাল ডেস্ক কর্তৃক প্রতিবেদিত (১৮টি শয্যা খালি, বহির্বিভাগ অপেক্ষা ~২৫ মিনিট)",
-  },
-  {
-    id: "prac-2",
-    registrationNumber: "BMDC-A-38914",
-    nameEn: "Dr. Mahmudul Hasan",
-    nameBn: "ডা. মাহমুদুল হাসান",
-    specialtyCode: "pediatrics",
-    specialtyEn: "Pediatrics",
-    specialtyBn: "শিশু বিভাগ",
-    facilityEn: "Mirzapur Upazila Health Complex",
-    facilityBn: "মির্জাপুর উপজেলা স্বাস্থ্য কমপ্লেক্স",
-    areaEn: "Mirzapur",
-    areaBn: "মির্জাপুর উপজেলা",
-    nextSlot: "Fri 09:30",
-    slots: ["Fri 09:30", "Sun 10:00", "Mon 11:00"],
-    capacityNoteEn: "Reported 1 day ago by Mirzapur UHC Admin (11 beds open, ~15m OPD wait)",
-    capacityNoteBn: "১ দিন আগে মির্জাপুর ইউএইচসি প্রশাসন কর্তৃক প্রতিবেদিত (১১টি শয্যা খালি)",
-  },
-  {
-    id: "prac-3",
-    registrationNumber: "BMDC-A-52103",
-    nameEn: "Dr. Farzana Akter",
-    nameBn: "ডা. ফারজানা আক্তার",
-    specialtyCode: "gynecology",
-    specialtyEn: "Gynecology & Obstetrics",
-    specialtyBn: "স্ত্রীরোগ ও প্রসূতিবিদ্যা",
-    facilityEn: "Tangail 250-Bed District Hospital",
-    facilityBn: "টাঙ্গাইল ২৫০ শয্যা জেলা হাসপাতাল",
-    areaEn: "Tangail Sadar",
-    areaBn: "টাঙ্গাইল সদর",
-    nextSlot: "Sun 10:00",
-    slots: ["Sun 10:00", "Mon 10:30", "Tue 09:30"],
-    capacityNoteEn: "Reported 3 hours ago by Tangail Facility Desk (Maternity unit open)",
-    capacityNoteBn: "৩ ঘণ্টা আগে টাঙ্গাইল হাসপাতাল ডেস্ক কর্তৃক প্রতিবেদিত (প্রসূতি ইউনিট চালু)",
-  },
-  {
-    id: "prac-4",
-    registrationNumber: "BMDC-A-29870",
-    nameEn: "Dr. Anisur Rahman",
-    nameBn: "ডা. আনিসুর রহমান",
-    specialtyCode: "cardiology",
-    specialtyEn: "Cardiology",
-    specialtyBn: "হৃদরোগ বিভাগ",
-    facilityEn: "Dhaka Medical College Hospital",
-    facilityBn: "ঢাকা মেডিকেল কলেজ হাসপাতাল",
-    areaEn: "Dhaka Division",
-    areaBn: "ঢাকা বিভাগ",
-    nextSlot: "Mon 11:30",
-    slots: ["Mon 11:30", "Wed 10:00"],
-    capacityNoteEn: "Reported 2 hours ago by DMCH Desk (42 general beds open, CCU active)",
-    capacityNoteBn: "২ ঘণ্টা আগে ডিএমসিএইচ ডেস্ক কর্তৃক প্রতিবেদিত (৪২টি সাধারণ শয্যা খালি)",
-  },
-];
-
-/**
- * UIUX §6.5 & MASTERPLAN INV-14:
- * - Filters as a single row of chips: area (division -> district -> upazila), specialty, "Available this week".
- * - Results are a left-aligned list, not cards.
- * - Capacity shows "Reported X ago by …" (INV-14), never a live-looking indicator.
- * - Interactive slot picker & connects directly to appointment request status screen (/appointments/appt-101).
- */
-export default function DoctorDiscoveryPage({ params }: LocalePageProps) {
-  const locale = usePageLocale(params, "en");
-  const [doctors, setDoctors] = useState<DoctorDirectoryEntry[]>(INITIAL_DOCTORS);
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
-  const [availableThisWeek, setAvailableThisWeek] = useState<boolean>(true);
-  const [selectedSlotByDoc, setSelectedSlotByDoc] = useState<Record<string, string>>({});
-  const [liveSynced, setLiveSynced] = useState(false);
-
-  // Sync with live Django backend /api/v1/directory/practitioners when running
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof fetch !== "function") return;
-    fetch("/api/v1/directory/practitioners")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((payload) => {
-        const items = Array.isArray(payload?.results) ? payload.results : null;
-        if (items && items.length > 0) {
-          setLiveSynced(true);
-          // Merge backend IDs with rich bilingual display attributes
-          setDoctors((prev) =>
-            prev.map((doc) => {
-              const match = items.find(
-                (it: { registration_number?: string; name?: string }) =>
-                  it.registration_number === doc.registrationNumber ||
-                  it.name === doc.nameEn
-              );
-              return match?.id ? { ...doc, id: String(match.id) } : doc;
-            })
-          );
-        }
-      })
-      .catch(() => {
-        // Keep initial doctors list
-      });
-  }, []);
-
-  const filtered = doctors.filter((doc) =>
-    selectedSpecialty === "all" ? true : doc.specialtyCode === selectedSpecialty
+function CapacityLine({ facility, locale }: { facility?: DirectoryFacilityEntry; locale: "bn" | "en" }) {
+  const c = facility?.latest_capacity;
+  if (!c) return null;
+  // INV-14: capacity is always dated and sourced, never presented as live.
+  return (
+    <span className="block text-caption text-ink-muted">
+      {fill(t(locale, "doctors.reported"), { ago: formatTimeAgo(c.reported_at, locale), source: c.source })}
+      {c.is_stale && ` ${t(locale, "doctors.stale")}`}
+    </span>
   );
+}
+
+/** One doctor. Tap to see open times, choose one, then ask for it. No tracker here: no case exists yet. */
+function DoctorRow({ doctor, facilities, locale }: { doctor: DirectoryPractitioner; facilities: Map<string, DirectoryFacilityEntry>; locale: "bn" | "en" }) {
+  const L = (k: string) => t(locale, `doctors.${k}`);
+  const { me } = useMe();
+  const [open, setOpen] = useState(false);
+  const [slotId, setSlotId] = useState<string | null>(null);
+  const [sentId, setSentId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const facility = doctor.facilities[0];
+  const slots = usePractitionerSlots(doctor.id, facility?.id, open);
+  const request = useRequestAppointment();
+  const specialty = doctor.specialties.map((s) => pickName(locale, s.name_en, s.name_bn)).join(", ");
+  const panelId = `doctor-${doctor.id}`;
+
+  async function send() {
+    if (!slotId || request.isPending) return;
+    setMessage(null);
+    try {
+      const appt = await request.mutateAsync({ slotId, idempotencyKey: createIntentIdempotencyKey() });
+      setSentId(appt.id);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "slot_unavailable") {
+        setMessage(L("taken"));
+        setSlotId(null);
+        await slots.refetch();
+      } else {
+        setMessage(L("requestError"));
+      }
+    }
+  }
 
   return (
-    <main className={styles.pageShell}>
-      <div className={styles.heroHeader}>
-        <h1 className={styles.patientTitle}>
-          {locale === "bn" ? "উপযুক্ত ডাক্তার খুঁজুন" : "Find a suitable doctor"}
-        </h1>
-        <RouteLine
-          entity="appointment"
-          currentState="REQUESTED"
-          objectId="discovery-preview"
-          variant="clinician"
-          locale={locale}
-        />
-      </div>
+    <li className="m-0 list-none border-b border-line">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((v) => !v)}
+        className="flex min-h-14 w-full items-center gap-3 bg-transparent px-1 py-3 text-start"
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-body font-semibold">{pickName(locale, doctor.name, doctor.name_bn)}</span>
+          <span className="text-caption text-ink-muted">{[specialty, facility && pickName(locale, facility.name, facility.name_bn)].filter(Boolean).join(", ")}</span>
+          <CapacityLine facility={facility && facilities.get(facility.id)} locale={locale} />
+        </span>
+        <ChevronDown aria-hidden className={cn("size-5 shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
 
-      <div className={styles.chipRow} role="group" aria-label="Discovery filters">
-        <button
-          type="button"
-          className={`${styles.filterChip} ${selectedSpecialty === "all" ? styles.filterChipActive : ""}`}
-          onClick={() => setSelectedSpecialty("all")}
-        >
-          {locale === "bn" ? "ঢাকা › টাঙ্গাইল › সকল বিভাগ" : "Dhaka › Tangail › All specialties"}
-        </button>
-        <button
-          type="button"
-          className={`${styles.filterChip} ${selectedSpecialty === "medicine" ? styles.filterChipActive : ""}`}
-          onClick={() => setSelectedSpecialty("medicine")}
-        >
-          {locale === "bn" ? "মেডিসিন" : "Medicine"}
-        </button>
-        <button
-          type="button"
-          className={`${styles.filterChip} ${selectedSpecialty === "pediatrics" ? styles.filterChipActive : ""}`}
-          onClick={() => setSelectedSpecialty("pediatrics")}
-        >
-          {locale === "bn" ? "শিশু বিভাগ" : "Pediatrics"}
-        </button>
-        <button
-          type="button"
-          className={`${styles.filterChip} ${selectedSpecialty === "gynecology" ? styles.filterChipActive : ""}`}
-          onClick={() => setSelectedSpecialty("gynecology")}
-        >
-          {locale === "bn" ? "স্ত্রীরোগ ও প্রসূতি" : "Gynecology"}
-        </button>
-        <button
-          type="button"
-          className={`${styles.filterChip} ${selectedSpecialty === "cardiology" ? styles.filterChipActive : ""}`}
-          onClick={() => setSelectedSpecialty("cardiology")}
-        >
-          {locale === "bn" ? "হৃদরোগ" : "Cardiology"}
-        </button>
-        <button
-          type="button"
-          className={`${styles.filterChip} ${availableThisWeek ? styles.filterChipActive : ""}`}
-          onClick={() => setAvailableThisWeek((v) => !v)}
-        >
-          {locale === "bn" ? "এই সপ্তাহে সময় আছে" : "Available this week"}
-        </button>
-      </div>
-
-      <ul className={styles.plainList}>
-        {filtered.map((doc) => {
-          const activeSlot = selectedSlotByDoc[doc.id] ?? doc.nextSlot;
-          return (
-            <li key={doc.id} className={styles.plainListRow}>
-              <div className={styles.topBar}>
-                <div>
-                  <div className={styles.doctorTitle}>
-                    <span lang="bn">{doc.nameBn}</span>{" "}
-                    <span lang="en">({doc.nameEn})</span>
-                  </div>
-                  <div className={styles.rowSubMeta}>
-                    {locale === "bn"
-                      ? `${doc.specialtyBn} • ${doc.facilityBn} (${doc.areaBn})`
-                      : `${doc.specialtyEn} • ${doc.facilityEn} (${doc.areaEn})`}
-                  </div>
-                </div>
-                <a
-                  href={`/${locale}/appointments/appt-101`}
-                  className={`${styles.filterChip} ${styles.filterChipActive}`}
-                >
-                  {locale === "bn" ? "সাক্ষাতের অনুরোধ করুন" : "Request appointment"}
-                </a>
+      {open && (
+        <div id={panelId} className="flex flex-col gap-3 px-1 pb-4">
+          {sentId ? (
+            <Alert tone="positive" title={L("sent")} action={<Link href={`/${locale}/appointments/${sentId}`} className="text-indigo underline underline-offset-2">{L("viewRequest")}</Link>} />
+          ) : slots.isLoading ? (
+            <Skeleton label={L("loading")} />
+          ) : slots.isError ? (
+            <ErrorState message={L("errorSlots")} locale={locale} variant="inline" onRetry={() => slots.refetch()} />
+          ) : (slots.data ?? []).filter((s) => s.state === "AVAILABLE").length === 0 ? (
+            <p className="m-0 text-dense text-ink-muted">{L("noTimes")}</p>
+          ) : (
+            <>
+              <p className="m-0 text-dense font-semibold" id={`${panelId}-label`}>{L("chooseTime")}</p>
+              <div role="radiogroup" aria-labelledby={`${panelId}-label`} className="flex flex-wrap gap-2">
+                {(slots.data ?? []).filter((s) => s.state === "AVAILABLE").map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={slotId === s.id}
+                    onClick={() => setSlotId(s.id)}
+                    className={cn("min-h-11 rounded-control border px-3 text-dense", slotId === s.id ? "border-indigo bg-indigo-wash font-semibold" : "border-line-strong bg-surface hover:bg-sunken")}
+                  >
+                    {formatDhakaDateTime(s.start, locale)}
+                  </button>
+                ))}
               </div>
+              {message && <Alert tone="attention" title={message} />}
+              {me === null ? (
+                <Link href={`/${locale}/login?next=${encodeURIComponent(`/${locale}/doctors`)}`} className={buttonVariants({ size: "lg", className: "w-full sm:w-fit" })}>
+                  {t(locale, "shell.signIn")}
+                </Link>
+              ) : (
+                <Button size="lg" disabled={!slotId} loading={request.isPending} loadingLabel={L("requesting")} onClick={send} className="w-full sm:w-fit">
+                  {L("request")}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
 
-              <div className={styles.slotPickerRow}>
-                <span className={styles.slotPickerLabel}>
-                  {locale === "bn"
-                    ? `পরবর্তী খালি সময়: ${activeSlot}`
-                    : `Next available slot: ${activeSlot}`}
-                </span>
-                <div className={styles.chipRow}>
-                  {doc.slots.map((slot) => (
-                    <button
-                      key={slot}
-                      type="button"
-                      className={`${styles.slotPill} ${activeSlot === slot ? styles.slotPillActive : ""}`}
-                      onClick={() =>
-                        setSelectedSlotByDoc((prev) => ({ ...prev, [doc.id]: slot }))
-                      }
-                    >
-                      {slot}
-                    </button>
-                  ))}
-                </div>
-              </div>
+/** `/doctors`: choose a doctor and a time (APPLICATION_DESIGN §4.3). Works signed out (Q-03); requesting needs sign-in. */
+export default function DoctorDiscoveryPage() {
+  const locale = usePageLocale(undefined, "bn");
+  const L = (k: string) => t(locale, `doctors.${k}`);
+  const [area, setArea] = useState<string | null>(null);
+  const [specialty, setSpecialty] = useState("");
+  const [pickerKey, setPickerKey] = useState(0);
+  const filters = useMemo(() => ({ ...(area ? { area } : {}), ...(specialty ? { specialty } : {}) }), [area, specialty]);
+  const list = usePractitioners(filters);
+  const facilities = useFacilityDirectory();
+  const specialties = useSpecialties();
+  const facilityMap = useMemo(() => new Map((facilities.data ?? []).map((f) => [f.id, f])), [facilities.data]);
+  const doctors = list.data?.pages.flatMap((p) => p.results) ?? [];
+  const filtered = !!(area || specialty);
 
-              <div className={styles.capacityMeta}>
-                {locale === "bn" ? doc.capacityNoteBn : doc.capacityNoteEn}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </main>
+  return (
+    <Column>
+      <PageHeader serif title={L("title")} />
+      <details className="rounded-panel border border-line bg-surface p-4" open={filtered || undefined}>
+        <summary className="cursor-pointer text-dense font-semibold">{L("filters")}</summary>
+        <div className="mt-4 flex flex-col gap-4">
+          <AreaPicker key={pickerKey} locale={locale} onChange={setArea} />
+          <label className="flex flex-col gap-1.5 text-dense font-semibold">
+            {L("specialty")}
+            <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="h-12 rounded-control border border-line-strong bg-surface px-3 text-body font-normal">
+              <option value="">{L("anySpecialty")}</option>
+              {((specialties.data ?? []) as SpecialtyOption[]).map((s) => (
+                <option key={s.code} value={s.code}>{pickName(locale, s.name_en, s.name_bn)}</option>
+              ))}
+            </select>
+          </label>
+          {filtered && (
+            <Button variant="secondary" onClick={() => { setArea(null); setSpecialty(""); setPickerKey((k) => k + 1); }}>{L("clear")}</Button>
+          )}
+        </div>
+      </details>
+
+      {list.isLoading ? (
+        <Skeleton label={L("loading")} />
+      ) : list.isError ? (
+        <ErrorState message={L("error")} locale={locale} onRetry={() => list.refetch()} requestId={list.error instanceof ApiError ? list.error.requestId : undefined} />
+      ) : doctors.length === 0 ? (
+        <EmptyState message={L("empty")} />
+      ) : (
+        <>
+          <ul className="m-0 p-0">
+            {doctors.map((d) => <DoctorRow key={d.id} doctor={d} facilities={facilityMap} locale={locale} />)}
+          </ul>
+          {list.hasNextPage && (
+            <Button variant="secondary" loading={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>{L("more")}</Button>
+          )}
+        </>
+      )}
+    </Column>
   );
 }

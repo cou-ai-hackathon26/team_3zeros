@@ -1,5 +1,6 @@
 "use client";
 
+import "../../i18n/auth";
 import React from "react";
 import Link from "next/link";
 import { usePageLocale } from "../../app/usePageLocale";

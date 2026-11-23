@@ -77,7 +77,7 @@ export function PatientShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main id="main" className={cn("mx-auto w-full max-w-[640px] flex-1 px-4 py-6", items.length > 0 && "pb-24 lg:pb-6")}>
+      <main id="main" className={cn("mx-auto w-full max-w-[960px] flex-1 px-4 py-6", items.length > 0 && "pb-24 lg:pb-6")}>
         {children}
       </main>
 

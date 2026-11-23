@@ -1,5 +1,6 @@
 "use client";
 
+import "../../i18n/landing";
 import React from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";

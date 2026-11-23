@@ -580,6 +580,7 @@ frontend shows the stated fallback. Detail:
 | G-4 (A-03) | `GET /auth/me` has no membership list; facility-switch response shape differs from `me` | Active facility shown as text, no switcher |
 | G-5 (A-06) | `/admin/*` has list `GET`s only; schedules and staff return empty lists | Read-only tables, no create or edit controls |
 | G-6 | No endpoint lists a patient's triage sessions | Resume only from the session ID in the current tab |
+| G-7 (A-16) | `POST /appointments` requires `patient_id`, which patient clients cannot learn | "Request this time" fails with an error until the backend derives the patient from the session |
 | A-11 | No canonical list of `Membership` permission strings | Labels keyed by the strings the backend uses today |
 
 ---

@@ -5,6 +5,7 @@ import { createApiClient } from "../api/client";
 import { AppProviders, makeQueryClient } from "../api/queries/provider";
 import { queryKeys } from "../api/queries";
 import { useAuth, useMe } from "./me";
+import { useAppointments } from "../api/queries/hooks";
 import type { UserMe } from "./types";
 
 const ME: UserMe = {
@@ -40,6 +41,22 @@ describe("useMe", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.me).toBeNull();
     expect(result.current.isError).toBe(false);
+  });
+
+  it("also treats 403 with code not_authenticated as signed out (DRF session auth, audit A-20)", async () => {
+    const { wrapper } = setup(() => err("not_authenticated", 403));
+    const { result } = renderHook(() => useMe(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.me).toBeNull();
+    expect(result.current.isError).toBe(false);
+  });
+
+  it("does not treat a plain 403 permission_denied as signed out", async () => {
+    const { wrapper } = setup(() => err("permission_denied", 403));
+    const { result } = renderHook(() => useMe(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.me).toBeUndefined();
+    expect(result.current.isError).toBe(true);
   });
 
   it("reports other failures as errors with the request id", async () => {
@@ -89,6 +106,14 @@ describe("sign-in flows", () => {
     expect(out?.me?.roles).toEqual(["clinician"]);
   });
 
+  it("a 403 not_authenticated outside /auth/ triggers the session-expired handler", async () => {
+    const onUnauthenticated = vi.fn();
+    const { wrapper } = setup(() => err("not_authenticated", 403), onUnauthenticated);
+    const { result } = renderHook(() => useAppointments(), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(onUnauthenticated).toHaveBeenCalled();
+  });
+
   it("bad credentials on /auth/* do not trigger the global session-expired handler", async () => {
     const onUnauthenticated = vi.fn();
     const { wrapper } = setup(() => err("not_authenticated", 401), onUnauthenticated);
@@ -134,6 +159,18 @@ describe("csrf recovery", () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     await act(async () => { await result.current.requestOtp("01712345678"); });
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /auth/otp/request", "GET /auth/me", "POST /auth/otp/request"]);
+  });
+
+  it("recognises Django's wording: permission_denied with a CSRF Failed message", async () => {
+    let posts = 0;
+    const { wrapper, calls } = setup((req) => {
+      if (req.url.endsWith("/auth/me")) return json(ME);
+      posts++;
+      return posts === 1 ? json({ error: { code: "permission_denied", message: "CSRF Failed: Origin checking failed", request_id: "r" } }, 403) : json({ message: "sent" });
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => { await result.current.requestOtp("01712345678"); });
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(2);
   });
 
   it("does not retry a second time", async () => {

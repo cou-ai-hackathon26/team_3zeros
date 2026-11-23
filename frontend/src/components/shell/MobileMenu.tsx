@@ -1,5 +1,6 @@
 "use client";
 
+import "../../i18n/landing";
 import React, { useState } from "react";
 import { Menu } from "lucide-react";
 import type { Locale } from "../../i18n/config";

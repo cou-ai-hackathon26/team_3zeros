@@ -29,7 +29,7 @@ const isCli = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(
 if (isCli) {
   const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src");
   const read = (f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
-  const diff = landingKeyDiff(read("i18n/messages/en.json"), read("i18n/messages/bn.json"));
+  const diff = landingKeyDiff({ landing: read("i18n/messages/landing.en.json") }, { landing: read("i18n/messages/landing.bn.json") });
   let failed = false;
   for (const [label, keys] of Object.entries(diff)) {
     if (keys.length) {

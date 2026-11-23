@@ -1,3 +1,4 @@
+import "../../i18n/landing";
 import React from "react";
 import { Check, Minus } from "lucide-react";
 import type { Locale } from "../../i18n/config";

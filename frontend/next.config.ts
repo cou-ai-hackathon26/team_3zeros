@@ -27,6 +27,8 @@ try {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Django serves some API paths with a trailing slash (audit A-21). Do not let Next strip it, or the two redirect to each other forever.
+  skipTrailingSlashRedirect: true,
   poweredByHeader: false,
   env: {
     NEXT_PUBLIC_VOICE_PROVIDER:
@@ -47,6 +49,11 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const apiOrigin = process.env.BACKEND_INTERNAL_URL ?? "http://127.0.0.1:8000";
     return [
+      // Keep a trailing slash when the browser sends one (audit A-21); `:path*` alone would drop it.
+      {
+        source: "/api/:path*/",
+        destination: `${apiOrigin}/api/:path*/`,
+      },
       {
         source: "/api/:path*",
         destination: `${apiOrigin}/api/:path*`,

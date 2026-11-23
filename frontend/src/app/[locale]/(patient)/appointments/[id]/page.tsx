@@ -1,85 +1,103 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
-import { RouteLine } from "@/components/RouteLine/RouteLine";
-import { ActionBar } from "@/components/ActionBar/ActionBar";
-import { StatusLabel } from "@/components/StatusLabel/StatusLabel";
-import { Toast } from "@/components/Toast/Toast";
-import { t } from "@/i18n/format";
-import { type LocalePageProps } from "@/app/resolveLocale";
-import { usePageLocale } from "@/app/usePageLocale";
-import styles from "@/app/[locale]/screens.module.css";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { usePageLocale } from "../../../../usePageLocale";
+import { ApiError } from "../../../../../api/client";
+import { t, formatDhakaDateTime } from "../../../../../i18n/format";
+import { useAppointment, useTransition } from "../../../../../api/queries/hooks";
+import { fill } from "../../../../../features/patient/display";
+import { ActionBar, type ActionPayload } from "../../../../../components/ActionBar/ActionBar";
+import { HandoverTracker } from "../../../../../components/HandoverTracker/HandoverTracker";
+import { Column, QueryBoundary } from "../../../../../components/QueryBoundary";
+import { SyncBadge } from "../../../../../components/SyncBadge/SyncBadge";
+import { useToast } from "../../../../../components/Toast/Toast";
+import { Alert } from "../../../../../components/ui/states";
+import { DescriptionList } from "../../../../../components/ui/surfaces";
 
-/**
- * UIUX §6.6: Appointment status (patient).
- * Vertical RouteLine with turmeric current stop ring + ActionBar rendering strictly allowed_actions.
- */
-export default function PatientAppointmentDetailPage({ params }: LocalePageProps) {
-  const locale = usePageLocale(params, "bn");
-  const [state, setState] = useState("REQUESTED");
-  const [allowedActions, setAllowedActions] = useState<string[]>(["cancel"]);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+const ConfirmDialog = dynamic(() => import("../../../../../components/ConfirmDialog").then((m) => m.ConfirmDialog), { ssr: false });
+
+/** `/appointments/[id]`: who has the request, and what happens next. Buttons come only from `allowed_actions`. */
+export default function AppointmentDetailPage() {
+  const locale = usePageLocale(undefined, "bn");
+  const id = String(useParams<{ id: string }>()?.id ?? "");
+  const query = useAppointment(id);
+  const transition = useTransition("appointments");
+  const toast = useToast();
+  const [confirmCancel, setConfirmCancel] = useState<ActionPayload | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const L = (k: string) => t(locale, `appointments.${k}`);
+
+  async function run(action: string, payload: ActionPayload) {
+    const a = query.data;
+    if (!a) return;
+    setNotice(null);
+    try {
+      const { pending } = await transition.mutateAsync({
+        id: a.id,
+        action,
+        version: a.version,
+        idempotencyKey: payload.idempotencyKey,
+        body: { ...(payload.reason ? { reason: payload.reason } : {}), ...(payload.alternateSlotId ? { alternate_slot_id: payload.alternateSlotId } : {}) },
+      });
+      // A 202 means the change is waiting for a FHIR write: never announce it as done (INV-12).
+      if (!pending) toast({ message: t(locale, `toast.appointment.${action}`) });
+    } catch (e) {
+      const api = e instanceof ApiError ? e : null;
+      // 412 and 423: someone else changed it or it is being written. Show the latest, no blind retry.
+      if (api && (api.status === 412 || api.status === 423)) await query.refetch();
+      setNotice(t(locale, api?.i18nKey ?? "error.generic"));
+    }
+  }
 
   return (
-    <main className={styles.pageShell}>
-      <header className={styles.topBar}>
-        <div>
-          <h1 className={styles.patientTitle}>
-            {locale === "bn" ? "ডা. রহিমা খাতুন (Dr. Rahima Khatun)" : "Dr. Rahima Khatun"}
-          </h1>
-          <p className={styles.capacityMeta}>
-            {locale === "bn"
-              ? "মেডিসিন বিশেষজ্ঞ • টাঙ্গাইল ২৫০ শয্যা জেলা হাসপাতাল • বৃহস্পতিবার সকাল ১০:৩০"
-              : "Internal Medicine • Tangail 250-Bed District Hospital • Thursday 10:30 AM"}
-          </p>
-        </div>
-        <StatusLabel
-          entity="appointment"
-          state={state}
-          stopStatus={state === "CONFIRMED" ? "completed" : state === "CANCELLED" ? "exception" : "current"}
-          locale={locale}
-        />
-      </header>
-
-      <section className={styles.card}>
-        <h2 className={styles.sectionTitle}>
-          {locale === "bn" ? "অ্যাপয়েন্টমেন্টের বর্তমান ধাপ" : "Appointment progress route"}
-        </h2>
-        <RouteLine
-          entity="appointment"
-          currentState={state}
-          objectId="appt-101"
-          variant="patient"
-          locale={locale}
-        />
-      </section>
-
-      <section className={styles.card}>
-        <h2 className={styles.sectionTitle}>
-          {locale === "bn" ? "সংযুক্ত ট্রায়াজ সারাংশ" : "Attached triage summary"}
-        </h2>
-        <p className={styles.quoteBlock}>
-          {locale === "bn"
-            ? "“৩ দিন ধরে জ্বর ও মাথাব্যথা (রোগীর নিশ্চিতকৃত সারাংশ সংযুক্ত)”"
-            : "“Fever and headache for 3 days (Patient-confirmed summary attached)”"}
-        </p>
-      </section>
-
-      <ActionBar
-        entity="appointment"
-        allowedActions={allowedActions}
-        isPending={false}
-        locale={locale}
-        onAction={(action) => {
-          if (action === "cancel") {
-            setState("CANCELLED");
-            setAllowedActions([]);
-            setToastMsg(t(locale, "toast.appointment.cancel"));
-          }
-        }}
-      />
-
-      {toastMsg && <Toast message={toastMsg} onDismiss={() => setToastMsg(null)} />}
-    </main>
+    <Column>
+      <Link href={`/${locale}/appointments`} className="text-dense text-indigo underline underline-offset-2">{L("back")}</Link>
+      <QueryBoundary query={query} locale={locale} loadingLabel={L("loading")} errorMessage={L("error")} notFoundMessage={L("notFound")}>
+        {(a) => (
+          <>
+            <HandoverTracker entity="appointment" currentState={a.state} objectId={a.id} locale={locale} holderName={a.practitioner_name} />
+            {(a.fhir_sync_status === "PENDING" || a.pending_action) && (
+              <SyncBadge fhirSyncStatus={a.fhir_sync_status as "PENDING"} pendingAction={a.pending_action ?? null} locale={locale} />
+            )}
+            {notice && <Alert tone="attention" title={notice} />}
+            <DescriptionList
+              items={[
+                { label: t(locale, "holderName.practitioner"), value: a.practitioner_name },
+                { label: t(locale, "common.facility"), value: a.facility_name },
+                { label: L("when"), value: formatDhakaDateTime(a.slot.start, locale) },
+              ]}
+            />
+            {/* Only shown when the API returns it; the expiry policy is Q-04. */}
+            {a.expires_at && <p className="m-0 text-dense text-ink-muted">{fill(L("expires"), { date: formatDhakaDateTime(a.expires_at, locale) })}</p>}
+            <ActionBar
+              entity="appointment"
+              allowedActions={a.allowed_actions}
+              isPending={transition.isPending}
+              locale={locale}
+              onAction={(action, payload) => (action === "cancel" ? setConfirmCancel(payload) : run(action, payload))}
+            />
+            {a.triage_session_id && (
+              <details className="text-dense">
+                <summary className="cursor-pointer font-semibold">{L("summary")}</summary>
+                <Link href={`/${locale}/triage/summary/${a.triage_session_id}`} className="text-indigo underline underline-offset-2">{L("summary")}</Link>
+              </details>
+            )}
+            {confirmCancel && (
+              <ConfirmDialog
+                title={L("cancelTitle")}
+                description={L("cancelBody")}
+                cancelLabel={L("keep")}
+                confirmLabel={t(locale, "action.appointment.cancel")}
+                onCancel={() => setConfirmCancel(null)}
+                onConfirm={() => { const p = confirmCancel; setConfirmCancel(null); run("cancel", p); }}
+              />
+            )}
+          </>
+        )}
+      </QueryBoundary>
+    </Column>
   );
 }

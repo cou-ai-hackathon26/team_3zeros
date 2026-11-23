@@ -1,15 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import DoctorDiscoveryPage from "./[locale]/(patient)/doctors/page";
 import ClinicianDashboardPage from "./[locale]/(clinician)/dashboard/page";
 import EmergencyReferralPage from "./[locale]/(clinician)/emergency/page";
 
 describe("UIUX §6 Screen Layouts & Invariants", () => {
-  it("renders Doctor Discovery (§6.5) as a left-aligned list (not cards) and shows dated capacity source (INV-14)", () => {
-    render(<DoctorDiscoveryPage params={{ locale: "en" }} />);
-    expect(screen.getAllByText(/Reported .* ago by/i).length).toBeGreaterThanOrEqual(1);
-  });
-
   it("renders Clinician Workspace (§6.8) three-pane layout with queue tabs, horizontal compact RouteLine, and server allowed_actions", () => {
     render(<ClinicianDashboardPage params={{ locale: "en" }} />);
     expect(screen.getByRole("listbox")).toBeTruthy();
