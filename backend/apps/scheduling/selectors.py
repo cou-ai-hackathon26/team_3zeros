@@ -1,4 +1,5 @@
 from django.db.models import Q
+from apps.accounts.selectors import active_memberships
 from .models import Slot, Appointment
 from apps.common.exceptions import NotFoundError
 
@@ -25,7 +26,7 @@ def list_appointments(user, state=None, role_view=None):
         queryset = queryset.filter(patient=user.patient_account.patient)
     else:
         # Clinicians and facility staff scoped to their facility
-        facility_ids = user.memberships.values_list("facility_id", flat=True)
+        facility_ids = active_memberships(user).values_list("facility_id", flat=True)
         queryset = queryset.filter(facility_id__in=facility_ids)
         if role_view == "clinician":
             if hasattr(user, "practitioner_profile"):
@@ -47,8 +48,8 @@ def get_appointment_by_public_id(user, appointment_id):
     if hasattr(user, "patient_account"):
         if appointment.patient != user.patient_account.patient:
             raise NotFoundError("Appointment not found.")
-    elif not hasattr(user, "platform_admin"):
-        user_facility_ids = user.memberships.values_list("facility_id", flat=True)
+    else:  # platform admins have no default access to clinical data (MASTERPLAN §4.2)
+        user_facility_ids = active_memberships(user).values_list("facility_id", flat=True)
         if appointment.facility_id not in user_facility_ids:
             raise NotFoundError("Appointment not found.")
 

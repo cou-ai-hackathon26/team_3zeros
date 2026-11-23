@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Locale } from "../../i18n/config";
 import { formatDhakaDateTime, t } from "../../i18n/format";
 import { useChart, useTriageSession } from "../../api/queries/hooks";
+import { TriageSummaryForClinician } from "./TriageSummaryForClinician";
 import type { Patient } from "../../api/queries/types";
 import { ApiError } from "../../api/client";
 import type { QueueEntry } from "../../features/clinical/queue";
@@ -58,7 +59,7 @@ export function QueueDetail({ entry, patient, locale, onActed }: { entry: QueueE
               {triage.isLoading ? <Skeleton /> : triage.isError ? (
                 <ErrorState message={t(locale, "queue.error")} locale={locale} variant="inline" onRetry={() => triage.refetch()} />
               ) : (
-                <p className="m-0 text-dense">{triage.data?.summary?.patient_words}</p>
+                <TriageSummaryForClinician summary={triage.data?.summary} locale={locale} />
               )}
             </section>
           )}

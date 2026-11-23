@@ -1,37 +1,39 @@
+from apps.accounts.selectors import active_memberships
 from apps.workflow.engine import Transition, is_system
 from apps.workflow.models import HistoryEntry
+
+# MASTERPLAN §4.2: platform admins and facility admins have no referral actions, and only memberships that are
+# currently active count. Clinicians act for their own facility; staff only with the `referral.acknowledge` permission.
+def _active(actor, facility):
+    return active_memberships(actor).filter(facility=facility)
+
 
 def is_sender_clinician(actor, obj, payload):
     if not actor or not actor.is_authenticated:
         return False
-    if hasattr(actor, "platform_admin"):
-        return True
-    return actor.memberships.filter(facility=obj.sender_facility, role="clinician").exists()
+    return _active(actor, obj.sender_facility).filter(role="clinician").exists()
 
 def is_receiver_clinician(actor, obj, payload):
     if not actor or not actor.is_authenticated:
         return False
-    if hasattr(actor, "platform_admin"):
-        return True
-    return actor.memberships.filter(facility=obj.receiver_facility, role="clinician").exists()
+    return _active(actor, obj.receiver_facility).filter(role="clinician").exists()
 
 def is_receiver_clinician_or_coordinator(actor, obj, payload):
     if not actor or not actor.is_authenticated:
         return False
-    if hasattr(actor, "platform_admin"):
-        return True
-    memberships = actor.memberships.filter(facility=obj.receiver_facility)
-    for m in memberships:
-        if m.role == "clinician":
-            return True
-        if m.role == "facility_staff" and "referral.acknowledge" in (m.permissions or []):
-            return True
-        if m.role == "facility_admin":
-            return True
-    return False
+    return any(
+        m.role == "clinician" or (m.role == "facility_staff" and "referral.acknowledge" in (m.permissions or []))
+        for m in _active(actor, obj.receiver_facility)
+    )
 
 def is_either_clinician(actor, obj, payload):
     return is_sender_clinician(actor, obj, payload) or is_receiver_clinician(actor, obj, payload)
+
+
+def can_retry_sync(actor, obj, payload):
+    """§5.2 retry_sync: the sending clinician retries a failed `send`, the receiving clinician a failed `record_outcome`."""
+    failed = retry_target(obj)
+    return is_sender_clinician(actor, obj, payload) if failed == "SENT" else is_receiver_clinician(actor, obj, payload)
 
 FHIR_GATED_ACTIONS = ("send", "record_outcome")
 
@@ -193,7 +195,7 @@ REFERRAL_TRANSITIONS = {
     "retry_sync": Transition(
         source={"FAILED_TO_SYNC"},
         target="SENT",  # placeholder; resolve_target picks the failed action's target
-        permission=is_either_clinician,
+        permission=can_retry_sync,
         fhir_required=True,
         resolve_target=retry_target,
     ),

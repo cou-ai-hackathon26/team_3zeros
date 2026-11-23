@@ -220,3 +220,18 @@ VAPI_PUBLIC_KEY = env("VAPI_PUBLIC_KEY", default="")
 VAPI_PRIVATE_KEY = env("VAPI_PRIVATE_KEY", default="")
 VAPI_ASSISTANT_ID = env("VAPI_ASSISTANT_ID", default="")
 VAPI_WEBHOOK_SECRET = env("VAPI_WEBHOOK_SECRET", default="")
+
+# Scheduled-job policies (BACKEND §7.2). 0 means the job does nothing. These are policy decisions that are still
+# open, so there is deliberately no default: REFERRAL_ESCALATION_MINUTES (Q-06), APPOINTMENT_REQUEST_EXPIRY_HOURS (Q-04).
+REFERRAL_ESCALATION_MINUTES = env.int("REFERRAL_ESCALATION_MINUTES", default=0)
+REFERRAL_REMINDER_MINUTES = env.int("REFERRAL_REMINDER_MINUTES", default=0)
+TRIAGE_IDLE_TIMEOUT_MINUTES = env.int("TRIAGE_IDLE_TIMEOUT_MINUTES", default=0)
+APPOINTMENT_REQUEST_EXPIRY_HOURS = env.int("APPOINTMENT_REQUEST_EXPIRY_HOURS", default=0)
+
+CELERY_BEAT_SCHEDULE = {
+    "dispatch-outbox": {"task": "apps.workflow.tasks.dispatch_outbox_events", "schedule": 2.0},
+    "escalate-unacknowledged-referrals": {"task": "apps.workflow.tasks.escalate_unacknowledged_referrals", "schedule": 60.0},
+    "remind-unacknowledged-referrals": {"task": "apps.workflow.tasks.remind_unacknowledged_referrals", "schedule": 900.0},
+    "abandon-idle-triage-sessions": {"task": "apps.workflow.tasks.abandon_idle_triage_sessions", "schedule": 60.0},
+    "expire-appointment-requests": {"task": "apps.workflow.tasks.expire_appointment_requests", "schedule": 300.0},
+}

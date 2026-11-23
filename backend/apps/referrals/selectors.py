@@ -1,4 +1,5 @@
 from django.db.models import Q
+from apps.accounts.selectors import active_memberships
 from .models import Referral
 from apps.common.exceptions import NotFoundError, PermissionDeniedError
 
@@ -16,7 +17,7 @@ def list_referrals(user, direction=None, state=None):
         # Patients only see their own referrals
         queryset = queryset.filter(patient=user.patient_account.patient)
     else:
-        user_facility_ids = user.memberships.values_list("facility_id", flat=True)
+        user_facility_ids = active_memberships(user).values_list("facility_id", flat=True)
         if direction == "incoming":
             queryset = queryset.filter(receiver_facility_id__in=user_facility_ids)
         elif direction == "outgoing":
@@ -47,8 +48,8 @@ def get_referral_by_public_id(user, public_id):
     if hasattr(user, "patient_account"):
         if referral.patient != user.patient_account.patient:
             raise NotFoundError("Referral not found.")
-    elif not hasattr(user, "platform_admin"):
-        user_facility_ids = user.memberships.values_list("facility_id", flat=True)
+    else:  # platform admins have no default access to clinical data (MASTERPLAN §4.2); only active memberships count
+        user_facility_ids = active_memberships(user).values_list("facility_id", flat=True)
         if referral.sender_facility_id not in user_facility_ids and referral.receiver_facility_id not in user_facility_ids:
             raise NotFoundError("Referral not found.")
 
@@ -66,10 +67,9 @@ def get_referral_by_code(user, code):
     if not referral:
         raise NotFoundError("Referral not found.")
 
-    if not hasattr(user, "platform_admin"):
-        user_facility_ids = user.memberships.values_list("facility_id", flat=True)
-        if referral.receiver_facility_id not in user_facility_ids and referral.sender_facility_id not in user_facility_ids:
-            raise NotFoundError("Referral not found.")
+    user_facility_ids = active_memberships(user).values_list("facility_id", flat=True)
+    if referral.receiver_facility_id not in user_facility_ids and referral.sender_facility_id not in user_facility_ids:
+        raise NotFoundError("Referral not found.")
 
     return referral
 

@@ -1,3 +1,4 @@
+from apps.accounts.selectors import active_memberships
 from apps.workflow.engine import Transition, is_system
 
 def is_patient_owner(actor, obj, payload):
@@ -8,27 +9,19 @@ def is_patient_owner(actor, obj, payload):
     return False
 
 def is_clinician_or_staff(actor, obj, payload):
+    """§4.2: a clinician, or facility staff holding `schedule.manage`, at the appointment's facility. Platform admins and
+    facility admins have no appointment actions. Only active memberships count."""
     if not actor or not actor.is_authenticated:
         return False
-    # Clinician or facility staff with schedule.manage permission for the facility
-    if hasattr(actor, "platform_admin"):
-        return True
-    memberships = actor.memberships.filter(facility=obj.facility)
-    for m in memberships:
-        if m.role == "clinician":
-            return True
-        if m.role == "facility_staff" and "schedule.manage" in (m.permissions or []):
-            return True
-        if m.role == "facility_admin":
-            return True
-    return False
+    return any(
+        m.role == "clinician" or (m.role == "facility_staff" and "schedule.manage" in (m.permissions or []))
+        for m in active_memberships(actor).filter(facility=obj.facility)
+    )
 
 def is_clinician(actor, obj, payload):
     if not actor or not actor.is_authenticated:
         return False
-    if hasattr(actor, "platform_admin"):
-        return True
-    return actor.memberships.filter(facility=obj.facility, role="clinician").exists()
+    return active_memberships(actor).filter(facility=obj.facility, role="clinician").exists()
 
 def is_patient_or_staff(actor, obj, payload):
     return is_patient_owner(actor, obj, payload) or is_clinician_or_staff(actor, obj, payload)

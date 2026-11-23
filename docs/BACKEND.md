@@ -400,6 +400,18 @@ Handlers must be idempotent (keyed on event id).
 | `purge_idempotency_records` | daily | TTL cleanup |
 | `retention_enforcement` | daily | Applies retention policy once approved (Q-07) |
 
+**Status (D-26).** Running from `CELERY_BEAT_SCHEDULE` in `config/settings/base.py`: the outbox
+dispatcher (every 2 s), `escalate_unacknowledged_referrals`, `remind_unacknowledged_referrals`,
+`abandon_idle_triage_sessions` and `expire_appointment_requests`. Each job does nothing until its
+setting is above zero, so no policy is invented: `REFERRAL_ESCALATION_MINUTES` (Q-06),
+`REFERRAL_REMINDER_MINUTES`, `TRIAGE_IDLE_TIMEOUT_MINUTES`, `APPOINTMENT_REQUEST_EXPIRY_HOURS` (Q-04).
+Not built yet: `expire_consent_requests` and `retention_enforcement` (Q-07 open), `retry_failed_fhir_sync`,
+`purge_idempotency_records`.
+
+The dispatcher routes `referral.state_changed` and `appointment.state_changed` to
+`apps/workflow/handlers.py`: a WebSocket broadcast of id, state, version and action only, plus in-app
+notifications (`apps/notifications/services.py`, fixed bilingual texts, no clinical content).
+
 ### 7.3 Queues
 
 Separate Celery queues so slow AI work cannot delay notifications:

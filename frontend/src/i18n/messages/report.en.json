@@ -17,5 +17,6 @@
   "followUp": "Follow-up",
   "missing": "What we did not know",
   "review": "A clinician should review this report.",
-  "emergencyTitle": "Emergency: get help now"
+  "emergencyTitle": "Emergency: get help now",
+  "clinicianNote": "AI draft from the patient's conversation. It is not a diagnosis."
 }
