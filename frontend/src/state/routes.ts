@@ -1,5 +1,6 @@
 /**
- * Wayfinding Route Stop & Exception Branch Mapping (FRONTEND §6, UIUX_DESIGN §3.1 & §5).
+ * Route stop, exception branch and handover holder mapping
+ * (FRONTEND §6, redesign/DESIGN_SYSTEM.md §6.1).
  */
 
 export type RouteEntity = "appointment" | "referral" | "triage_session";
@@ -127,6 +128,93 @@ export function computeRouteView(entity: RouteEntity, currentState: string): Rou
     entity,
     stops,
     exceptionBranch,
+  };
+}
+
+/**
+ * Who holds the case: the actor who must act next, taken from the Actor
+ * column of MASTERPLAN §5. `system` means the platform acts without a person;
+ * `none` means nobody (terminal). The tracker never lists states itself.
+ */
+export type Holder = "patient" | "practitioner" | "sender" | "receiver" | "system" | "none";
+
+const HOLDERS: Record<RouteEntity, Record<string, Holder>> = {
+  appointment: {
+    REQUESTED: "practitioner",
+    ALTERNATE_SLOT_PROPOSED: "patient",
+    PATIENT_ACCEPTED: "practitioner",
+    CONFIRMED: "practitioner",
+    COMPLETED: "none",
+    DECLINED: "none",
+    EXPIRED: "none",
+    CANCELLED: "none",
+    NO_SHOW: "none",
+  },
+  referral: {
+    DRAFT: "sender",
+    AWAITING_PATIENT_CONSENT: "patient",
+    READY_FOR_SENDER_APPROVAL: "sender",
+    APPROVED_BY_SENDER: "sender",
+    SENT: "receiver",
+    ESCALATED: "receiver",
+    ACKNOWLEDGED_BY_RECEIVER: "receiver",
+    IN_PROGRESS: "receiver",
+    OUTCOME_RECORDED: "system",
+    OUTCOME_RETURNED: "sender",
+    CLOSED: "none",
+    DECLINED: "sender",
+    CANCELLED: "none",
+    EXPIRED: "none",
+    FAILED_TO_SYNC: "system",
+  },
+  triage_session: {
+    CREATED: "patient",
+    ACTIVE: "patient",
+    PAUSED: "patient",
+    SUMMARY_PENDING_REVIEW: "patient",
+    CONFIRMED_BY_PATIENT: "none",
+    EMERGENCY_PATHWAY: "none",
+    ENDED_BY_PATIENT: "none",
+    ABANDONED: "none",
+  },
+};
+
+export function holderOf(entity: RouteEntity, state: string): Holder {
+  const holder = HOLDERS[entity]?.[state];
+  if (!holder) throw new Error(`No holder defined for ${entity}.${state}`);
+  return holder;
+}
+
+export interface HandoverSegment {
+  holder: Holder;
+  current: boolean;
+  stops: RouteStop[];
+}
+
+export interface HandoverView {
+  entity: RouteEntity;
+  holder: Holder;
+  segments: HandoverSegment[];
+  exceptionBranch: RouteExceptionBranch | null;
+}
+
+/** Groups the route stops into consecutive segments with the same holder. */
+export function computeHandoverView(entity: RouteEntity, currentState: string): HandoverView {
+  const route = computeRouteView(entity, currentState);
+  const segments: HandoverSegment[] = [];
+  for (const stop of route.stops) {
+    const holder = holderOf(entity, stop.state);
+    const last = segments[segments.length - 1];
+    if (last && last.holder === holder) last.stops.push(stop);
+    else segments.push({ holder, current: false, stops: [stop] });
+  }
+  const currentSegment = segments.find((seg) => seg.stops.some((s) => s.status === "current"));
+  if (currentSegment) currentSegment.current = true;
+  return {
+    entity,
+    holder: holderOf(entity, currentState),
+    segments,
+    exceptionBranch: route.exceptionBranch,
   };
 }
 

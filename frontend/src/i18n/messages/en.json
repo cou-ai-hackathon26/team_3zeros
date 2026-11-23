@@ -161,7 +161,12 @@
   },
   "patient": {
     "homeTitle": "Tell us what is bothering you. We will guide you to a suitable doctor.",
-    "routePreview": ["Tell us", "Doctor", "Visit", "Follow-up"],
+    "routePreview": [
+      "Tell us",
+      "Doctor",
+      "Visit",
+      "Follow-up"
+    ],
     "automatedGuideNotice": "This is an automated guide, not a doctor. In an emergency, go to the nearest emergency hospital immediately.",
     "startTalking": "Start talking",
     "typeInstead": "Type instead",
@@ -180,5 +185,36 @@
     "checkThis": "Check this",
     "staySignedIn": "Stay signed in",
     "signOut": "Sign out"
+  },
+  "holder": {
+    "patient": "With you",
+    "practitioner": "With the doctor",
+    "sender": "With the sending facility",
+    "receiver": "With the receiving facility",
+    "system": "Being processed",
+    "none": "Closed",
+    "named": "With {name}"
+  },
+  "holderName": {
+    "patient": "You",
+    "practitioner": "Doctor",
+    "sender": "Sending facility",
+    "receiver": "Receiving facility",
+    "system": "Automatic step",
+    "none": "Closed"
+  },
+  "tracker": {
+    "label": "Progress of this case",
+    "now": "Now",
+    "exception": "Ended here"
+  },
+  "common": {
+    "loading": "Loading",
+    "tryAgain": "Try again",
+    "required": "required",
+    "close": "Close",
+    "more": "More",
+    "requestId": "Request ID",
+    "back": "Back"
   }
 }
