@@ -2,18 +2,40 @@
 
 The model has no tools. The backend looks these up and appends them to the prompt, so the model can
 only mention doctors, hospitals and phone numbers that exist in our database (MASTERPLAN D-23)."""
+import hashlib
+import re
 from typing import Dict, List, Tuple
 
+from django.core.cache import cache
 from django.utils import timezone
 
 from apps.directory.selectors import list_facilities, list_practitioners
+from apps.ai.translate import translate_text
 from apps.knowledge.search import search
 from apps.scheduling.models import Slot
 
 
+def _is_bangla(text: str) -> bool:
+    return len(re.findall(r"[\u0980-\u09FF]", text)) >= len(re.findall(r"[A-Za-z]", text))
+
+
+def _english(text: str) -> str:
+    """English version of a patient's words (the reference books are English). Cached per sentence,
+    so only the newest turn costs a translation call. Falls back to the original if unavailable."""
+    if not _is_bangla(text):
+        return text
+    key = "kb-en:" + hashlib.sha256(text.encode()).hexdigest()
+    cached = cache.get(key)
+    if cached is None:
+        cached = translate_text(text, "bn", "en") or ""
+        if cached:
+            cache.set(key, cached, 60 * 60 * 24)
+    return cached or text
+
+
 def reference_passages(session) -> List[Dict]:
-    said = " ".join(session.turns.filter(role="patient").order_by("at").values_list("text", flat=True))
-    return search(said)
+    turns = session.turns.filter(role="patient").order_by("at").values_list("text", flat=True)
+    return search(" ".join(_english(t) for t in turns))
 
 
 def references_block(passages: List[Dict]) -> str:

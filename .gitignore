@@ -93,3 +93,6 @@ Thumbs.db
 
 # Storybook build output
 frontend/storybook-static/
+
+# Reference books for the knowledge base are copyrighted and large: load them with ingest_knowledge, never commit them
+/*.pdf

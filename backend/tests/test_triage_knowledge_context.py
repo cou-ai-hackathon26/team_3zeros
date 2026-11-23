@@ -3,11 +3,18 @@ import pytest
 from django.core.management import call_command
 from apps.directory.models import Area, Service, Specialty
 from apps.knowledge.models import KnowledgeChunk, KnowledgeDocument
-from apps.knowledge.search import chunk_text, search
+from apps.knowledge.search import chunk_text, reset_index, search
 from apps.organizations.models import Facility, Practitioner, PractitionerRole
 from apps.triage import dialogue
 from apps.triage.models import TriageSummary
 from apps.triage.services import attach_triage_result, create_triage_session, process_patient_turn
+
+
+@pytest.fixture(autouse=True)
+def _fresh_index():
+    reset_index()
+    yield
+    reset_index()
 
 
 def _doc(approved, title="Fever Guide", text="Fever with severe headache and stiff neck needs urgent assessment by a doctor."):
@@ -102,3 +109,40 @@ def test_ingest_command_loads_a_pdf_unapproved_by_default(tmp_path):
     w.write(str(pdf))
     call_command("ingest_knowledge", str(pdf), "--title", "Blank")
     assert KnowledgeDocument.objects.get(title="Blank").approved is False
+
+
+@pytest.mark.django_db
+def test_index_follows_approval_changes_without_a_restart():
+    d = _doc(False)
+    assert search("fever headache stiff neck") == []
+    d.approved = True
+    d.save()
+    assert search("fever headache stiff neck")[0]["document_name"] == "Fever Guide"
+
+
+@pytest.mark.django_db
+def test_bangla_words_are_searched_in_english(monkeypatch):
+    from django.core.cache import cache
+    from apps.triage import context
+
+    cache.clear()
+    _doc(True)
+    calls = []
+    monkeypatch.setattr(context, "translate_text", lambda t, s, d: calls.append(t) or "I have fever and a severe headache")
+    session = create_triage_session(user=None, language="bn", disclosure_version="v1.0")
+    process_patient_turn(session, "আমার জ্বর আর তীব্র মাথা ব্যথা")
+    hits = context.reference_passages(session)
+    assert hits and hits[0]["document_name"] == "Fever Guide"
+    context.reference_passages(session)
+    assert len(calls) == 1  # translated once, then served from cache
+
+
+@pytest.mark.django_db
+def test_untranslatable_bangla_falls_back_to_the_original_words(monkeypatch):
+    from django.core.cache import cache
+    from apps.triage import context
+
+    cache.clear()
+    monkeypatch.setattr(context, "translate_text", lambda *a: None)
+    assert context._english("আমার জ্বর") == "আমার জ্বর"
+    assert context._english("I have fever") == "I have fever"

@@ -1,11 +1,13 @@
-"""Keyword search over approved reference chunks (TF-IDF style). Citations come from the stored
-document name and page, never from the model (D-24)."""
+"""Keyword search over approved reference chunks (TF-IDF style, inverted index kept in memory).
+Citations come from the stored document name and page, never from the model (D-24)."""
 import math
 import re
-from collections import Counter
-from typing import Dict, List
+from collections import Counter, defaultdict
+from typing import Dict, List, Optional, Tuple
 
-from .models import KnowledgeChunk
+from django.db.models import Count, Max
+
+from .models import KnowledgeChunk, KnowledgeDocument
 
 _WORD = re.compile(r"\w+", re.UNICODE)
 MIN_SCORE = 0.05
@@ -28,29 +30,62 @@ def chunk_text(text: str, size: int = 900) -> List[str]:
     return parts
 
 
+class _Index:
+    def __init__(self, signature: Tuple):
+        self.signature = signature
+        rows = list(KnowledgeChunk.objects.filter(document__approved=True).values_list("document__title", "page", "text"))
+        self.rows = rows
+        self.lengths: List[int] = []
+        self.postings: Dict[str, List[Tuple[int, int]]] = defaultdict(list)
+        for i, (_, _, text) in enumerate(rows):
+            counts = Counter(tokens(text))
+            self.lengths.append(sum(counts.values()) or 1)
+            for term, tf in counts.items():
+                self.postings[term].append((i, tf))
+
+
+_index: Optional[_Index] = None
+
+
+def _signature() -> Tuple:
+    approved = tuple(KnowledgeDocument.objects.filter(approved=True).order_by("id").values_list("id", flat=True))
+    agg = KnowledgeChunk.objects.filter(document__approved=True).aggregate(n=Count("id"), top=Max("id"))
+    return approved, agg["n"], agg["top"]
+
+
+def reset_index() -> None:
+    global _index
+    _index = None
+
+
+def _current_index() -> _Index:
+    """Rebuilt only when the set of approved documents or their passages changes."""
+    global _index
+    sig = _signature()
+    if _index is None or _index.signature != sig:
+        _index = _Index(sig)
+    return _index
+
+
 def search(query: str, limit: int = 3) -> List[Dict]:
     """Best matching approved passages: [{document_name, page_number, relevant_information}]."""
     q = Counter(tokens(query))
     if not q:
         return []
-    chunks = list(KnowledgeChunk.objects.filter(document__approved=True).select_related("document"))
-    if not chunks:
+    idx = _current_index()
+    n = len(idx.rows)
+    if not n:
         return []
-    docs_tokens = [Counter(tokens(c.text)) for c in chunks]
-    n = len(chunks)
-    df = Counter(t for dt in docs_tokens for t in dt)
-    scored = []
-    for chunk, dt in zip(chunks, docs_tokens):
-        length = sum(dt.values()) or 1
-        score = sum(
-            (dt[t] / length) ** 0.5 * math.log(1 + n / df[t]) * (1 + math.log(qc))
-            for t, qc in q.items()
-            if t in dt
-        )
-        if score >= MIN_SCORE:
-            scored.append((score, chunk))
-    scored.sort(key=lambda s: s[0], reverse=True)
+    scores: Dict[int, float] = defaultdict(float)
+    for term, qc in q.items():
+        posts = idx.postings.get(term)
+        if not posts:
+            continue
+        weight = math.log(1 + n / len(posts)) * (1 + math.log(qc))
+        for i, tf in posts:
+            scores[i] += (tf / idx.lengths[i]) ** 0.5 * weight
+    best = sorted(((s, i) for i, s in scores.items() if s >= MIN_SCORE), reverse=True)[:limit]
     return [
-        {"document_name": c.document.title, "page_number": c.page, "relevant_information": c.text}
-        for _, c in scored[:limit]
+        {"document_name": idx.rows[i][0], "page_number": idx.rows[i][1], "relevant_information": idx.rows[i][2]}
+        for _, i in best
     ]

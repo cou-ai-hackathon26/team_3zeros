@@ -21,11 +21,25 @@ class Command(BaseCommand):
         except Exception as exc:
             raise CommandError(f"Cannot read PDF: {exc}")
         doc = KnowledgeDocument.objects.create(title=title, publisher=publisher, version=doc_version, approved=approve)
-        total = 0
+        total, batch, skipped = 0, [], []
         for number, page in enumerate(reader.pages, start=1):
-            for piece in chunk_text(page.extract_text() or ""):
-                KnowledgeChunk.objects.create(document=doc, page=number, text=piece)
-                total += 1
+            try:
+                text = page.extract_text() or ""
+            except Exception as exc:  # e.g. image-heavy pages that exceed pypdf's safety limits
+                skipped.append(number)
+                self.stderr.write(f"  skipped page {number}: {exc}")
+                continue
+            for piece in chunk_text(text):
+                batch.append(KnowledgeChunk(document=doc, page=number, text=piece))
+            if len(batch) >= 500:
+                KnowledgeChunk.objects.bulk_create(batch)
+                total, batch = total + len(batch), []
+            if number % 200 == 0:
+                self.stdout.write(f"  page {number}/{len(reader.pages)}")
+        KnowledgeChunk.objects.bulk_create(batch)
+        total += len(batch)
         self.stdout.write(f"Loaded {total} passages from {len(reader.pages)} pages. approved={approve}")
+        if skipped:
+            self.stdout.write(f"Skipped {len(skipped)} pages that could not be read: {skipped[:20]}")
         if total == 0:
             self.stdout.write("Warning: no text found (scanned PDF?). OCR it first.")
