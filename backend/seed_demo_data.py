@@ -128,6 +128,48 @@ def seed():
         patient_user.save()
     PatientAccount.objects.get_or_create(user=patient_user, defaults={"patient": patient_record})
 
+    # 7b. Sample verified lab report for demo patient (so /reports displays live data)
+    from apps.documents.models import Document, ExtractionJob, ExtractedField
+
+    demo_doc, doc_created = Document.objects.get_or_create(
+        patient=patient_record,
+        original_filename="CBC_Blood_Report.pdf",
+        defaults={
+            "uploaded_by": doc_user,
+            "storage_key": "documents/demo-cbc-report",
+            "content_type": "application/pdf",
+            "size": 245760,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "state": "VERIFIED",
+        },
+    )
+    if doc_created or not demo_doc.extraction_jobs.exists():
+        job = ExtractionJob.objects.create(document=demo_doc, engine="demo-ocr", engine_version="1.0")
+        ExtractedField.objects.create(
+            job=job,
+            name="Hemoglobin",
+            value="13.4",
+            unit="g/dL",
+            lab="Savar Upazila Health Complex Lab",
+            confidence=0.97,
+            page=1,
+            status="accepted",
+            verified_by=doc_user,
+            verified_at=timezone.now(),
+        )
+        ExtractedField.objects.create(
+            job=job,
+            name="WBC Count",
+            value="7.2",
+            unit="10^9/L",
+            lab="Savar Upazila Health Complex Lab",
+            confidence=0.95,
+            page=1,
+            status="accepted",
+            verified_by=doc_user,
+            verified_at=timezone.now(),
+        )
+
     # 8. Admin user
     admin_user, a_created = User.objects.get_or_create(
         email="admin@demo.com",

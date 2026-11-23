@@ -27,9 +27,14 @@ class PatientChartView(views.APIView):
             patient_id=str(patient.public_id),
             request_id=getattr(request, "request_id", ""),
         )
+        from apps.documents.selectors import list_patient_documents
+        from apps.documents.serializers import DocumentSerializer
+
+        documents = list_patient_documents(patient)
         return Response({
             "patient_id": str(patient.public_id),
             "encounters": EncounterSerializer(encounters, many=True).data,
+            "documents": DocumentSerializer(documents, many=True).data,
         })
 
 

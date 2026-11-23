@@ -129,8 +129,10 @@ class MeView(views.APIView):
 
         permissions_list = get_user_permissions(user, active_facility_id)
 
+        patient_account = getattr(user, "patient_account", None)
         data = {
             "id": user.public_id,
+            "patient_id": patient_account.patient.public_id if patient_account and patient_account.patient_id else None,
             "email": user.email,
             "phone": user.phone,
             "display_name": user.display_name,
