@@ -530,5 +530,32 @@
     "notFound": "We could not find that report, or you do not have access to it.",
     "confirmError": "We could not confirm these values.",
     "title": "Verify report values"
+  },
+  "emergencyForm": {
+    "title": "Emergency referral",
+    "help": "Never blocked by the network. Saved encrypted on this device, with a slip you can print right away.",
+    "identity": "Who is the patient?",
+    "identityHelp": "Write their name, or what you can tell about them. If you cannot confirm who they are, say so.",
+    "reason": "Reason for transfer",
+    "urgency": "Urgency",
+    "vitals": "Blood pressure (mmHg)",
+    "treatment": "Treatment given",
+    "more": "Add more details",
+    "receiver": "Receiving facility",
+    "chooseReceiver": "Choose a facility",
+    "needReceiver": "Choose the receiving facility to send this. The slip can be printed without it.",
+    "save": "Save and send",
+    "saving": "Saving…",
+    "slipReady": "Transfer slip ready",
+    "print": "Print slip",
+    "staleBanner": "One or more emergency referrals have not been sent for over 72 hours.",
+    "savedLocal": "Saved on this device. It will be sent when you are connected.",
+    "sent": "Sent. Reference {code}.",
+    "failed": "Saved on this device but not sent yet. It will be tried again.",
+    "conflict": "The server has a different version of this referral. Check the details before sending again.",
+    "exit": "Exit",
+    "emergency": "Emergency",
+    "urgent": "Urgent",
+    "unconfirmed": "Identity not confirmed"
   }
 }

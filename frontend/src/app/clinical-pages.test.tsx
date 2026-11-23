@@ -1,5 +1,5 @@
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const nav = { pathname: "/en/dashboard", params: {} as Record<string, string>, search: "" };
@@ -20,6 +20,8 @@ import NewReferralPage from "./[locale]/(clinician)/referrals/new/page";
 import PatientsPage from "./[locale]/(clinician)/patients/page";
 import PatientChartPage from "./[locale]/(clinician)/patients/[id]/page";
 import VerifyReportPage from "./[locale]/(clinician)/patients/[id]/reports/[docId]/verify/page";
+import EmergencyPage from "./[locale]/(clinician)/emergency/page";
+import { emergencyStore } from "../offline/store";
 import ReferralWorkspacePage from "./[locale]/(clinician)/referrals/[id]/page";
 
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
@@ -474,5 +476,99 @@ describe("/patients/[id]/reports/[docId]/verify", () => {
   it("404 is one message", async () => {
     mount(<VerifyReportPage />, { "GET /auth/me": () => json(ME(["clinician"])), "GET /documents/d1": () => err("not_found", 404) });
     expect(await screen.findByText("We could not find that report, or you do not have access to it.")).toBeTruthy();
+  });
+});
+
+describe("/emergency (INV-16)", () => {
+  beforeEach(() => { nav.pathname = "/en/emergency"; });
+  afterEach(async () => {
+    Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+    await emergencyStore.syncAll(async () => ({ status: 201, body: {} })); // drain whatever a test left queued
+  });
+  const base = (extra: Record<string, Route> = {}) => ({
+    "GET /auth/me": () => json(ME(["clinician"])),
+    "GET /directory/facilities": () => page([{ id: "fr", name: "Dhaka Medical College Hospital", latest_capacity: null }]),
+    ...extra,
+  });
+  const fill = async () => {
+    fireEvent.change(await screen.findByLabelText(/Reason for transfer/), { target: { value: "Seizure in pregnancy" } });
+    fireEvent.change(screen.getByLabelText(/Who is the patient/), { target: { value: "Woman, about 28 years, name not known" } });
+    fireEvent.change(screen.getByLabelText(/Blood pressure/), { target: { value: "১৬০" } });
+  };
+  const chooseReceiver = async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Add more details" }));
+    await screen.findByRole("option", { name: "Dhaka Medical College Hospital" });
+    fireEvent.change(screen.getByRole("combobox", { name: /Receiving facility/ }), { target: { value: "fr" } });
+  };
+
+  it("has no pre-filled patient, vitals or facility, defaults urgency to Emergency, and shows the SyncBadge", async () => {
+    mount(<EmergencyPage />, base());
+    expect((await screen.findByLabelText(/Who is the patient/) as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText(/Blood pressure/) as HTMLInputElement).value).toBe("");
+    expect(screen.getByRole("radio", { name: "Emergency" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(/Karim|160\/100|UHC12|\b(Q|INV)-\d+/);
+  });
+
+  it("offline: saves on the device, shows the slip with the provisional code, sends nothing, and is not blocked by a missing receiver", async () => {
+    Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+    const { calls } = mount(<EmergencyPage />, base());
+    await fill();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save and send" })); });
+    expect(await screen.findByText("Saved on this device. It will be sent when you are connected.")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Transfer slip ready" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Print slip" })).toBeTruthy();
+    expect(calls.some((c) => c.key.startsWith("POST"))).toBe(false);
+  });
+
+  it("online with a receiver: sends once to /referrals/emergency with the idempotency key, normalised digits and the receiver, then shows the reference", async () => {
+    const { calls } = mount(<EmergencyPage />, base({ "POST /referrals/emergency": () => json({ id: "e1", reference_code: "MW-2026-77" }, 201) }));
+    await fill();
+    await chooseReceiver();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save and send" })); });
+    expect(await screen.findByText("Sent. Reference MW-2026-77.")).toBeTruthy();
+    const posts = calls.filter((c) => c.key === "POST /referrals/emergency");
+    expect(posts).toHaveLength(1);
+    const body = JSON.parse(posts[0].body);
+    expect(body).toMatchObject({ reason: "Seizure in pregnancy", urgency: "emergency", facility_id: "fr", treatment_given: "" });
+    expect(body.vitals.items).toEqual([{ code: "BP", value: "160", unit: "mmHg" }]);
+    expect(posts[0].headers.get("Idempotency-Key")).toBe(body.idempotency_key);
+    expect(await emergencyStore.listItems()).toHaveLength(0); // synced items are deleted locally
+  });
+
+  it("online without a receiver: stays queued and says what is needed, without blocking the slip", async () => {
+    const { calls } = mount(<EmergencyPage />, base());
+    await fill();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save and send" })); });
+    expect((await screen.findAllByText(/Choose the receiving facility to send this/)).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Print slip" })).toBeTruthy();
+    expect(calls.some((c) => c.key === "POST /referrals/emergency")).toBe(false);
+  });
+
+  it("a failed send is retried with the same idempotency key when the connection returns, creating one referral", async () => {
+    let n = 0;
+    const keys: string[] = [];
+    const { calls } = mount(<EmergencyPage />, base({
+      "POST /referrals/emergency": (req) => { keys.push(req.headers.get("Idempotency-Key") ?? ""); n++; if (n === 1) throw new TypeError("Failed to fetch"); return json({ id: "e1", reference_code: "MW-1" }, 201); },
+    }));
+    await fill();
+    await chooseReceiver();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save and send" })); });
+    expect(await screen.findByText("Saved on this device but not sent yet. It will be tried again.")).toBeTruthy();
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    expect(await screen.findByText("Sent. Reference MW-1.")).toBeTruthy();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+    expect(calls.filter((c) => c.key === "POST /referrals/emergency")).toHaveLength(2);
+  });
+
+  it("a server conflict shows both-versions guidance and is not retried automatically", async () => {
+    const { calls } = mount(<EmergencyPage />, base({ "POST /referrals/emergency": () => err("idempotency_conflict", 409) }));
+    await fill();
+    await chooseReceiver();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save and send" })); });
+    expect(await screen.findByText(/different version of this referral/)).toBeTruthy();
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    expect(calls.filter((c) => c.key === "POST /referrals/emergency")).toHaveLength(1);
   });
 });

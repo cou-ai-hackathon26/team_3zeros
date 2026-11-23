@@ -1,253 +1,212 @@
-﻿"use client";
+"use client";
 
-import React, { useState } from "react";
-import { EmergencyQueueStore, type DecryptedQueueItem } from "../../../../offline/queue";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { usePageLocale } from "../../../usePageLocale";
+import { ApiError } from "../../../../api/client";
+import { useFacilityDirectory } from "../../../../api/queries/hooks";
+import { useApi } from "../../../../api/queries/provider";
+import { useMe } from "../../../../auth/me";
+import { normalizeDigits, t } from "../../../../i18n/format";
+import { type DecryptedQueueItem, type EmergencyQueueState, type SyncTransportResult } from "../../../../offline/queue";
+import { emergencyStore as store } from "../../../../offline/store";
 import { EmergencySlip } from "../../../../offline/EmergencySlip";
 import { SyncBadge } from "../../../../components/SyncBadge/SyncBadge";
-import { normalizeDigits } from "../../../../i18n/format";
-import { type LocalePageProps } from "../../../resolveLocale";
-import { usePageLocale } from "@/app/usePageLocale";
-import styles from "../../screens.module.css";
-
-const defaultStore = new EmergencyQueueStore();
+import { Button } from "../../../../components/ui/button";
+import { Field, Input, Textarea } from "../../../../components/ui/field";
+import { Alert } from "../../../../components/ui/states";
+import { SegmentedControl } from "../../../../components/ui/selection";
+import { PageHeader } from "../../../../components/ui/surfaces";
+import { pickName } from "../../../../features/patient/display";
 
 /**
- * UIUX §6.12 & §6.13, FRONTEND §9 (INV-16):
- * Five-field offline-capable Emergency Referral Mode:
- * 1. Identity or "Identity not confirmed" description
- * 2. Reason for transfer
- * 3. Urgency: "Emergency" (default) or "Urgent"
- * 4. Vitals (numeric keypad)
- * 5. Treatment given
- * Printable immediately after local save via A5/A6 EmergencySlip.
+ * `/emergency`: five groups only, offline-capable (INV-16, FRONTEND §9, APPLICATION_DESIGN §5.3).
+ * Saving is local first and never blocked; sending goes through the encrypted queue's transport,
+ * which is idempotent, so a replay creates one referral. Nothing on this page moves.
  */
-export default function EmergencyReferralPage({ params }: LocalePageProps) {
-  const locale = usePageLocale(params, "en");
-  const [identityDescription, setIdentityDescription] = useState(
-    "Karim Uddin, 54y (Identity not confirmed)"
-  );
+export default function EmergencyReferralPage() {
+  const locale = usePageLocale(undefined, "en");
+  const api = useApi();
+  const { me } = useMe();
+  const facilities = useFacilityDirectory();
+  const L = (k: string) => t(locale, `emergencyForm.${k}`);
+
+  const [identity, setIdentity] = useState("");
   const [reason, setReason] = useState("");
   const [urgency, setUrgency] = useState<"emergency" | "urgent">("emergency");
-  const [bpValue, setBpValue] = useState("160/100");
-  const [treatmentGiven, setTreatmentGiven] = useState("");
-  const [savedItem, setSavedItem] = useState<DecryptedQueueItem | null>(null);
-  const [showMoreDetails, setShowMoreDetails] = useState(false);
-  const [hasStaleBanner, setHasStaleBanner] = useState(false);
+  const [bp, setBp] = useState("");
+  const [treatment, setTreatment] = useState("");
+  const [showMore, setShowMore] = useState(false);
+  const [receiverId, setReceiverId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<DecryptedQueueItem | null>(null);
+  const [queueState, setQueueState] = useState<EmergencyQueueState>("QUEUED_LOCAL");
+  const [references, setReferences] = useState<Record<string, string>>({});
+  const [stale, setStale] = useState(false);
 
-  React.useEffect(() => {
-    let active = true;
-    async function checkAndSync() {
-      const stale = await defaultStore.hasStaleItemsOver72Hours();
-      if (active) setHasStaleBanner(stale);
-    }
-    checkAndSync();
-    window.addEventListener("online", checkAndSync);
-    window.addEventListener("focus", checkAndSync);
-    const timer = setInterval(checkAndSync, 30000);
+  /** Sends one queued item. A non-2xx answer is returned as data so the queue can classify it (409 is a conflict). */
+  const transport = useCallback(
+    async (item: DecryptedQueueItem): Promise<SyncTransportResult> => {
+      const receiver = item.payload.receiver_facility_id;
+      if (!receiver) return { status: 400, body: { error: "receiver_missing" } }; // stays in the queue, flagged
+      try {
+        const res = await api.post<Record<string, unknown>>("/referrals/emergency", {
+          idempotencyKey: item.idempotencyKey,
+          body: {
+            unverified_description: item.payload.unverified_description,
+            reason: item.payload.reason,
+            urgency: item.payload.urgency,
+            vitals: item.payload.vitals,
+            treatment_given: item.payload.treatment_given,
+            facility_id: receiver,
+            provisional_code: item.provisionalCode,
+            idempotency_key: item.idempotencyKey,
+            created_at_device: item.createdAtDevice,
+          },
+        });
+        const code = (res.data as { reference_code?: string }).reference_code;
+        if (code) setReferences((r) => ({ ...r, [item.idempotencyKey]: code }));
+        return { status: res.status, body: res.data };
+      } catch (e) {
+        if (e instanceof ApiError) return { status: e.status, body: (e.rawBody as Record<string, unknown>) ?? {} };
+        throw e; // network failure: the queue marks it for another try
+      }
+    },
+    [api],
+  );
+
+  const refresh = useCallback(
+    async (key?: string) => {
+      setStale(await store.hasStaleItemsOver72Hours());
+      if (!key) return;
+      const item = (await store.listItems()).find((i) => i.idempotencyKey === key);
+      setQueueState(item ? item.state : "SYNCED"); // a synced item is deleted locally
+    },
+    [],
+  );
+
+  // One sync at a time: overlapping runs would send the same item twice.
+  const inflight = useRef<Promise<void> | null>(null);
+  const savedKey = useRef<string | undefined>(undefined);
+  const sendQueued = useCallback(
+    (key?: string): Promise<void> => {
+      if (inflight.current) return inflight.current;
+      const run = (async () => {
+        try {
+          if (typeof navigator !== "undefined" && navigator.onLine === false) return; // stays QUEUED_LOCAL
+          await store.syncAll(transport);
+        } finally {
+          inflight.current = null;
+          await refresh(key ?? savedKey.current);
+        }
+      })();
+      inflight.current = run;
+      return run;
+    },
+    [transport, refresh],
+  );
+
+  // Retry when the connection returns, when the tab is focused again, and every 30 seconds.
+  useEffect(() => {
+    const run = () => { void sendQueued(); };
+    run();
+    window.addEventListener("online", run);
+    window.addEventListener("focus", run);
+    const timer = setInterval(run, 30000);
     return () => {
-      active = false;
-      window.removeEventListener("online", checkAndSync);
-      window.removeEventListener("focus", checkAndSync);
+      window.removeEventListener("online", run);
+      window.removeEventListener("focus", run);
       clearInterval(timer);
     };
-  }, []);
+  }, [sendQueued]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const item = await defaultStore.enqueue({
-      facilityId: "fac-uhc-12",
-      facilityShortCode: "UHC12",
-      payload: {
-        unverified_description: identityDescription,
-        reason,
-        urgency,
-        vitals: {
-          recorded_at: new Date().toISOString(),
-          items: [{ code: "BP", value: normalizeDigits(bpValue), unit: "mmHg" }],
+    if (busy) return;
+    setBusy(true);
+    try {
+      const bpValue = normalizeDigits(bp).trim();
+      const item = await store.enqueue({
+        facilityId: me?.active_facility?.id ?? "unknown",
+        facilityShortCode: (me?.active_facility?.name ?? "FAC").replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase() || "FAC",
+        payload: {
+          unverified_description: identity.trim() || L("unconfirmed"),
+          reason: reason.trim(),
+          urgency,
+          vitals: { recorded_at: new Date().toISOString(), items: bpValue ? [{ code: "BP", value: bpValue, unit: "mmHg" }] : [] },
+          treatment_given: treatment.trim(),
+          receiver_facility_id: receiverId || null,
         },
-        treatment_given: treatmentGiven,
-      },
-    });
-    setSavedItem(item);
+      });
+      savedKey.current = item.idempotencyKey;
+      setSaved(item);
+      setQueueState("QUEUED_LOCAL");
+      // Saving never depends on the send. If a sync is already running it may not include this item, so wait and run again.
+      if (inflight.current) await inflight.current;
+      await sendQueued(item.idempotencyKey);
+    } finally {
+      setBusy(false);
+    }
   }
 
+  const receiverName = (facilities.data ?? []).find((f) => f.id === (saved?.payload.receiver_facility_id ?? receiverId));
+  const sentRef = saved ? references[saved.idempotencyKey] : undefined;
+
   return (
-    <main className={styles.pageShell}>
-      <header className={styles.topBar}>
-        <div>
-          <h1 className={styles.sectionHeading}>
-            {locale === "bn"
-              ? "জরুরি রেফারেল ট্রান্সফার (অফলাইন সাপোর্টসহ)"
-              : "Emergency referral transfer (Offline-capable)"}
-          </h1>
-          <p className={styles.capacityMeta}>
-            {locale === "bn"
-              ? "নেটওয়ার্ক না থাকলেও এই ৫টি তথ্য ডিভাইসে এনক্রিপ্ট করে সংরক্ষণ ও তাৎক্ষণিক স্লিপ প্রিন্ট করা যাবে (INV-16)।"
-              : "Never blocked by network failure or non-essential fields. Saves encrypted locally and prints slip immediately (INV-16)."}
-          </p>
+    <div className="mx-auto flex max-w-2xl flex-col gap-5 [&_*]:!transition-none [&_*]:!animate-none">
+      <PageHeader title={L("title")} context={L("help")} actions={<SyncBadge offlineQueueState={saved ? queueState : "QUEUED_LOCAL"} locale={locale} />} />
+      {stale && <Alert tone="attention" title={L("staleBanner")} />}
+
+      <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
+        <Field label={`1. ${L("identity")}`} help={L("identityHelp")} locale={locale}>{(p) => <Input {...p} value={identity} onChange={(e) => setIdentity(e.target.value)} />}</Field>
+        <Field label={`2. ${L("reason")}`} required locale={locale}>{(p) => <Input {...p} required value={reason} onChange={(e) => setReason(e.target.value)} />}</Field>
+        <div className="flex flex-col gap-1.5">
+          <span id="em-urgency" className="text-dense font-semibold">3. {L("urgency")}</span>
+          <SegmentedControl label={L("urgency")} value={urgency} onValueChange={setUrgency} options={[{ value: "emergency", label: L("emergency") }, { value: "urgent", label: L("urgent") }]} />
         </div>
-        <SyncBadge
-          offlineQueueState={savedItem ? savedItem.state : "QUEUED_LOCAL"}
-          locale={locale}
-        />
-      </header>
+        <Field label={`4. ${L("vitals")}`} locale={locale}>{(p) => <Input {...p} inputMode="numeric" value={bp} onChange={(e) => setBp(normalizeDigits(e.target.value))} />}</Field>
+        <Field label={`5. ${L("treatment")}`} locale={locale}>{(p) => <Textarea {...p} value={treatment} onChange={(e) => setTreatment(e.target.value)} />}</Field>
 
-      {hasStaleBanner && (
-        <div role="alert" className={styles.guideNotice}>
-          {locale === "bn"
-            ? "সতর্কতা: ৭২ ঘণ্টার বেশি সময় ধরে অফলাইন জরুরি রেফারেল সিঙ্ক হয়নি।"
-            : "Attention: One or more offline emergency referrals have not synced for over 72 hours."}
-        </div>
-      )}
-
-      <form className={styles.formStack} onSubmit={handleSubmit}>
-        <div className={styles.fieldGroup}>
-          <label htmlFor="em-identity" className={styles.fieldLabel}>
-            1.{" "}
-            {locale === "bn"
-              ? "রোগীর পরিচয় অথবা অশনাক্তকৃত বিবরণ"
-              : "Patient identity or unconfirmed description"}
-          </label>
-          <input
-            id="em-identity"
-            type="text"
-            value={identityDescription}
-            onChange={(e) => setIdentityDescription(e.target.value)}
-            className={styles.textField}
-            required
-          />
-        </div>
-
-        <div className={styles.fieldGroup}>
-          <label htmlFor="em-reason" className={styles.fieldLabel}>
-            2. {locale === "bn" ? "রেফারেলের কারণ" : "Reason for transfer"}
-          </label>
-          <input
-            id="em-reason"
-            type="text"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder={
-              locale === "bn"
-                ? "যেমন: একলাম্পসিয়া / প্রসবোত্তর রক্তপাত / স্ট্রোক"
-                : "e.g., Eclampsia with seizure / Post-partum hemorrhage / Suspected stroke"
-            }
-            className={styles.textField}
-            required
-          />
-        </div>
-
-        <div className={styles.fieldGroup}>
-          <label htmlFor="em-urgency" className={styles.fieldLabel}>
-            3. {locale === "bn" ? "জরুরি মাত্রা" : "Urgency"}
-          </label>
-          <select
-            id="em-urgency"
-            value={urgency}
-            onChange={(e) => setUrgency(e.target.value as "emergency" | "urgent")}
-            className={styles.textField}
-          >
-            <option value="emergency">Emergency</option>
-            <option value="urgent">Urgent</option>
-          </select>
-        </div>
-
-        <div className={styles.fieldGroup}>
-          <label htmlFor="em-vitals-bp" className={styles.fieldLabel}>
-            4. {locale === "bn" ? "ভাইটালস (রক্তচাপ mmHg)" : "Vitals (Blood pressure mmHg)"}
-          </label>
-          <input
-            id="em-vitals-bp"
-            type="text"
-            inputMode="numeric"
-            value={bpValue}
-            onChange={(e) => setBpValue(normalizeDigits(e.target.value))}
-            className={styles.textField}
-          />
-        </div>
-
-        <div className={styles.fieldGroup}>
-          <label htmlFor="em-treatment" className={styles.fieldLabel}>
-            5. {locale === "bn" ? "প্রদত্ত প্রাথমিক চিকিৎসা" : "Treatment given"}
-          </label>
-          <input
-            id="em-treatment"
-            type="text"
-            value={treatmentGiven}
-            onChange={(e) => setTreatmentGiven(e.target.value)}
-            placeholder={
-              locale === "bn"
-                ? "যেমন: আইভি স্যালাইন ও ম্যাগনেসিয়াম সালফেট লোডিং ডোজ"
-                : "e.g., IV Normal Saline + MgSO4 loading dose"
-            }
-            className={styles.textField}
-          />
-        </div>
-
-        <button
-          type="button"
-          className={styles.secondaryCta}
-          onClick={() => setShowMoreDetails((v) => !v)}
-        >
-          {locale === "bn" ? "আরও তথ্য যোগ করুন (ঐচ্ছিক)" : "Add more details"}
-        </button>
-
-        {showMoreDetails && (
-          <div className={styles.fieldGroup}>
-            <label htmlFor="em-receiving" className={styles.fieldLabel}>
-              {locale === "bn" ? "গ্রহণকারী হাসপাতাল" : "Receiving facility"}
-            </label>
-            <input
-              id="em-receiving"
-              type="text"
-              defaultValue="Tangail 250-Bed District Hospital"
-              className={styles.textField}
-            />
-          </div>
+        <Button variant="quiet" className="w-fit" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)}>{L("more")}</Button>
+        {showMore && (
+          <Field label={L("receiver")} help={L("needReceiver")} locale={locale}>
+            {(p) => (
+              <select {...p} className="h-12 w-full rounded-control border border-line-strong bg-surface px-3 text-body" value={receiverId} onChange={(e) => setReceiverId(e.target.value)}>
+                <option value="">{L("chooseReceiver")}</option>
+                {(facilities.data ?? []).map((f) => <option key={f.id} value={f.id}>{pickName(locale, f.name, f.name_bn)}</option>)}
+              </select>
+            )}
+          </Field>
         )}
 
-        <button type="submit" className={styles.emergencySubmitBtn}>
-          {locale === "bn"
-            ? "জরুরি রেফারেল সংরক্ষণ ও পাঠান"
-            : "Save & send emergency referral"}
-        </button>
+        <Button type="submit" variant="danger" size="lg" loading={busy} loadingLabel={L("saving")}>{L("save")}</Button>
       </form>
 
-      {savedItem && (
-        <section className={styles.formStack}>
-          <div className={styles.topBar}>
-            <h2 className={styles.sectionHeading}>
-              {locale === "bn" ? "প্রিন্ট করার জন্য স্লিপ প্রস্তুত" : "Transfer slip ready"}
-            </h2>
-            <button
-              type="button"
-              className={styles.primaryCta}
-              onClick={() => {
-                if (typeof window !== "undefined" && typeof window.print === "function") {
-                  window.print();
-                }
-              }}
-            >
-              {locale === "bn" ? "স্লিপ প্রিন্ট করুন" : "Print slip"}
-            </button>
+      {saved && (
+        <section aria-label={L("slipReady")} className="flex flex-col gap-3">
+          <div role="status" className="text-dense">
+            {sentRef ? L("sent").replace("{code}", sentRef) : queueState === "CONFLICT" ? L("conflict") : queueState === "FAILED" ? L("failed") : queueState === "SYNCED" ? "" : L("savedLocal")}
+            {!saved.payload.receiver_facility_id && queueState !== "SYNCED" && <span className="block text-ink-muted">{L("needReceiver")}</span>}
           </div>
-
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="m-0 text-heading font-semibold">{L("slipReady")}</h2>
+            <Button onClick={() => typeof window.print === "function" && window.print()}>{L("print")}</Button>
+          </div>
           <EmergencySlip
-            referenceCode={savedItem.provisionalCode}
-            isProvisional={true}
-            identityText={savedItem.payload.unverified_description ?? "Unconfirmed"}
-            reason={savedItem.payload.reason}
-            urgency={savedItem.payload.urgency}
-            vitals={savedItem.payload.vitals.items}
-            vitalsRecordedAt={savedItem.payload.vitals.recorded_at}
-            treatmentGiven={savedItem.payload.treatment_given}
-            sendingFacility="Mirzapur Upazila Health Complex"
-            receivingFacility="Tangail 250-Bed District Hospital"
-            createdAt={savedItem.createdAtDevice}
+            referenceCode={saved.provisionalCode}
+            isProvisional
+            identityText={saved.payload.unverified_description ?? L("unconfirmed")}
+            reason={saved.payload.reason}
+            urgency={saved.payload.urgency}
+            vitals={saved.payload.vitals.items}
+            vitalsRecordedAt={saved.payload.vitals.recorded_at}
+            treatmentGiven={saved.payload.treatment_given}
+            sendingFacility={me?.active_facility?.name ?? ""}
+            receivingFacility={receiverName ? pickName(locale, receiverName.name, receiverName.name_bn) : ""}
+            createdAt={saved.createdAtDevice}
             locale={locale}
           />
         </section>
       )}
-    </main>
+    </div>
   );
 }

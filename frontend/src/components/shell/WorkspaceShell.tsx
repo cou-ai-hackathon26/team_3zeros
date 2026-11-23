@@ -93,10 +93,25 @@ function SidebarContent({ me, locale, area, onNavigate }: { me: UserMe; locale: 
 /** Clinical and administration frame: sidebar and panes at lg+, top bar and sheet below. */
 export function WorkspaceShell({ me, area, children }: { me: UserMe; area: WorkspaceArea; children: React.ReactNode }) {
   const locale = usePageLocale(undefined, "en");
+  const pathname = usePathname() ?? "";
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { signOut, refreshMe } = useAuth();
   const hasEmergency = visibleNav(me, area).some((i) => i.id === "emergency");
+
+  // Focus shell: the emergency referral has no navigation, one exit, and nothing that can distract (APPLICATION_DESIGN §1).
+  if (/\/emergency(\/|$)/.test(pathname)) {
+    return (
+      <div data-route-group="focus" className="min-h-dvh bg-paper">
+        <header className="flex items-center justify-between border-b border-line bg-surface px-4 py-2">
+          <p className="m-0 text-dense font-semibold">{facilityName(me, locale)}</p>
+          <Link href={`/${locale}/dashboard`} className="flex min-h-11 items-center text-dense text-indigo underline underline-offset-2">{t(locale, "emergencyForm.exit")}</Link>
+        </header>
+        <main id="main" className="p-4">{children}</main>
+        <IdleTimeout locale={locale} onStay={() => refreshMe()} onTimeout={async () => { await signOut(); router.replace(`/${locale}/signed-out?reason=expired`); }} />
+      </div>
+    );
+  }
 
   return (
     <div data-route-group={area === "clinical" ? "clinician" : "admin"} className="min-h-dvh bg-paper lg:grid lg:grid-cols-[248px_1fr]">

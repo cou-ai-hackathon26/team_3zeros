@@ -37,6 +37,8 @@ export interface EmergencyMinimumPayload {
     items: EmergencyVitalItem[];
   };
   treatment_given: string;
+  /** Receiving facility. Optional so saving and printing are never blocked; sending needs it (the API field is `facility_id`). */
+  receiver_facility_id?: string | null;
 }
 
 export interface StoredQueueRecord {
