@@ -27,6 +27,7 @@ try {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: process.env.BUILD_STANDALONE === "true" ? "standalone" : undefined,
   // Django serves some API paths with a trailing slash (audit A-21). Do not let Next strip it, or the two redirect to each other forever.
   skipTrailingSlashRedirect: true,
   poweredByHeader: false,

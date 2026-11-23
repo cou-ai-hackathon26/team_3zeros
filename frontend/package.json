@@ -14,7 +14,8 @@
     "lint:tokens": "node scripts/lint-tokens.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "content:check": "node scripts/check-content.mjs"
+    "content:check": "node scripts/check-content.mjs",
+    "budgets:check": "node scripts/check-budgets.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "1.2.1",

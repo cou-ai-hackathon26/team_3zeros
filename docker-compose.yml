@@ -1,0 +1,179 @@
+services:
+  edge:
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+      - api
+    networks:
+      - app-net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - BACKEND_INTERNAL_URL=http://api:8000
+    depends_on:
+      - api
+    networks:
+      - app-net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - FHIR_SERVER_URL=http://hapi:8080/fhir
+      - FHIR_SYNC_MODE=stub
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-net
+      - data-net
+      - ai-net
+
+  worker-default:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "worker", "-Q", "default", "-l", "info", "-c", "2"]
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - api
+    networks:
+      - app-net
+      - data-net
+
+  worker-ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "worker", "-Q", "ocr", "-l", "info", "-c", "1"]
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - api
+    networks:
+      - app-net
+      - data-net
+      - ai-net
+
+  worker-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "worker", "-Q", "ai", "-l", "info", "-c", "1"]
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - api
+    networks:
+      - app-net
+      - data-net
+      - ai-net
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "beat", "-l", "info"]
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - api
+    networks:
+      - app-net
+      - data-net
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-medi_waypoint}
+      - POSTGRES_USER=${POSTGRES_USER:-medi}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-medi_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medi} -d ${POSTGRES_DB:-medi_waypoint}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - data-net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-net
+      - data-net
+
+  minio:
+    image: minio/minio:RELEASE.2024-05-10T01-41-38Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-medi_admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-medi_minio_secret}
+    volumes:
+      - minio_data:/data
+    networks:
+      - data-net
+
+networks:
+  app-net:
+    driver: bridge
+  data-net:
+    driver: bridge
+    internal: true
+  ai-net:
+    driver: bridge
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
