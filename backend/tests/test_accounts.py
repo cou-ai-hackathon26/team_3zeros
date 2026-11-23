@@ -95,3 +95,25 @@ def test_admin_role_access_and_views(api_client):
     assert sched_resp.status_code == 200
 
 
+@pytest.mark.django_db
+def test_me_returns_patient_id_for_patient_and_null_for_clinician(api_client, auth_setup):
+    # Clinician has no patient_id
+    api_client.force_authenticate(user=auth_setup["user"])
+    clin_me = api_client.get("/api/v1/auth/me")
+    assert clin_me.status_code == 200
+    assert clin_me.data["patient_id"] is None
+
+    # Registered patient gets their Patient public_id
+    patient_client = APIClient()
+    reg = patient_client.post(
+        "/api/v1/auth/register",
+        {"email": "me-patient@example.org", "display_name": "Me Patient", "password": "a-long-passphrase-11"},
+        format="json",
+    )
+    assert reg.status_code == 201
+    pat_me = patient_client.get("/api/v1/auth/me")
+    assert pat_me.status_code == 200
+    assert pat_me.data["patient_id"] is not None
+
+
+

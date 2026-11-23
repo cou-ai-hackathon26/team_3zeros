@@ -64,9 +64,14 @@ class PatientChartView(views.APIView):
                     "period_start": enc.period_start.isoformat(),
                 })
 
+        from apps.documents.selectors import list_patient_documents
+        from apps.documents.serializers import DocumentSerializer
+
+        documents = list_patient_documents(patient)
         return Response({
             "patient_id": str(patient.public_id),
             "encounters": EncounterSerializer(encounters, many=True).data,
+            "documents": DocumentSerializer(documents, many=True).data,
             "active_allergies": active_allergies,
             "active_medications": active_medications,
             "active_problems": active_problems,

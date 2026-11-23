@@ -22,6 +22,16 @@ describe("pickNextStep (APPLICATION_DESIGN §4.2)", () => {
     const step = pickNextStep([appt("late", "CONFIRMED", "2026-12-01T10:00:00Z"), appt("soon", "CONFIRMED", "2026-11-25T10:00:00Z")], consents());
     expect(step.kind === "confirmed" && step.appointment.id).toBe("soon");
   });
+  it("5: an open triage session comes after appointments and before none", () => {
+    const open = { id: "ts-1", state: "ACTIVE" };
+    const summaryReady = { id: "ts-2", state: "SUMMARY_PENDING_REVIEW" };
+    const closed = { id: "ts-3", state: "CONFIRMED_BY_PATIENT" };
+
+    expect(pickNextStep([], consents(), [open])).toEqual({ kind: "triage", session: open });
+    expect(pickNextStep([], consents(), [closed, summaryReady])).toEqual({ kind: "triage", session: summaryReady });
+    // Confirmed appointment takes precedence over open triage
+    expect(pickNextStep([appt("1", "CONFIRMED")], consents(), [open]).kind).toBe("confirmed");
+  });
   it("6: nothing applies for new accounts and for finished appointments only", () => {
     expect(pickNextStep([], consents())).toEqual({ kind: "none" });
     expect(pickNextStep([appt("1", "COMPLETED"), appt("2", "DECLINED")], consents())).toEqual({ kind: "none" });

@@ -1,6 +1,6 @@
 import type { Locale } from "../i18n/config";
 
-export type VoiceProviderId = "browser_speech" | "elevenlabs" | "vapi";
+export type VoiceProviderId = "vapi_placeholder" | "vapi" | "browser_speech" | "elevenlabs";
 
 export interface VoiceProviderConfig {
   provider: VoiceProviderId;

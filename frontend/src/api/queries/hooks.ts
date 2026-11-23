@@ -4,7 +4,34 @@ import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, ty
 import type { RequestOptions } from "../client";
 import { queryKeys } from "./index";
 import { useApi } from "./provider";
-import type { AccessRequestItem, ApiExtractedField, Appointment, Chart, DocumentMeta, ExtractionResponse, Patient, TriageSessionDetail, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot, EDVisitItem, NewEDVisit, PatientResultsResponse, ClinicalOrderItem, NewClinicalOrder, OrderCreateResponse } from "./types";
+import type {
+  AccessRequestItem,
+  ApiExtractedField,
+  Appointment,
+  Chart,
+  ClinicalOrderItem,
+  ConsentRequest,
+  ConsentsResponse,
+  DirectoryFacilityEntry,
+  DirectoryPractitioner,
+  DocumentDownloadLinkResponse,
+  DocumentMeta,
+  EDVisitItem,
+  ExtractionResponse,
+  NewClinicalOrder,
+  NewEDVisit,
+  NotificationItem,
+  OrderCreateResponse,
+  Page,
+  Patient,
+  PatientResultsResponse,
+  QueryFilters,
+  Referral,
+  Slot,
+  TriageSessionDetail,
+  TriageTurn,
+  VoiceCredentialsResponse,
+} from "./types";
 export type { AccessRequestItem, EDVisitItem, NewEDVisit, PatientResultsResponse, ClinicalOrderItem, NewClinicalOrder, OrderCreateResponse } from "./types";
 
 /** Builds `?a=1&b=2`, skipping undefined and empty values. */
@@ -97,9 +124,9 @@ export const useReferral = (id: string) => useGet<Referral>(queryKeys.referral(i
 
 // Collection roots (`/consents/`, `/referrals/`, `/patients/`, `/documents/`, `/notifications/`) are served with a trailing
 // slash (audit A-21). Django cannot redirect a POST, so the slash must be in the request; next.config keeps it.
-export const useConsents = () => useGet<ConsentsResponse>(queryKeys.consents, "/consents/?patient=me");
+export const useConsents = (enabled = true) => useGet<ConsentsResponse>(queryKeys.consents, "/consents/?patient=me", enabled);
 export const useConsentRequest = (id: string) => useGet<ConsentRequest>(queryKeys.consentRequest(id), `/consent-requests/${id}`);
-export const useNotifications = () => useGet<Page<NotificationItem>>(queryKeys.notifications, "/notifications/");
+export const useNotifications = (enabled = true) => useGet<Page<NotificationItem>>(queryKeys.notifications, "/notifications/", enabled);
 
 export function useMarkNotificationRead() {
   const api = useApi();
@@ -170,7 +197,8 @@ export function useConsentAction() {
 // ---- Clinical ----
 
 export const usePatient = (id: string, enabled = true) => useGet<Patient>(["records", "patient", id], `/patients/${id}`, enabled);
-export const useChart = (id: string) => useGet<Chart>(queryKeys.patientChart(id), `/patients/${id}/chart`);
+export const useChart = (id: string, enabled = true) =>
+  useGet<Chart>(queryKeys.patientChart(id), `/patients/${id}/chart`, Boolean(id) && enabled);
 
 /** Names for the queue rows, fetched in parallel for the patients the user can see. Missing names stay undefined. */
 export function usePatientNames(ids: string[]): Map<string, Patient> {
@@ -194,7 +222,153 @@ export function usePatientSearch(q: string) {
   });
 }
 
-export const useTriageSession = (id: string | null | undefined) => useGet<TriageSessionDetail>(queryKeys.triageSession(id ?? ""), `/triage/sessions/${id}`, !!id);
+export const useTriageSession = (id: string | null | undefined) =>
+  useGet<TriageSessionDetail>(queryKeys.triageSession(id ?? ""), `/triage/sessions/${id}`, !!id);
+
+export const useTriageSessions = (filters?: QueryFilters, enabled = true) =>
+  useGet<Page<TriageSessionDetail>>(
+    queryKeys.triageSessions(filters as Record<string, string>),
+    withQuery("/triage/sessions", filters),
+    enabled,
+  );
+
+export function useCreateTriageSession() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { language: "bn" | "en"; mode: "voice" | "text"; disclosureVersion: string; idempotencyKey: string }) =>
+      (
+        await api.post<TriageSessionDetail>("/triage/sessions", {
+          body: { language: v.language, mode: v.mode, triage_disclosure_version: v.disclosureVersion },
+          idempotencyKey: v.idempotencyKey,
+        })
+      ).data,
+    onSuccess: (session) => {
+      qc.setQueryData(queryKeys.triageSession(session.id), session);
+      qc.invalidateQueries({ queryKey: ["triage", "sessions"] });
+    },
+  });
+}
+
+export function useSendTriageTurn() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { sessionId: string; text: string; idempotencyKey: string }) =>
+      (
+        await api.post<TriageTurn>(`/triage/sessions/${v.sessionId}/turns`, {
+          body: { text: v.text },
+          idempotencyKey: v.idempotencyKey,
+        })
+      ).data,
+    onSuccess: (_data, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.triageSession(v.sessionId) });
+    },
+  });
+}
+
+export function useFinishTriageSession() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { sessionId: string; version?: number; idempotencyKey: string }) =>
+      (
+        await api.post<TriageSessionDetail>(`/triage/sessions/${v.sessionId}/finish`, {
+          body: {},
+          expectedVersion: v.version,
+          idempotencyKey: v.idempotencyKey,
+        })
+      ).data,
+    onSuccess: (session) => {
+      qc.setQueryData(queryKeys.triageSession(session.id), session);
+      qc.invalidateQueries({ queryKey: ["triage", "sessions"] });
+    },
+  });
+}
+
+export function useConfirmTriageSummary() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { sessionId: string; edits: Record<string, string>; version?: number; idempotencyKey: string }) =>
+      (
+        await api.post<TriageSessionDetail>(`/triage/sessions/${v.sessionId}/summary/confirm`, {
+          body: { edits: v.edits },
+          expectedVersion: v.version,
+          idempotencyKey: v.idempotencyKey,
+        })
+      ).data,
+    onSuccess: (session) => {
+      qc.setQueryData(queryKeys.triageSession(session.id), session);
+      qc.invalidateQueries({ queryKey: ["triage", "sessions"] });
+    },
+  });
+}
+
+export function useTriageSessionControl() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { sessionId: string; action: "pause" | "resume" | "end"; version?: number; idempotencyKey: string }) =>
+      (
+        await api.post<TriageSessionDetail>(`/triage/sessions/${v.sessionId}/${v.action}`, {
+          body: {},
+          expectedVersion: v.version,
+          idempotencyKey: v.idempotencyKey,
+        })
+      ).data,
+    onSuccess: (session) => {
+      qc.setQueryData(queryKeys.triageSession(session.id), session);
+      qc.invalidateQueries({ queryKey: ["triage", "sessions"] });
+    },
+  });
+}
+
+export function useRequestVoiceCredentials() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: async (v: { sessionId: string; idempotencyKey: string }) =>
+      (
+        await api.post<VoiceCredentialsResponse>(`/triage/sessions/${v.sessionId}/voice-credentials`, {
+          body: {},
+          idempotencyKey: v.idempotencyKey,
+        })
+      ).data,
+  });
+}
+
+/** Emergency facilities for EmergencyScreen (falls back to all facilities if none carry the emergency service code). */
+export function useEmergencyFacilities(enabled = false) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.emergencyFacilities,
+    queryFn: async () => {
+      const em = asList(
+        (await api.get<Page<DirectoryFacilityEntry> | DirectoryFacilityEntry[]>(withQuery("/directory/facilities", { service: "emergency", limit: "20" }))).data,
+      );
+      if (em.length > 0) return em;
+      return asList(
+        (await api.get<Page<DirectoryFacilityEntry> | DirectoryFacilityEntry[]>(withQuery("/directory/facilities", { limit: "20" }))).data,
+      );
+    },
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Audited short-lived download link for a patient document (`POST /documents/{id}/download-link`). */
+export function useDocumentDownloadLink() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: async (v: { documentId: string; idempotencyKey: string }) =>
+      (
+        await api.post<DocumentDownloadLinkResponse>(`/documents/${v.documentId}/download-link`, {
+          body: {},
+          idempotencyKey: v.idempotencyKey,
+        })
+      ).data,
+  });
+}
 
 const PROCESSING = ["UPLOADED", "OCR_QUEUED", "OCR_RUNNING"];
 

@@ -3,6 +3,7 @@ from .models import User, Membership
 
 class UserMeSerializer(serializers.Serializer):
     id = serializers.UUIDField()
+    patient_id = serializers.UUIDField(allow_null=True, required=False)
     email = serializers.EmailField(allow_null=True)
     phone = serializers.CharField(allow_null=True)
     display_name = serializers.CharField()

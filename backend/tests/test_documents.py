@@ -95,3 +95,40 @@ def test_verify_is_pending_while_fhir_is_down(api_client, doc_setup, settings, m
     assert resp.status_code == 202
     doc = Document.objects.get(public_id=doc_id)
     assert doc.state == "EXTRACTED_UNVERIFIED" and doc.pending_action == "verify"
+
+
+@pytest.mark.django_db
+def test_patient_chart_includes_non_quarantined_documents(api_client, doc_setup):
+    from apps.accounts.models import PatientAccount
+
+    patient = doc_setup["patient"]
+    patient_user = User.objects.create_user(phone="+8801766666661", display_name="Shakib")
+    PatientAccount.objects.create(user=patient_user, patient=patient)
+
+    d_verified = Document.objects.create(
+        patient=patient,
+        uploaded_by=doc_setup["user"],
+        storage_key="documents/demo-verified",
+        original_filename="verified_cbc.pdf",
+        content_type="application/pdf",
+        size=1024,
+        sha256="a" * 64,
+        state="VERIFIED",
+    )
+    Document.objects.create(
+        patient=patient,
+        uploaded_by=doc_setup["user"],
+        storage_key="documents/demo-quarantined",
+        original_filename="bad_file.pdf",
+        content_type="application/pdf",
+        size=512,
+        sha256="b" * 64,
+        state="QUARANTINED",
+    )
+
+    api_client.force_authenticate(user=patient_user)
+    resp = api_client.get(f"/api/v1/patients/{patient.public_id}/chart")
+    assert resp.status_code == 200
+    assert "documents" in resp.data
+    assert [d["id"] for d in resp.data["documents"]] == [str(d_verified.public_id)]
+

@@ -8,7 +8,6 @@ import { Alert } from "../ui/states";
 import { ListRow, Tile } from "../ui/surfaces";
 import { StatusBadge } from "../StatusBadge/StatusBadge";
 import { TracingBeam } from "../marketing/TracingBeam";
-import { AnimatedBeam } from "../marketing/AnimatedBeam";
 import { cn } from "../../lib/cn";
 import type { LandingClaims } from "./LandingPage";
 
@@ -111,16 +110,13 @@ export function Features({ locale, claims }: { locale: Locale; claims: LandingCl
           <div className="mt-4"><StatusBadge entity="appointment" state="REQUESTED" tone="active" locale={locale} /></div>
         </Tile>
         <Tile className="lg:order-3 lg:col-span-5">{tile("consent")}</Tile>
-        <Tile tone="brand" className="relative overflow-hidden lg:order-5 lg:col-span-8">
+        <Tile tone="brand" className="lg:order-5 lg:col-span-8">
           {tile("loop")}
-          <div className="relative mt-4">
-            <AnimatedBeam className="opacity-75" />
-            <ol aria-hidden className="m-0 flex list-none gap-1 p-0 text-caption">
-              {(["sender", "receiver", "returned"] as const).map((s, i) => (
-                <li key={s} className={cn("flex-1 border-t-4 px-2 py-2", i === 2 ? "border-paddy" : "border-indigo")}>{L(`tiles.loop.${s}`)}</li>
-              ))}
-            </ol>
-          </div>
+          <ol aria-hidden className="m-0 mt-4 flex list-none gap-1 p-0 text-caption">
+            {(["sender", "receiver", "returned"] as const).map((s, i) => (
+              <li key={s} className={cn("flex-1 border-t-4 px-2 py-2", i === 2 ? "border-paddy" : "border-indigo")}>{L(`tiles.loop.${s}`)}</li>
+            ))}
+          </ol>
         </Tile>
         <Tile className="lg:order-4 lg:col-span-4">
           {tile("reports")}

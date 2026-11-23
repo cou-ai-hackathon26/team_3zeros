@@ -1,0 +1,187 @@
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEmergencyFacilities } from "../../api/queries/hooks";
+import { useMe } from "../../auth/me";
+import { useTriageSessionController } from "../../voice/controller";
+import { VoicePanel } from "../../components/VoicePanel/VoicePanel";
+import { EmergencyScreen } from "../../components/EmergencyScreen/EmergencyScreen";
+import { t } from "../../i18n/format";
+import { type LocalePageProps } from "../../app/resolveLocale";
+import { usePageLocale } from "../../app/usePageLocale";
+import { PageHeader } from "../../components/ui/surfaces";
+import { Button, buttonVariants } from "../../components/ui/button";
+import { EmptyState, ErrorState, Skeleton } from "../../components/ui/states";
+
+export interface TriageViewProps {
+  params?: LocalePageProps["params"];
+  resumeSessionId?: string;
+}
+
+/**
+ * UIUX §6.2 & §6.3, FRONTEND §8:
+ * Focus-mode triage workspace with:
+ * - Explicit disclosure consent gate for both voice and text entry (MASTERPLAN §6.3).
+ * - Clean Vapi-ready voice placeholder paired with full server-backed text triage.
+ * - Immediate zero-motion EmergencyScreen interrupt with nearest emergency facilities lookup.
+ */
+export function TriageView({ params, resumeSessionId }: TriageViewProps) {
+  const initialLocale = usePageLocale(params, "bn");
+  const router = useRouter();
+  const { me } = useMe();
+  const ctrl = useTriageSessionController(initialLocale, resumeSessionId);
+  const [finishing, setFinishing] = useState(false);
+  const [showEmergencyFacilities, setShowEmergencyFacilities] = useState(false);
+
+  const emergencyFacilities = useEmergencyFacilities(showEmergencyFacilities);
+
+  let modeParam: string | null = null;
+  try {
+    const searchParams = useSearchParams();
+    modeParam = searchParams?.get("mode") ?? null;
+  } catch {
+    modeParam = null;
+  }
+
+  const T = (k: string) => t(ctrl.language, `triage.${k}`);
+
+  if (ctrl.loadingResume) {
+    return (
+      <div className="py-6">
+        <Skeleton label={T("loadingSession")} className="h-48" />
+      </div>
+    );
+  }
+
+  if (ctrl.notFound) {
+    return (
+      <EmptyState
+        message={T("sessionNotFound")}
+        action={
+          <Link href={`/${ctrl.language}/triage`} className={buttonVariants({ size: "lg" })}>
+            {T("startNew")}
+          </Link>
+        }
+      />
+    );
+  }
+
+  if (ctrl.phase === "emergency" || ctrl.emergencyInstruction) {
+    return (
+      <EmergencyScreen
+        instructionText={
+          ctrl.emergencyInstruction ??
+          "PLACEHOLDER — NOT CLINICALLY APPROVED: Go to the nearest emergency hospital immediately."
+        }
+        locale={ctrl.language}
+        onShowNearestFacilities={() => setShowEmergencyFacilities(true)}
+        facilitiesRequested={showEmergencyFacilities}
+        facilitiesLoading={emergencyFacilities.isLoading}
+        facilitiesError={emergencyFacilities.isError}
+        facilities={emergencyFacilities.data ?? []}
+      />
+    );
+  }
+
+  if (ctrl.errorMessage && resumeSessionId && ctrl.turns.length === 0) {
+    return <ErrorState message={ctrl.errorMessage} locale={ctrl.language} />;
+  }
+
+  if (
+    ctrl.sessionId &&
+    (ctrl.sessionState === "SUMMARY_PENDING_REVIEW" || ctrl.sessionState === "CONFIRMED_BY_PATIENT")
+  ) {
+    return (
+      <EmptyState
+        message={T("summaryContext")}
+        action={
+          <Link
+            href={`/${ctrl.language}/triage/summary/${ctrl.sessionId}`}
+            className={buttonVariants({ size: "lg" })}
+          >
+            {T("summaryTitle")}
+          </Link>
+        }
+      />
+    );
+  }
+
+  if (ctrl.sessionState === "ENDED_BY_PATIENT" || ctrl.sessionState === "ABANDONED") {
+    return (
+      <EmptyState
+        message={T("sessionNotFound")}
+        action={
+          <Link href={`/${ctrl.language}/triage`} className={buttonVariants({ size: "lg" })}>
+            {T("startNew")}
+          </Link>
+        }
+      />
+    );
+  }
+
+  async function handleFinishAndReview() {
+    if (finishing) return;
+    setFinishing(true);
+    const id = await ctrl.finish();
+    setFinishing(false);
+    if (id) {
+      router.push(`/${ctrl.language}/triage/summary/${id}`);
+    }
+  }
+
+  async function handleEndSession() {
+    await ctrl.end();
+    router.push(me ? `/${ctrl.language}/home` : `/${ctrl.language}`);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader serif title={T("pageTitle")} context={T("pageContext")} />
+
+      <VoicePanel
+        phase={ctrl.phase}
+        language={ctrl.language}
+        turns={ctrl.turns}
+        micLevel={ctrl.micLevel}
+        textMode={ctrl.textMode}
+        preferredMode={modeParam === "text" ? "text" : "voice"}
+        voicePlaceholderActive={ctrl.voicePlaceholderActive}
+        errorMessage={ctrl.errorMessage}
+        callSeconds={ctrl.callSeconds}
+        providerConfig={ctrl.providerConfig}
+        audioDevices={ctrl.audioDevices}
+        onUpdateProvider={ctrl.updateProvider}
+        onLanguageChange={ctrl.setLanguage}
+        onAllowMicrophone={() => void ctrl.allowMicrophone()}
+        onSwitchToText={() => void ctrl.startTextSession()}
+        onPause={() => void ctrl.pause()}
+        onResume={() => void ctrl.resume()}
+        onEnd={() => void handleEndSession()}
+        onSendTextTurn={(txt) => void ctrl.sendTextTurn(txt)}
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
+        {ctrl.sessionId && ctrl.patientTurnCount > 0 ? (
+          <Button
+            size="lg"
+            loading={finishing}
+            loadingLabel={T("finishing")}
+            onClick={() => void handleFinishAndReview()}
+          >
+            {`${T("finishAndReview")} →`}
+          </Button>
+        ) : (
+          <div />
+        )}
+        <Link
+          href={`/${ctrl.language}/doctors`}
+          className={buttonVariants({ variant: "quiet", size: "md" })}
+        >
+          {T("skipToDoctors")}
+        </Link>
+      </div>
+    </div>
+  );
+}

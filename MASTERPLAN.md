@@ -423,7 +423,7 @@ backend must match it. Paths are relative to `/api/v1`.
 | auth | `POST /auth/mfa/verify` | Complete MFA |
 | auth | `POST /auth/register` | Patient self-registration with email or username and a password; signs the patient in |
 | auth | `POST /auth/logout` | End session |
-| auth | `GET /auth/me` | Current user, roles, active facility, permissions |
+| auth | `GET /auth/me` | Current user, `patient_id` (if patient), roles, active facility, permissions |
 | auth | `POST /auth/active-facility` | Switch facility scope |
 | patients | `POST /patients`, `GET /patients?q=` | Create patient record (staff), search within scope |
 | patients | `GET /patients/{id}` | Demographics + identifiers |
@@ -437,15 +437,17 @@ backend must match it. Paths are relative to `/api/v1`.
 | scheduling | `GET /appointments?state=&role_view=` | Patient's own, or clinician/facility queue |
 | scheduling | `GET /appointments/{id}` | Detail + history + `allowed_actions` |
 | scheduling | `POST /appointments/{id}/actions/{action}` | Any §5.1 transition; body carries `reason`, `alternate_slot_id` as required |
+| triage | `GET /triage/sessions` | Authenticated patient's own triage sessions (`?state=` CSV filter, cursor paginated) |
 | triage | `POST /triage/sessions` | Create session (`language`, `mode`, `triage_disclosure_version`); rejected with `consent_required` unless the patient accepted the current triage disclosure |
 | triage | `POST /triage/sessions/{id}/voice-credentials` | Short-lived provider credentials |
 | triage | `POST /triage/sessions/{id}/turns` | Text-mode turn (voice turns arrive via provider adapter) |
-| triage | `GET /triage/sessions/{id}` | State, turns, summary draft |
+| triage | `GET /triage/sessions/{id}` | State, `allowed_actions`, `version`, turns (patient only), summary draft (patient or care-relationship clinician) |
+| triage | `POST /triage/sessions/{id}/pause`, `…/resume` | Patient pauses (`ACTIVE → PAUSED`) or resumes (`PAUSED → ACTIVE`) session |
 | triage | `POST /triage/sessions/{id}/finish` | Patient is done answering; moves the session to summary review (`finish_questions`) |
 | triage | `POST /triage/sessions/{id}/summary/confirm` | Patient confirms (optionally edits) summary |
 | triage | `POST /triage/sessions/{id}/end` | Patient ends session |
 | triage | `POST /triage/provider-events` | Server-to-server webhook from voice provider (signed) |
-| records | `GET /patients/{id}/chart` | Authorized chart sections |
+| records | `GET /patients/{id}/chart` | Authorized chart sections (`encounters[]` and non-quarantined `documents[]`) |
 | records | `POST /patients/{id}/encounters`, `GET /encounters/{id}`, `PATCH /encounters/{id}` | Encounters |
 | records | `POST /encounters/{id}/observations`, allergies, medications | Clinical entries |
 | records | `POST /encounters/{id}/orders`, `GET /encounters/{id}/orders` | Diagnostic orders; response returns recent verified results advisory (INV-15: non-suppression) |
@@ -538,9 +540,11 @@ EmergencyReferral (POST /referrals/emergency body; minimum dataset, INV-16):
               vitals{recorded_at, items[{code, value, unit}]}, treatment_given,
               idempotency_key, created_at_device, facility_id, provisional_code?
               (provisional_code format is set with the slip format, Q-09)
-TriageSession: language: bn|en, mode: voice|text, state, turns[{role, text, lang, at}],
+TriageSession: language: bn|en, mode: voice|text, state, allowed_actions[], version, turns[{role, text, lang, at}],
               triage_consent{disclosure_version, accepted_at} (wording per Q-07),
-              summary{patient_words, structured_fields, guidance_given[], source_passage_ids[]},
+              summary{patient_words, structured_fields{chief_complaint, duration, severity, additional_notes,
+              suggested_specialty_code, suggested_specialty_en, suggested_specialty_bn, guidance_sources[]},
+              guidance_given, patient_edits{}},
               ruleset_version, kb_version, model_version
 Document:     patient, encounter?, filename, content_type, size, sha256, state,
               extraction{fields[{name, value, unit, date, lab, confidence, page, bbox}]}
@@ -621,11 +625,11 @@ frontend shows the stated fallback. Detail:
 | ID | Gap | Fallback in the UI |
 |---|---|---|
 | G-1 | No endpoint lists documents waiting for verification | "Recently ready" from events and opened charts |
-| G-2 | No endpoint lists a patient's own documents | Read from the chart response, else empty state |
+| G-2 | ~~No endpoint lists a patient's own documents~~ **Resolved (2026-11-23):** `GET /auth/me` exposes `patient_id` and `GET /patients/{id}/chart` includes non-quarantined `documents[]` | Patient `/reports` loads from chart response |
 | G-3 | Practitioner directory has no next-available slot | Slots load per doctor on expand |
 | G-4 (A-03) | `GET /auth/me` has no membership list; facility-switch response shape differs from `me` | Active facility shown as text, no switcher |
 | G-5 (A-06) | `/admin/*` has list `GET`s only; schedules and staff return empty lists | Read-only tables, no create or edit controls |
-| G-6 | No endpoint lists a patient's triage sessions | Resume only from the session ID in the current tab |
+| G-6 | ~~No endpoint lists a patient's triage sessions~~ **Resolved (2026-11-23):** `GET /triage/sessions` returns the authenticated patient's own sessions | Patient `/home` Condition 5 reads open sessions from API |
 | G-7 (A-16) | `POST /appointments` requires `patient_id`, which patient clients cannot learn | "Request this time" fails with an error until the backend derives the patient from the session |
 | A-11 | No canonical list of `Membership` permission strings | Labels keyed by the strings the backend uses today |
 
@@ -665,6 +669,7 @@ Record every change to §4–§7 here so both ends see it. Newest first.
 | 2026-11-23 | Phase C Emergency Department: `EDVisit` entity (§5.9), state transitions ARRIVED → TRIAGED → UNDER_CARE → {ADMITTED, DISCHARGED, TRANSFERRED, LEFT, DIED}; endpoints `POST /ed-visits`, `GET /ed-visits`, `GET /ed-visits/{id}`, `POST /ed-visits/{id}/actions/{action}`; permission `ed.manage` | yes | yes | Planning |
 | 2026-11-23 | Phase B Private Chamber: `POST /access-requests`, `GET /admin/access-requests`, `POST /admin/access-requests/{id}/approve`, `POST /admin/access-requests/{id}/reject`; `Facility.type` gains `private_chamber` | yes | yes | Planning |
 | 2026-11-23 | Product expansion decisions: D-19 (private chambers), D-20 (patient identity baseline), Q-18 (ED intake minimum dataset), Q-19 (research ethics deferral); access-request and ED visit entities initiated | yes (in progress) | yes (in progress) | Planning |
+| 2026-11-23 | Patient dashboard & triage completion: `patient_id` on `GET /auth/me`, `documents[]` on `GET /patients/{id}/chart` (resolves G-2), `GET /triage/sessions` (resolves G-6), `POST /triage/sessions/{id}/pause` and `…/resume`, `allowed_actions`/`version`/`suggested_specialty_code` on triage responses, clinician care-relationship read & guest triage session claiming on `POST /appointments` | yes | yes | Patient/Triage |
 | 2026-11-23 | Admin access control: D-16, D-17; `GET /admin/permissions`, `POST /admin/staff`, `PATCH /admin/staff/{id}` and five action endpoints; `POST /auth/admin/login`; `POST /auth/register` replaces `POST /auth/otp/request` and `/auth/otp/verify` (D-18); error code `rate_limited` now returned for sign-in attempts; `me` roles ignore expired memberships | yes | yes | Planning |
 | 2026-11-23 | UI redesign governance: D-14, D-15, Q-14–Q-17, §8.3 known gaps; frontend route map additions (`/home`, `/consents`, `/notifications`, `/patients`, `/referrals`, auth routes). No change to §4–§7 contracts | n/a | n/a (docs only, FRONTEND §2–§4, §10–§11) | Planning |
 | 2026-11-22 | Added `POST /triage/sessions/{id}/finish` so `finish_questions` is reachable by the patient; backend implements §5.3, §5.4 and §5.8 (FHIR-gated completion, `FHIR_SYNC_MODE`); system-only actions can no longer be called by users | yes | n/a (not built) | Backend |

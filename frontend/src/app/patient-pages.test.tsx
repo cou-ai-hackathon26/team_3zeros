@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axe from "axe-core";
 
-const nav = { pathname: "/en/home", params: {} as Record<string, string> };
+const nav = { pathname: "/en/home", search: "", params: {} as Record<string, string> };
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(""),
+  useSearchParams: () => new URLSearchParams(nav.search),
   usePathname: () => nav.pathname,
   useParams: () => ({ locale: nav.pathname.split("/")[1], ...nav.params }),
 }));
@@ -23,6 +23,7 @@ import DoctorsPage from "./[locale]/(patient)/doctors/page";
 import PatientReportsPage from "./[locale]/(patient)/reports/page";
 import NotificationsPage from "./[locale]/(patient)/notifications/page";
 import TriagePage from "./[locale]/(patient)/triage/page";
+import { PatientShell } from "../components/shell/PatientShell";
 
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
 const err = (code: string, status: number) => json({ error: { code, message: code, request_id: "req-9" } }, status);
@@ -51,7 +52,7 @@ const appt = (o: Record<string, unknown> = {}) => ({
 const page = (results: unknown[]) => json({ results, next_cursor: null });
 const pendingReq = { id: "c1", state: "PENDING", patient_id: "p", recipient_facility_id: "f2", recipient_facility_name: "Dhaka Medical College", recipient_practitioner_name: "Dr. Anwar", purpose: "Specialist review", categories: ["Visit summary", "Lab reports"], content_hash: "h", created_at: "2026-11-23T08:00:00Z", expires_at: "2026-12-30T00:00:00Z" };
 
-beforeEach(() => { nav.pathname = "/en/home"; nav.params = {}; });
+beforeEach(() => { nav.pathname = "/en/home"; nav.search = ""; nav.params = {}; });
 
 describe("/home (APPLICATION_DESIGN §4.2)", () => {
   const consents = (pending: unknown[] = [], active: unknown[] = []) => () => json({ consents: active, pending_requests: pending });
@@ -84,6 +85,25 @@ describe("/home (APPLICATION_DESIGN §4.2)", () => {
     mount(<HomePage />, { "GET /appointments": () => page([appt({ state: "CONFIRMED" })]), "GET /consents/": consents() });
     expect(await screen.findByText(/Visit confirmed: 26 Nov, 10:30, Tangail District Hospital/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "View visit" })).toBeTruthy();
+  });
+
+  it("Condition 5: an open triage session shows Continue linking to the session or summary", async () => {
+    const { unmount } = mount(<HomePage />, {
+      "GET /appointments": () => page([]),
+      "GET /consents/": consents(),
+      "GET /triage/sessions": () => page([{ id: "ts-open", state: "ACTIVE" }]),
+    });
+    expect(await screen.findByText("With you: finish describing your problem")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Continue" }).getAttribute("href")).toBe("/en/triage/session/ts-open");
+    unmount();
+
+    mount(<HomePage />, {
+      "GET /appointments": () => page([]),
+      "GET /consents/": consents(),
+      "GET /triage/sessions": () => page([{ id: "ts-sum", state: "SUMMARY_PENDING_REVIEW" }]),
+    });
+    expect(await screen.findByRole("link", { name: "Continue" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Continue" }).getAttribute("href")).toBe("/en/triage/summary/ts-sum");
   });
 
   it("when a request fails, the next-step tile shows an error but Start talking still works", async () => {
@@ -349,6 +369,28 @@ describe("/doctors", () => {
     expect(await screen.findByText("ডা. রহিমা খাতুন")).toBeTruthy();
     expect(await screen.findByText(/৩ ঘণ্টা আগে/)).toBeTruthy();
   });
+
+  it("pre-selects specialty from query params and attaches triage_session_id when requesting a slot", async () => {
+    nav.pathname = "/en/doctors";
+    nav.search = "specialty=medicine&triage_session_id=sess-999";
+    const { calls } = mount(<DoctorsPage />, {
+      ...base({
+        "GET /practitioners/d1/slots": () => slots(),
+        "POST /appointments": () => json(appt({ id: "a-triage", triage_session_id: "sess-999" }), 201),
+      }),
+    });
+
+    expect(await screen.findByText(/Your confirmed triage summary will be attached/i)).toBeTruthy();
+    await waitFor(() => expect(calls.some((c) => c.key.includes("/directory/practitioners") && c.key.includes("specialty=medicine"))).toBe(true));
+
+    fireEvent.click(await screen.findByRole("button", { name: /Dr\. Rahima Khatun/ }));
+    fireEvent.click(await screen.findByRole("radio"));
+    fireEvent.click(screen.getByRole("button", { name: "Request this time" }));
+
+    await waitFor(() => expect(calls.some((c) => c.key === "POST /appointments")).toBe(true));
+    const post = calls.find((c) => c.key === "POST /appointments")!;
+    expect(JSON.parse(post.body).triage_session_id).toBe("sess-999");
+  });
 });
 
 describe("/reports (G-2, Q-11)", () => {
@@ -363,6 +405,64 @@ describe("/reports (G-2, Q-11)", () => {
       screen.getByText("During the pilot, reports are uploaded and verified by your clinician or facility staff.")
     ).toBeTruthy();
     expect(screen.getByText("Reports your doctor adds will appear here.")).toBeTruthy();
+  });
+
+  it("renders patient chart documents, distinguishes draft vs verified, expands extracted values, and audits download link (Review Focus #5)", async () => {
+    const { calls } = mount(<PatientReportsPage />, {
+      "GET /auth/me": () => json({ ...ME, patient_id: "pat-1" }),
+      "GET /patients/pat-1/chart": () =>
+        json({
+          patient_id: "pat-1",
+          encounters: [],
+          documents: [
+            { id: "doc-1", patient_id: "pat-1", original_filename: "CBC_Blood_Report.pdf", content_type: "application/pdf", size: 2048, state: "VERIFIED", created_at: "2026-11-23T08:00:00Z" },
+            { id: "doc-2", patient_id: "pat-1", original_filename: "Pending_Xray.pdf", content_type: "application/pdf", size: 4096, state: "EXTRACTED_UNVERIFIED", created_at: "2026-11-23T09:00:00Z" },
+          ],
+        }),
+      "GET /documents/doc-1/extraction": () =>
+        json({
+          document_id: "doc-1",
+          state: "VERIFIED",
+          fields: [{ id: "f1", name: "Hemoglobin", value: "13.4", unit: "g/dL", observed_date: "2026-11-23", lab: "Savar Lab", confidence: 0.98, page: 1, bbox: [0, 0, 0, 0] }],
+        }),
+      "POST /documents/doc-1/download-link": () =>
+        json({ document_id: "doc-1", url: "/api/v1/documents/doc-1/content?token=abc", expires_at: "2026-11-23T08:01:00Z" }),
+    });
+
+    expect(await screen.findByText("CBC_Blood_Report.pdf")).toBeTruthy();
+    expect(screen.getByText("Pending_Xray.pdf")).toBeTruthy();
+    // Draft document carries dashed draft border
+    const draftCard = screen.getByText("Pending_Xray.pdf").closest("section");
+    expect(draftCard?.className).toContain("border-dashed");
+
+    // Expand extracted values
+    fireEvent.click(screen.getAllByRole("button", { name: "View extracted values" })[0]);
+    expect(await screen.findByText("Hemoglobin")).toBeTruthy();
+    expect(screen.getByText(/13\.4/)).toBeTruthy();
+
+    // Audited download request displays safe notice without navigating to 404
+    fireEvent.click(screen.getAllByRole("button", { name: "Open report" })[0]);
+    expect(await screen.findByText(/Access logged/i)).toBeTruthy();
+    expect(calls.some((c) => c.key === "POST /documents/doc-1/download-link")).toBe(true);
+  });
+});
+
+describe("PatientShell unread/pending indicators", () => {
+  it("shows unread notification and pending consent indicator dots for signed-in patients", async () => {
+    nav.pathname = "/en/home";
+    mount(
+      <PatientShell>
+        <div>Home content</div>
+      </PatientShell>,
+      {
+        "GET /auth/me": () => json({ ...ME, patient_id: "pat-1" }),
+        "GET /notifications/": () => page([{ id: "n1", title: "Update", body: "x", read_at: null, created_at: "2026-11-23T08:00:00Z" }]),
+        "GET /consents/": () => json({ consents: [], pending_requests: [pendingReq] }),
+      },
+    );
+
+    expect(await screen.findByText(/1 unread notifications/i)).toBeTruthy();
+    expect(await screen.findByText(/1 pending sharing requests/i)).toBeTruthy();
   });
 });
 
