@@ -139,67 +139,103 @@ export function TriageView({ params, resumeSessionId }: TriageViewProps) {
     router.push(me ? `/${ctrl.language}/home` : `/${ctrl.language}`);
   }
 
+  const showSideRail = !ctrl.callActive && Boolean(ctrl.sessionId);
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader serif title={T("pageTitle")} context={T("pageContext")} />
 
       {ctrl.callActive ? (
         <Suspense fallback={null}>
-        <CallScreen
-          phase={ctrl.phase}
-          language={ctrl.language}
-          turns={ctrl.turns}
-          level={ctrl.micLevel}
-          seconds={ctrl.callSeconds}
-          onMute={ctrl.setMuted}
-          onEnd={ctrl.end}
-          onSwitchToText={ctrl.switchToText}
-        />
+          <CallScreen
+            phase={ctrl.phase}
+            language={ctrl.language}
+            turns={ctrl.turns}
+            level={ctrl.micLevel}
+            seconds={ctrl.callSeconds}
+            onMute={ctrl.setMuted}
+            onEnd={ctrl.end}
+            onSwitchToText={ctrl.switchToText}
+          />
         </Suspense>
       ) : (
-      <VoicePanel
-        phase={ctrl.phase}
-        language={ctrl.language}
-        turns={ctrl.turns}
-        micLevel={ctrl.micLevel}
-        textMode={ctrl.textMode}
-        preferredMode={modeParam === "text" ? "text" : "voice"}
-        voicePlaceholderActive={ctrl.voicePlaceholderActive}
-        errorMessage={ctrl.errorMessage}
-        callSeconds={ctrl.callSeconds}
-        providerConfig={ctrl.providerConfig}
-        audioDevices={ctrl.audioDevices}
-        onUpdateProvider={ctrl.updateProvider}
-        onLanguageChange={ctrl.setLanguage}
-        onAllowMicrophone={() => void ctrl.allowMicrophone()}
-        onSwitchToText={() => void ctrl.startTextSession()}
-        onPause={() => void ctrl.pause()}
-        onResume={() => void ctrl.resume()}
-        onEnd={() => void handleEndSession()}
-        onSendTextTurn={(txt) => void ctrl.sendTextTurn(txt)}
-      />
+        <div className={showSideRail ? "grid gap-6 lg:grid-cols-[1fr_290px] lg:items-start" : ""}>
+          <VoicePanel
+            phase={ctrl.phase}
+            language={ctrl.language}
+            turns={ctrl.turns}
+            micLevel={ctrl.micLevel}
+            textMode={ctrl.textMode}
+            preferredMode={modeParam === "text" ? "text" : "voice"}
+            voicePlaceholderActive={ctrl.voicePlaceholderActive}
+            errorMessage={ctrl.errorMessage}
+            callSeconds={ctrl.callSeconds}
+            providerConfig={ctrl.providerConfig}
+            audioDevices={ctrl.audioDevices}
+            onUpdateProvider={ctrl.updateProvider}
+            onLanguageChange={ctrl.setLanguage}
+            onAllowMicrophone={() => void ctrl.allowMicrophone()}
+            onSwitchToText={() => void ctrl.startTextSession()}
+            onPause={() => void ctrl.pause()}
+            onResume={() => void ctrl.resume()}
+            onEnd={() => void handleEndSession()}
+            onSendTextTurn={(txt) => void ctrl.sendTextTurn(txt)}
+          />
+
+          {showSideRail && (
+            <aside className="flex flex-col gap-4 rounded-[24px] border border-line/80 bg-sunken/80 p-5">
+              <div className="flex flex-col gap-1.5">
+                <p className="m-0 text-subheading font-semibold text-ink">{T("careGuide")}</p>
+                <p className="m-0 text-dense leading-relaxed text-ink-muted">
+                  {t(ctrl.language, "patient.automatedGuideNotice")}
+                </p>
+              </div>
+
+              {ctrl.patientTurnCount > 0 && (
+                <Button
+                  size="lg"
+                  loading={finishing}
+                  loadingLabel={T("finishing")}
+                  onClick={() => void handleFinishAndReview()}
+                  className="w-full"
+                >
+                  {`${T("finishAndReview")} →`}
+                </Button>
+              )}
+
+              <Link
+                href={`/${ctrl.language}/doctors`}
+                className={buttonVariants({ variant: "secondary", size: "md", className: "w-full" })}
+              >
+                {T("skipToDoctors")}
+              </Link>
+            </aside>
+          )}
+        </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
-        {ctrl.sessionId && ctrl.patientTurnCount > 0 ? (
-          <Button
-            size="lg"
-            loading={finishing}
-            loadingLabel={T("finishing")}
-            onClick={() => void handleFinishAndReview()}
+      {!showSideRail && (
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
+          {ctrl.sessionId && ctrl.patientTurnCount > 0 ? (
+            <Button
+              size="lg"
+              loading={finishing}
+              loadingLabel={T("finishing")}
+              onClick={() => void handleFinishAndReview()}
+            >
+              {`${T("finishAndReview")} →`}
+            </Button>
+          ) : (
+            <div />
+          )}
+          <Link
+            href={`/${ctrl.language}/doctors`}
+            className={buttonVariants({ variant: "quiet", size: "md" })}
           >
-            {`${T("finishAndReview")} →`}
-          </Button>
-        ) : (
-          <div />
-        )}
-        <Link
-          href={`/${ctrl.language}/doctors`}
-          className={buttonVariants({ variant: "quiet", size: "md" })}
-        >
-          {T("skipToDoctors")}
-        </Link>
-      </div>
+            {T("skipToDoctors")}
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

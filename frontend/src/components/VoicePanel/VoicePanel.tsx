@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Info, Mic } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { ArrowUp, Info, MessageSquareText, Mic, ShieldCheck, Stethoscope, User } from "lucide-react";
 import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";
 import { fill } from "../../features/patient/display";
@@ -81,11 +81,12 @@ export function VoicePanel({
 }: VoicePanelProps) {
   const [disclosureAccepted, setDisclosureAccepted] = useState(false);
   const [textInput, setTextInput] = useState("");
-  const [showTranscript, setShowTranscript] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
   const T = (k: string) => t(language, `triage.${k}`);
 
-  const lastAssistantTurn = [...turns].reverse().find((turn) => turn.role === "assistant");
-  const lastPatientTurn = [...turns].reverse().find((turn) => turn.role === "patient");
+  useEffect(() => {
+    endRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+  }, [turns.length, phase]);
 
   const quickPrompts =
     language === "bn"
@@ -106,41 +107,66 @@ export function VoicePanel({
 
   if (phase === "permission_prompt" && !textMode) {
     const preferText = preferredMode === "text";
+    const items = [
+      { key: "bulletMic", Icon: Mic },
+      { key: "bulletText", Icon: MessageSquareText },
+      { key: "bulletNotDoctor", Icon: ShieldCheck },
+    ] as const;
+
     return (
-      <section className="flex flex-col gap-5 rounded-tile border border-line bg-surface p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="m-0 font-serif text-title">{T("beforeStart")}</h2>
-            <p className="m-0 mt-1 text-dense text-ink-muted">{T("beforeStartSubtitle")}</p>
+      <section className="flex flex-col gap-6 rounded-[28px] border border-line/80 bg-surface p-6 sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-pill bg-indigo-wash text-indigo"
+            >
+              <Stethoscope className="size-5" />
+            </span>
+            <div>
+              <h2 className="m-0 font-serif text-title tracking-[-0.02em] text-ink">{T("beforeStart")}</h2>
+              <p className="m-0 mt-1 text-dense leading-relaxed text-ink-muted">{T("beforeStartSubtitle")}</p>
+            </div>
           </div>
           <LanguageSwitch locale={language} onChange={onLanguageChange} skipNavigation />
         </div>
 
-        <ul className="m-0 flex list-disc flex-col gap-2 ps-5 text-body">
-          <li>{T("bulletMic")}</li>
-          <li>{T("bulletText")}</li>
-          <li>{T("bulletNotDoctor")}</li>
+        <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-3">
+          {items.map(({ key, Icon }) => (
+            <li
+              key={key}
+              className="flex flex-col gap-2.5 rounded-[20px] bg-sunken/70 p-4 text-dense leading-relaxed text-ink"
+            >
+              <span
+                aria-hidden="true"
+                className="flex size-9 items-center justify-center rounded-pill bg-surface text-indigo"
+              >
+                <Icon className="size-4" />
+              </span>
+              <span>{T(key)}</span>
+            </li>
+          ))}
         </ul>
 
         {errorMessage && <Alert tone="attention" title={errorMessage} />}
 
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 text-body">
+        <label className="flex min-h-12 cursor-pointer items-start gap-3.5 rounded-[18px] border border-line bg-paper px-4 py-3.5 text-body transition-colors hover:border-indigo/40">
           <input
             type="checkbox"
             checked={disclosureAccepted}
             onChange={(e) => setDisclosureAccepted(e.target.checked)}
-            className="mt-1 size-5 shrink-0"
+            className="mt-1 size-5 shrink-0 cursor-pointer accent-indigo"
           />
-          <span>{T("disclosureAgree")}</span>
+          <span className="leading-snug text-ink">{T("disclosureAgree")}</span>
         </label>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           {preferText ? (
             <>
               <button
                 type="button"
                 disabled={!disclosureAccepted}
-                className={BTN.primary}
+                className={cn(BTN.primary, "w-full sm:w-auto")}
                 onClick={onSwitchToText}
               >
                 {T("startWriting")}
@@ -148,7 +174,7 @@ export function VoicePanel({
               <button
                 type="button"
                 disabled={!disclosureAccepted}
-                className={BTN.secondary}
+                className={cn(BTN.secondary, "w-full sm:w-auto")}
                 onClick={onAllowMicrophone}
               >
                 <Mic aria-hidden="true" className="size-4" />
@@ -160,7 +186,7 @@ export function VoicePanel({
               <button
                 type="button"
                 disabled={!disclosureAccepted}
-                className={BTN.primary}
+                className={cn(BTN.primary, "w-full sm:w-auto")}
                 onClick={onAllowMicrophone}
               >
                 <Mic aria-hidden="true" className="size-4" />
@@ -169,7 +195,7 @@ export function VoicePanel({
               <button
                 type="button"
                 disabled={!disclosureAccepted}
-                className={BTN.secondary}
+                className={cn(BTN.secondary, "w-full sm:w-auto")}
                 onClick={onSwitchToText}
               >
                 {T("typeInstead")}
@@ -183,8 +209,8 @@ export function VoicePanel({
 
   if (phase === "permission_denied" && !textMode) {
     return (
-      <section className="flex flex-col gap-5 rounded-tile border border-line bg-surface p-5">
-        <h2 className="m-0 font-serif text-title">{T("micBlocked")}</h2>
+      <section className="flex flex-col gap-5 rounded-[28px] border border-line/80 bg-surface p-6 sm:p-8">
+        <h2 className="m-0 font-serif text-title text-ink">{T("micBlocked")}</h2>
         <div className="flex flex-wrap gap-3">
           <button type="button" className={BTN.primary} onClick={onSwitchToText}>
             {T("typeInstead")}
@@ -215,16 +241,20 @@ export function VoicePanel({
               : T("listening");
 
   return (
-    <section className="flex flex-col gap-5 rounded-tile border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
+    <section className="flex flex-col overflow-hidden rounded-[28px] border border-line/80 bg-surface">
+      {/* Consultation Top Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/80 bg-paper/60 px-4 py-3.5 sm:px-6">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button type="button" className={BTN.quiet} onClick={onEnd}>
             {`← ${T("end")}`}
           </button>
-          <span className="inline-flex items-center gap-2 rounded-control bg-indigo-wash px-3 py-1 text-caption font-semibold">
+          <span className="inline-flex items-center gap-2 rounded-pill bg-indigo-wash px-3.5 py-1.5 text-caption font-semibold text-indigo">
             <span
               aria-hidden="true"
-              className={cn("size-2 rounded-pill", phase === "speaking" ? "bg-indigo" : "bg-ink-muted")}
+              className={cn(
+                "size-2 rounded-pill",
+                phase === "speaking" ? "bg-indigo" : phase === "thinking" ? "bg-ochre" : "bg-positive",
+              )}
             />
             {textMode
               ? T("writtenIntake")
@@ -235,160 +265,235 @@ export function VoicePanel({
         <LanguageSwitch locale={language} onChange={onLanguageChange} skipNavigation />
       </div>
 
-      {phase === "unsupported_browser" && (
-        <Alert tone="info" title={T("micUnsupported")} />
-      )}
+      {/* Notices & Alerts */}
+      {(phase === "unsupported_browser" || (!textMode && voicePlaceholderActive) || errorMessage) && (
+        <div className="flex flex-col gap-3 border-b border-line/70 px-4 py-3.5 sm:px-6">
+          {phase === "unsupported_browser" && <Alert tone="info" title={T("micUnsupported")} />}
 
-      {!textMode && voicePlaceholderActive && (
-        <div
-          role="note"
-          className="flex items-start gap-3 rounded-panel border border-dashed border-draft bg-draft-wash p-3 text-dense text-ink"
-        >
-          <Info aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-draft" />
-          <div className="flex flex-col gap-1">
-            <strong className="font-semibold">{T("voicePlaceholderTitle")}</strong>
-            <p className="m-0 text-dense">{T("voicePlaceholderBody")}</p>
-          </div>
+          {!textMode && voicePlaceholderActive && (
+            <div
+              role="note"
+              className="flex items-start gap-3 rounded-[18px] border border-dashed border-draft bg-draft-wash p-3.5 text-dense text-ink"
+            >
+              <Info aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-draft" />
+              <div className="flex flex-col gap-1">
+                <strong className="font-semibold">{T("voicePlaceholderTitle")}</strong>
+                <p className="m-0 text-dense">{T("voicePlaceholderBody")}</p>
+              </div>
+            </div>
+          )}
+
+          {errorMessage && <Alert tone="attention" title={errorMessage} />}
         </div>
       )}
 
-      {errorMessage && <Alert tone="attention" title={errorMessage} />}
-
-      <div className="flex flex-col gap-3">
-        <span className="text-caption font-semibold text-ink-muted">{T("careGuide")}</span>
-
-        {lastAssistantTurn ? (
-          <p className="m-0 text-title font-medium">{lastAssistantTurn.text}</p>
+      {/* Doctor-Style Live Q&A Conversation Stream */}
+      <div
+        role="log"
+        aria-live="polite"
+        className="flex min-h-[260px] max-h-[420px] flex-col gap-3.5 overflow-y-auto bg-paper/50 px-4 py-5 sm:px-6"
+      >
+        {turns.length === 0 ? (
+          <div className="flex items-end gap-2.5">
+            <span
+              aria-hidden="true"
+              className="mb-1 flex size-8 shrink-0 items-center justify-center rounded-pill bg-indigo-wash text-indigo"
+            >
+              <Stethoscope className="size-4" />
+            </span>
+            <div className="max-w-[85%] rounded-[20px] border border-indigo/20 bg-surface px-4 py-3.5">
+              <span className="text-caption font-semibold text-ink-muted">{T("careGuide")}</span>
+              <p className="m-0 mt-1 text-heading font-semibold text-ink">{T("defaultPrompt")}</p>
+            </div>
+          </div>
         ) : (
-          <p className="m-0 text-title font-medium">{T("defaultPrompt")}</p>
+          turns.map((turn, i) => {
+            const isAssistant = turn.role === "assistant";
+            const isLatestAssistant = isAssistant && i === turns.length - 1;
+            return (
+              <div
+                key={`${turn.at}-${i}`}
+                className={cn(
+                  "flex items-end gap-2.5",
+                  isAssistant ? "justify-start" : "justify-end",
+                )}
+              >
+                {isAssistant && (
+                  <span
+                    aria-hidden="true"
+                    className="mb-1 flex size-8 shrink-0 items-center justify-center rounded-pill bg-indigo-wash text-indigo"
+                  >
+                    <Stethoscope className="size-4" />
+                  </span>
+                )}
+
+                <div
+                  className={cn(
+                    "flex max-w-[85%] flex-col gap-1 rounded-[20px] px-4 py-3",
+                    isAssistant
+                      ? isLatestAssistant
+                        ? "border border-indigo/25 bg-surface text-ink"
+                        : "bg-surface/90 text-ink ring-1 ring-line/60"
+                      : "bg-indigo-wash text-ink",
+                  )}
+                >
+                  <span className="text-caption font-semibold text-ink-muted">
+                    {isAssistant ? T("careGuide") : T("you")}
+                  </span>
+                  <p
+                    className={cn(
+                      "m-0 leading-relaxed",
+                      isLatestAssistant ? "text-heading font-semibold text-ink" : "text-body text-ink",
+                    )}
+                  >
+                    {turn.text}
+                  </p>
+                </div>
+
+                {!isAssistant && (
+                  <span
+                    aria-hidden="true"
+                    className="mb-1 flex size-8 shrink-0 items-center justify-center rounded-pill bg-sunken text-ink-muted"
+                  >
+                    <User className="size-4" />
+                  </span>
+                )}
+              </div>
+            );
+          })
         )}
 
         {interimText && (
-          <p className="m-0 text-body text-ink-muted">
-            {`${T("listening")}: “${interimText}”`}
-          </p>
-        )}
-
-        {lastPatientTurn && (
-          <p className="m-0 text-dense text-ink-muted">
-            {`${T("yourResponse")} “${lastPatientTurn.text}”`}
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-dense font-semibold" role="status">
-            {statusText}
-          </span>
-
-          {turns.length > 1 && (
-            <button
-              type="button"
-              className={BTN.quiet}
-              onClick={() => setShowTranscript((v) => !v)}
-            >
-              {showTranscript
-                ? T("hideConversation")
-                : fill(T("showConversation"), { n: turns.length })}
-            </button>
-          )}
-        </div>
-
-        {!textMode && (
-          <div
-            role="meter"
-            aria-label={T("micLevel")}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(Math.min(1, Math.max(0, micLevel)) * 100)}
-            className="h-2 w-full overflow-hidden rounded-control bg-sunken"
-          >
-            <div
-              className="h-full bg-indigo"
-              style={{ width: `${Math.round(Math.min(1, Math.max(0, micLevel)) * 100)}%` }}
-            />
+          <div className="flex items-end justify-end gap-2.5">
+            <div className="max-w-[85%] rounded-[20px] border border-dashed border-indigo/40 bg-indigo-wash/60 px-4 py-2.5 text-body text-ink-muted">
+              {`${T("listening")}: “${interimText}”`}
+            </div>
           </div>
         )}
-      </div>
 
-      {showTranscript && turns.length > 0 && (
-        <div className="flex max-h-60 flex-col gap-2 overflow-y-auto rounded-panel bg-sunken p-3">
-          {turns.map((turn, i) => (
-            <div key={`${turn.at}-${i}`} className="flex flex-col text-dense">
-              <span className="text-caption font-semibold text-ink-muted">
-                {turn.role === "assistant" ? T("careGuide") : T("you")}
-              </span>
-              <span>{turn.text}</span>
+        {phase === "thinking" && (
+          <div className="flex items-end gap-2.5">
+            <span
+              aria-hidden="true"
+              className="mb-1 flex size-8 shrink-0 items-center justify-center rounded-pill bg-indigo-wash text-indigo"
+            >
+              <Stethoscope className="size-4" />
+            </span>
+            <div className="inline-flex items-center gap-1.5 rounded-[20px] bg-surface px-4 py-3 ring-1 ring-line/60">
+              <span className="size-2 rounded-pill bg-indigo/60 animate-pulse" />
+              <span className="size-2 rounded-pill bg-indigo/60 animate-pulse [animation-delay:150ms]" />
+              <span className="size-2 rounded-pill bg-indigo/60 animate-pulse [animation-delay:300ms]" />
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
 
-      <div className="flex flex-col gap-2">
-        <span className="text-caption text-ink-muted">{T("commonSymptoms")}</span>
-        <div className="flex flex-wrap gap-2">
-          {quickPrompts.map((p) => (
-            <button
-              key={p.text}
-              type="button"
-              className={cn(
-                "min-h-11 rounded-control border bg-surface px-3 text-dense hover:bg-sunken",
-                p.emergency ? "border-signal text-signal" : "border-line-strong text-ink",
-              )}
-              onClick={() => onSendTextTurn(p.text)}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <div ref={endRef} />
       </div>
 
-      <form className="flex gap-2" onSubmit={handleTextSubmit}>
-        <input
-          type="text"
-          value={textInput}
-          onChange={(e) => setTextInput(e.target.value)}
-          placeholder={textMode ? T("placeholderText") : T("placeholderVoice")}
-          className="h-12 min-w-0 flex-1 rounded-control border border-line-strong bg-surface px-3 text-body"
-        />
-        <button type="submit" className={BTN.primary}>
-          {T("send")}
-        </button>
-      </form>
-
-      {!textMode && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              className={BTN.secondary}
-              onClick={phase === "paused" || phase === "ended" ? onResume : onPause}
-            >
-              {phase === "paused" ? T("resume") : T("pause")}
-            </button>
-
-            {audioDevices.length > 1 && (
-              <select
-                className="h-11 rounded-control border border-line-strong bg-surface px-2 text-dense"
-                value={providerConfig.selectedDeviceId ?? ""}
-                onChange={(e) => onUpdateProvider?.({ selectedDeviceId: e.target.value })}
-                aria-label={T("selectMic")}
-              >
-                {audioDevices.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
+      {/* Live Status + Audio Meter + Quick Replies + Pill Composer */}
+      <div className="flex flex-col gap-4 border-t border-line/80 bg-surface px-4 py-4 sm:px-6">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-caption font-semibold text-ink-muted" role="status">
+              {statusText}
+            </span>
+            {turns.length > 1 && (
+              <span className="text-caption tabular-nums text-ink-muted">
+                {fill(T("showConversation"), { n: turns.length })}
+              </span>
             )}
           </div>
 
-          <button type="button" className={BTN.quiet} onClick={onSwitchToText}>
-            {T("typeInstead")}
-          </button>
+          {!textMode && (
+            <div
+              role="meter"
+              aria-label={T("micLevel")}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(Math.min(1, Math.max(0, micLevel)) * 100)}
+              className="h-2 w-full overflow-hidden rounded-pill bg-sunken"
+            >
+              <div
+                className="h-full rounded-pill bg-indigo transition-all duration-100"
+                style={{ width: `${Math.round(Math.min(1, Math.max(0, micLevel)) * 100)}%` }}
+              />
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Interactive Quick-Reply Symptom Chips */}
+        <div className="flex flex-col gap-2">
+          <span className="text-caption font-medium text-ink-muted">{T("commonSymptoms")}</span>
+          <div className="flex flex-wrap gap-2">
+            {quickPrompts.map((p) => (
+              <button
+                key={p.text}
+                type="button"
+                className={cn(
+                  "min-h-10 cursor-pointer rounded-pill border px-3.5 py-1.5 text-dense font-medium transition-all duration-[var(--motion-feedback-duration)] active:scale-[0.98]",
+                  p.emergency
+                    ? "border-signal/60 bg-signal-wash/60 text-signal hover:border-signal hover:bg-signal-wash"
+                    : "border-line-strong/60 bg-paper text-ink hover:border-indigo hover:bg-indigo-wash",
+                )}
+                onClick={() => onSendTextTurn(p.text)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Modern Pill Composer */}
+        <form className="flex items-center gap-2" onSubmit={handleTextSubmit}>
+          <input
+            type="text"
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            placeholder={textMode ? T("placeholderText") : T("placeholderVoice")}
+            className="h-12 min-w-0 flex-1 rounded-pill border border-line-strong bg-paper px-5 text-body text-ink transition-colors focus:border-indigo focus:bg-surface"
+          />
+          <button
+            type="submit"
+            className={cn(BTN.primary, "h-12 shrink-0 px-5")}
+          >
+            <span>{T("send")}</span>
+            <ArrowUp aria-hidden="true" className="size-4" />
+          </button>
+        </form>
+
+        {!textMode && (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                className={BTN.secondary}
+                onClick={phase === "paused" || phase === "ended" ? onResume : onPause}
+              >
+                {phase === "paused" ? T("resume") : T("pause")}
+              </button>
+
+              {audioDevices.length > 1 && (
+                <select
+                  className="h-11 rounded-pill border border-line-strong bg-surface px-3.5 text-dense"
+                  value={providerConfig.selectedDeviceId ?? ""}
+                  onChange={(e) => onUpdateProvider?.({ selectedDeviceId: e.target.value })}
+                  aria-label={T("selectMic")}
+                >
+                  {audioDevices.map((d) => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <button type="button" className={BTN.quiet} onClick={onSwitchToText}>
+              {T("typeInstead")}
+            </button>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
