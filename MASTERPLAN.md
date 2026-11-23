@@ -547,6 +547,8 @@ Status labels shown to users come from i18n keys `state.<entity>.<STATE>`
 | D-16 | Permission catalogue and grant rules. Membership permissions are drawn only from `schedule.manage`, `referral.acknowledge`, `referral.create`, `emergency.create` (served by `GET /admin/permissions`). A `facility_admin` may create and change `clinician` and `facility_staff` memberships in their own facility only. Only a `platform_admin` may create or change a `facility_admin`, and may act in any facility. A `platform_admin` is created only by the `create_platform_admin` management command. Nobody may change or deactivate their own account here, or deactivate the last platform admin. Every change is audited | docs/redesign/AUTH_RBAC_ARCHITECTURE.md §2 |
 | D-17 | Admin accounts sign in only at a separate, unlinked URL (`/{locale}/admin/login`, backed by `POST /auth/admin/login`), with TOTP MFA mandatory. `POST /auth/login` refuses any account that holds an admin role, with the same neutral error as a wrong password. Sessions for staff and admins expire after 15 idle minutes. Answers Q-13 for admin accounts only; the MFA method for clinicians stays open. A hidden URL is not a security control: the server-side role check, MFA and rate limits are | docs/SECURITY.md §3 |
 | D-18 | No one-time codes anywhere. Every user signs in with an email or username and a password (minimum 12 characters, common-password check). Patients register themselves at `POST /auth/register`; staff accounts are created by admins (D-16). Phone is a contact detail, not a sign-in identifier. Supersedes the patient phone-OTP design in SECURITY §3.1 | Product owner, 2026-11-23 |
+| D-19 | Private chamber onboarding. A solo doctor applies via `POST /access-requests` with BMDC registration number, facility name and contacts (answers Q-16). Upon platform admin approval, a `Facility` of type `private_chamber` is created, and the doctor is granted `facility_admin` + `clinician` memberships and linked `Practitioner`. The doctor switches between patient care and chamber admin via the area switcher. | Product plan Phase B, 2026-11-23 |
+| D-20 | Patient identity baseline. Primary patient identifier is phone number (and optional National ID / NID where available). Cross-facility record continuity relies on exact and fuzzy matching producing `DuplicateCandidate` records in `apps/identity`, which clinicians and staff confirm before merging records. National Health ID integration remains gated under Q-10. | Product plan Phase A, 2026-11-23 |
 
 ### 8.2 Open questions — do not assume answers
 
@@ -567,8 +569,10 @@ Status labels shown to users come from i18n keys `state.<entity>.<STATE>`
 | Q-13 | MFA method for clinicians (TOTP app vs SMS OTP) | Auth | Security + facilities |
 | Q-14 | Staff password reset: self-service, or only by a facility admin? (proposed) | `/login/staff/reset` (flag `PASSWORD_RESET`) | Security + facilities |
 | Q-15 | Patient profile fields beyond name, email or username and password (proposed) | `/welcome` (flag `PATIENT_PROFILE`) | Product + lead dev |
-| Q-16 | Clinician access request and approval workflow, and whether a requester can see status without an account (proposed) | `/access` request, admin "Requests" tab (flag `ACCESS_REQUEST`) | Product + facilities |
+| Q-16 | Clinician access request and approval workflow, and whether a requester can see status without an account (proposed) | Answered by D-19 | Product + facilities |
 | Q-17 | Whether and how email is verified, and who triggers it (proposed) | `/verify-email` (flag `EMAIL_VERIFICATION`) | Product + security |
+| Q-18 | Hospital emergency department intake minimum dataset sign-off. Vitals/triage fields beyond the 5-field baseline (`patient_name`, `age_or_dob`, `gender`, `chief_complaint`, `triage_priority`) require formal clinical sign-off. | `apps/emergency_dept`, ED intake board | Emergency clinical reviewer |
+| Q-19 | Research database access and secondary data use. Anonymised clinical dataset exports for health research require Bangladesh Medical Research Council (BMRC) ethics clearance and patient secondary-use consent. | Post-pilot research layer | BMRC + legal |
 
 When a question is answered, move it to §8.1 with its source and update the
 blocked documents in the same change.
@@ -622,6 +626,7 @@ Record every change to §4–§7 here so both ends see it. Newest first.
 
 | Date | Change | Backend updated | Frontend updated | By |
 |---|---|---|---|---|
+| 2026-11-23 | Product expansion decisions: D-19 (private chambers), D-20 (patient identity baseline), Q-18 (ED intake minimum dataset), Q-19 (research ethics deferral); access-request and ED visit entities initiated | yes (in progress) | yes (in progress) | Planning |
 | 2026-11-23 | Admin access control: D-16, D-17; `GET /admin/permissions`, `POST /admin/staff`, `PATCH /admin/staff/{id}` and five action endpoints; `POST /auth/admin/login`; `POST /auth/register` replaces `POST /auth/otp/request` and `/auth/otp/verify` (D-18); error code `rate_limited` now returned for sign-in attempts; `me` roles ignore expired memberships | yes | yes | Planning |
 | 2026-11-23 | UI redesign governance: D-14, D-15, Q-14–Q-17, §8.3 known gaps; frontend route map additions (`/home`, `/consents`, `/notifications`, `/patients`, `/referrals`, auth routes). No change to §4–§7 contracts | n/a | n/a (docs only, FRONTEND §2–§4, §10–§11) | Planning |
 | 2026-11-22 | Added `POST /triage/sessions/{id}/finish` so `finish_questions` is reachable by the patient; backend implements §5.3, §5.4 and §5.8 (FHIR-gated completion, `FHIR_SYNC_MODE`); system-only actions can no longer be called by users | yes | n/a (not built) | Backend |
