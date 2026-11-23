@@ -67,12 +67,31 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
   const versionRef = useRef<number | undefined>(undefined);
   const hiddenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const stopTracks = useCallback(() => {
+    if (streamRef.current) {
+      for (const track of streamRef.current.getTracks()) track.stop();
+      streamRef.current = null;
+    }
+  }, []);
+
   if (!voiceClientRef.current) {
-    const client = new PlaceholderVoiceClient(initialLocale);
-    client.on("state", (s) => setPhase(s));
-    client.on("level", (lvl) => setMicLevel(lvl));
-    voiceClientRef.current = client;
+    voiceClientRef.current = new PlaceholderVoiceClient(initialLocale);
   }
+
+  // Subscribe to voice client events inside an effect and unsubscribe BEFORE stopping tracks on unmount,
+  // so React StrictMode's simulated unmount never leaks `"ended"` into `phase`.
+  useEffect(() => {
+    const client = voiceClientRef.current;
+    if (!client) return;
+    const unsubState = client.on("state", (s) => setPhase(s));
+    const unsubLevel = client.on("level", (lvl) => setMicLevel(lvl));
+    return () => {
+      unsubState();
+      unsubLevel();
+      stopTracks();
+      void client.end();
+    };
+  }, [stopTracks]);
 
   useEffect(() => {
     languageRef.current = language;
@@ -83,13 +102,6 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
     setLanguageState(initialLocale);
     languageRef.current = initialLocale;
   }, [initialLocale]);
-
-  const stopTracks = useCallback(() => {
-    if (streamRef.current) {
-      for (const track of streamRef.current.getTracks()) track.stop();
-      streamRef.current = null;
-    }
-  }, []);
 
   /** POST through `useApi()` with one-time CSRF recovery (audit A-09, A-22). */
   const postWithCsrf = useCallback(
@@ -199,14 +211,6 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
     };
   }, [stopTracks]);
 
-  // Always release microphone tracks on unmount (FRONTEND §8.3)
-  useEffect(() => {
-    return () => {
-      stopTracks();
-      void voiceClientRef.current?.end();
-    };
-  }, [stopTracks]);
-
   const refreshAudioDevices = useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return;
     try {
@@ -301,6 +305,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
   const startTextSession = useCallback(async () => {
     setErrorMessage(null);
     stopTracks();
+    voiceClientRef.current?.pause();
     setTextMode(true);
     setVoicePlaceholderActive(false);
     try {
@@ -417,8 +422,20 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
     await voiceClientRef.current?.end();
     const activeId = sessionIdRef.current;
     if (!activeId) return null;
-    if (sessionState === "ACTIVE" || !sessionState) {
-      try {
+    try {
+      let currentState = sessionState;
+      if (currentState === "PAUSED") {
+        const resumed = await postWithCsrf<TriageSessionDetail>(
+          `/triage/sessions/${activeId}/resume`,
+          {},
+          versionRef.current,
+        );
+        versionRef.current = resumed.version;
+        setSessionVersion(resumed.version);
+        setSessionState(resumed.state);
+        currentState = resumed.state;
+      }
+      if (currentState === "ACTIVE" || !currentState) {
         const updated = await postWithCsrf<TriageSessionDetail>(
           `/triage/sessions/${activeId}/finish`,
           {},
@@ -427,9 +444,9 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
         versionRef.current = updated.version;
         setSessionVersion(updated.version);
         setSessionState(updated.state);
-      } catch {
-        // Summary page will also check state before confirm
       }
+    } catch {
+      // Summary page will also check state before confirm
     }
     return activeId;
   }, [postWithCsrf, sessionState, stopTracks]);

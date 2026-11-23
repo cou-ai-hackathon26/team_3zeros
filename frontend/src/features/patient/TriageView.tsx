@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEmergencyFacilities } from "../../api/queries/hooks";
+import { useMe } from "../../auth/me";
 import { useTriageSessionController } from "../../voice/controller";
 import { VoicePanel } from "../../components/VoicePanel/VoicePanel";
 import { EmergencyScreen } from "../../components/EmergencyScreen/EmergencyScreen";
@@ -29,6 +30,7 @@ export interface TriageViewProps {
 export function TriageView({ params, resumeSessionId }: TriageViewProps) {
   const initialLocale = usePageLocale(params, "bn");
   const router = useRouter();
+  const { me } = useMe();
   const ctrl = useTriageSessionController(initialLocale, resumeSessionId);
   const [finishing, setFinishing] = useState(false);
   const [showEmergencyFacilities, setShowEmergencyFacilities] = useState(false);
@@ -87,6 +89,38 @@ export function TriageView({ params, resumeSessionId }: TriageViewProps) {
     return <ErrorState message={ctrl.errorMessage} locale={ctrl.language} />;
   }
 
+  if (
+    ctrl.sessionId &&
+    (ctrl.sessionState === "SUMMARY_PENDING_REVIEW" || ctrl.sessionState === "CONFIRMED_BY_PATIENT")
+  ) {
+    return (
+      <EmptyState
+        message={T("summaryContext")}
+        action={
+          <Link
+            href={`/${ctrl.language}/triage/summary/${ctrl.sessionId}`}
+            className={buttonVariants({ size: "lg" })}
+          >
+            {T("summaryTitle")}
+          </Link>
+        }
+      />
+    );
+  }
+
+  if (ctrl.sessionState === "ENDED_BY_PATIENT" || ctrl.sessionState === "ABANDONED") {
+    return (
+      <EmptyState
+        message={T("sessionNotFound")}
+        action={
+          <Link href={`/${ctrl.language}/triage`} className={buttonVariants({ size: "lg" })}>
+            {T("startNew")}
+          </Link>
+        }
+      />
+    );
+  }
+
   async function handleFinishAndReview() {
     if (finishing) return;
     setFinishing(true);
@@ -99,11 +133,7 @@ export function TriageView({ params, resumeSessionId }: TriageViewProps) {
 
   async function handleEndSession() {
     await ctrl.end();
-    if (ctrl.sessionId && ctrl.patientTurnCount > 0) {
-      router.push(`/${ctrl.language}/triage/summary/${ctrl.sessionId}`);
-    } else {
-      router.push(`/${ctrl.language}/home`);
-    }
+    router.push(me ? `/${ctrl.language}/home` : `/${ctrl.language}`);
   }
 
   return (

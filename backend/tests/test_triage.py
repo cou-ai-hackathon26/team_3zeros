@@ -287,3 +287,74 @@ def test_triage_summary_has_specialty_code_and_sources():
     assert isinstance(sf.get("guidance_sources"), list) and len(sf["guidance_sources"]) >= 1
 
 
+@pytest.mark.django_db
+def test_turns_rejected_after_finish_questions():
+    session = create_triage_session(user=None, language="en", disclosure_version="v1.0")
+    process_patient_turn(session, "Mild fever for 2 days")
+    run_triage_action(session, "finish_questions")
+    assert session.state == "SUMMARY_PENDING_REVIEW"
+
+    # Both non-emergency and emergency turns must be rejected once questioning is finished
+    with pytest.raises(TransitionNotAllowedError):
+        process_patient_turn(session, "Severe chest pain")
+    with pytest.raises(TransitionNotAllowedError):
+        process_patient_turn(session, "Also mild cough")
+
+
+@pytest.mark.django_db
+def test_deactivated_clinician_and_facility_admin_cannot_read_triage_session(django_user_model):
+    from datetime import timedelta
+    from django.utils import timezone
+    from rest_framework.test import APIClient
+    from apps.accounts.models import Membership, PatientAccount
+    from apps.directory.models import Specialty
+    from apps.identity.models import Patient
+    from apps.organizations.models import Facility, Practitioner, PractitionerRole
+    from apps.scheduling.models import Appointment, Schedule, Slot
+
+    owner_user = django_user_model.objects.create_user(phone="+8801844444441", password="x")
+    owner_patient = Patient.objects.create(given_name="Active", family_name="Patient")
+    PatientAccount.objects.create(user=owner_user, patient=owner_patient)
+
+    deactivated_doc = django_user_model.objects.create_user(email="expired-doc@demo.com", password="x")
+    fac_admin = django_user_model.objects.create_user(email="fac-admin@demo.com", password="x")
+    fac = Facility.objects.create(name="Scoped Clinic", type="clinic")
+    spec = Specialty.objects.create(code="general_medicine", name_en="General Medicine", name_bn="মেডিসিন")
+    prac = Practitioner.objects.create(name="Dr Ex", registration_number="BMDC-8811", user=deactivated_doc)
+    role = PractitionerRole.objects.create(practitioner=prac, facility=fac, specialty=spec)
+
+    # Expired/deactivated clinician membership and a facility_admin membership
+    Membership.objects.create(
+        user=deactivated_doc,
+        facility=fac,
+        role="clinician",
+        active_to=timezone.now() - timedelta(hours=1),
+    )
+    Membership.objects.create(user=fac_admin, facility=fac, role="facility_admin")
+
+    session = create_triage_session(user=owner_user, language="en", disclosure_version="v1.0")
+    process_patient_turn(session, "Headache for 2 days", user=owner_user)
+    run_triage_action(session, "finish_questions", owner_user)
+    run_triage_action(session, "confirm_summary", owner_user)
+
+    sched = Schedule.objects.create(practitioner_role=role)
+    start = timezone.now() + timedelta(days=1)
+    slot = Slot.objects.create(schedule=sched, start=start, end=start + timedelta(minutes=30), state="HELD")
+    Appointment.objects.create(
+        patient=owner_patient,
+        practitioner=prac,
+        facility=fac,
+        slot=slot,
+        state="REQUESTED",
+        triage_session_id=session.public_id,
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=deactivated_doc)
+    assert client.get(f"/api/v1/triage/sessions/{session.public_id}").status_code == 404
+
+    client.force_authenticate(user=fac_admin)
+    assert client.get(f"/api/v1/triage/sessions/{session.public_id}").status_code == 404
+
+
+

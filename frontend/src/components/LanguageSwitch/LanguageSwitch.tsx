@@ -8,6 +8,8 @@ import { cn } from "../../lib/cn";
 export interface LanguageSwitchProps {
   locale: Locale;
   onChange?: (nextLocale: Locale) => void;
+  /** Keep the current route and React state intact (used inside active triage sessions for mid-session language switching, INV-3). */
+  skipNavigation?: boolean;
 }
 
 const OPTIONS: { value: Locale; label: string }[] = [
@@ -20,7 +22,7 @@ const OPTIONS: { value: Locale; label: string }[] = [
  * component is in every shell, and the patient routes have a 170 KB budget (FRONTEND §11). Navigates to the matching
  * /[locale]/... route when used inside the Next.js App Router.
  */
-export function LanguageSwitch({ locale, onChange }: LanguageSwitchProps) {
+export function LanguageSwitch({ locale, onChange, skipNavigation = false }: LanguageSwitchProps) {
   let pathname: string | null = null;
   let router: ReturnType<typeof useRouter> | null = null;
   try {
@@ -33,13 +35,14 @@ export function LanguageSwitch({ locale, onChange }: LanguageSwitchProps) {
 
   function handleSelect(nextLocale: Locale) {
     onChange?.(nextLocale);
-    if (pathname && router) {
+    if (!skipNavigation && pathname && router) {
+      const search = typeof window !== "undefined" ? window.location.search : "";
       const segments = pathname.split("/").filter(Boolean);
       if (segments[0] === "bn" || segments[0] === "en") {
         segments[0] = nextLocale;
-        router.push(`/${segments.join("/")}`);
+        router.push(`/${segments.join("/")}${search}`);
       } else {
-        router.push(`/${nextLocale}${pathname === "/" ? "" : pathname}`);
+        router.push(`/${nextLocale}${pathname === "/" ? "" : pathname}${search}`);
       }
     }
   }

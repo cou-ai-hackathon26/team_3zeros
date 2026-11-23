@@ -326,7 +326,8 @@ describe("Task 7 — /triage/summary/[id] API review, Changed by you, guidance/s
 
     const confirmCall = calls.find((c) => c.url.endsWith("/summary/confirm") && c.method === "POST");
     expect(confirmCall).toBeTruthy();
-    expect((confirmCall?.body as { edits?: Record<string, string> })?.edits?.chief_complaint).toBe("High fever and body ache");
+    const sentEdits = (confirmCall?.body as { edits?: Record<string, string> })?.edits ?? {};
+    expect(sentEdits).toEqual({ chief_complaint: "High fever and body ache" });
 
     const doctorsHref = screen.getByRole("link", { name: /Browse doctors & clinics/i }).getAttribute("href");
     expect(doctorsHref).toBe("/en/doctors?specialty=general_medicine&triage_session_id=sess-sum-1");
@@ -349,5 +350,132 @@ describe("Task 7 — /triage/summary/[id] API review, Changed by you, guidance/s
 
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/en/triage"));
     expect(calls.some((c) => c.url.endsWith("/triage/sessions/sess-sum-1/end") && c.method === "POST")).toBe(true);
+  });
+
+  it("renders EmergencyScreen if /triage/summary/[id] loads an EMERGENCY_PATHWAY session", async () => {
+    nav.pathname = "/en/triage/summary/sess-em-sum";
+    nav.params = { locale: "en", id: "sess-em-sum" };
+
+    mount(<TriageSummaryReviewPage params={Promise.resolve({ locale: "en" })} />, (url) => {
+      if (url.endsWith("/triage/sessions/sess-em-sum")) {
+        return json({
+          ...sampleSession,
+          id: "sess-em-sum",
+          state: "EMERGENCY_PATHWAY",
+          turns: [{ id: "t-em", role: "assistant", text: "PLACEHOLDER — NOT CLINICALLY APPROVED: Go to ER now.", language_detected: "en", response_policy: "emergency", at: "2026-11-23T10:00:00Z" }],
+        });
+      }
+      return json({});
+    });
+
+    expect(await screen.findByText(/This may be an emergency/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Confirm and find a doctor/i })).toBeNull();
+  });
+});
+
+describe("Code review regression fixes", () => {
+  it("React StrictMode keeps the disclosure gate active on /triage?mode=text (#1)", async () => {
+    nav.pathname = "/en/triage";
+    nav.search = "mode=text";
+
+    mount(
+      <React.StrictMode>
+        <TriagePage params={Promise.resolve({ locale: "en" })} />
+      </React.StrictMode>,
+      () => json({}),
+    );
+
+    expect(await screen.findByText("Before we start")).toBeTruthy();
+    expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole("button", { name: /start writing/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("resuming SUMMARY_PENDING_REVIEW or ENDED_BY_PATIENT session does not show active turn input (#2)", async () => {
+    nav.pathname = "/en/triage/session/sess-pending";
+    nav.params = { locale: "en", id: "sess-pending" };
+
+    const { unmount } = mount(<TriageSessionResumePage params={Promise.resolve({ locale: "en" })} />, (url) => {
+      if (url.endsWith("/triage/sessions/sess-pending")) {
+        return json({ id: "sess-pending", state: "SUMMARY_PENDING_REVIEW", version: 3, language: "en", mode: "text", turns: [], summary: { patient_words: "Fever" } });
+      }
+      return json({});
+    });
+    expect(await screen.findByRole("link", { name: /Finish & review summary|Review your intake summary/i })).toBeTruthy();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    unmount();
+
+    nav.pathname = "/en/triage/session/sess-ended";
+    nav.params = { locale: "en", id: "sess-ended" };
+    mount(<TriageSessionResumePage params={Promise.resolve({ locale: "en" })} />, (url) => {
+      if (url.endsWith("/triage/sessions/sess-ended")) {
+        return json({ id: "sess-ended", state: "ENDED_BY_PATIENT", version: 4, language: "en", mode: "text", turns: [], summary: null });
+      }
+      return json({});
+    });
+    expect(await screen.findByRole("link", { name: /Start a new session/i })).toBeTruthy();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("finishing a PAUSED session resumes before calling /finish, and End does not route to /triage/summary (#4)", async () => {
+    nav.pathname = "/en/triage/session/sess-paused";
+    nav.params = { locale: "en", id: "sess-paused" };
+
+    const { calls } = mount(<TriageSessionResumePage params={Promise.resolve({ locale: "en" })} />, (url, method) => {
+      if (url.endsWith("/triage/sessions/sess-paused") && method === "GET") {
+        return json({
+          id: "sess-paused",
+          state: "PAUSED",
+          version: 3,
+          language: "en",
+          mode: "text",
+          turns: [
+            { id: "t1", role: "assistant", text: "Hi", language_detected: "en", at: "2026-11-23T10:00:00Z" },
+            { id: "t2", role: "patient", text: "Fever", language_detected: "en", at: "2026-11-23T10:01:00Z" },
+          ],
+          summary: { patient_words: "Fever", structured_fields: {} },
+        });
+      }
+      if (url.endsWith("/resume") && method === "POST") return json({ id: "sess-paused", state: "ACTIVE", version: 4 });
+      if (url.endsWith("/finish") && method === "POST") return json({ id: "sess-paused", state: "SUMMARY_PENDING_REVIEW", version: 5 });
+      if (url.endsWith("/end") && method === "POST") return json({ id: "sess-paused", state: "ENDED_BY_PATIENT", version: 5 });
+      return json({});
+    });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Finish & review summary/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /Finish & review summary/i }));
+
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/en/triage/summary/sess-paused"));
+    const postUrls = calls.filter((c) => c.method === "POST").map((c) => c.url);
+    expect(postUrls.some((u) => u.endsWith("/resume"))).toBe(true);
+    expect(postUrls.some((u) => u.endsWith("/finish"))).toBe(true);
+  });
+
+  it("mid-session language switch updates language without navigating away and discarding the session (#5)", async () => {
+    nav.pathname = "/en/triage";
+    nav.search = "mode=text";
+
+    mount(<TriagePage params={Promise.resolve({ locale: "en" })} />, (url, method) => {
+      if (url.endsWith("/triage/sessions") && method === "POST") {
+        return json({
+          id: "sess-lang-1",
+          state: "ACTIVE",
+          version: 2,
+          language: "en",
+          mode: "text",
+          turns: [{ id: "t1", role: "assistant", text: "Describe symptoms", language_detected: "en", at: "2026-11-23T10:00:00Z" }],
+          summary: null,
+        }, 201);
+      }
+      return json({});
+    });
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /start writing/i }));
+    await waitFor(() => expect(screen.getByText("Describe symptoms")).toBeTruthy());
+
+    // Switch to বাংলা mid-session
+    fireEvent.click(screen.getByRole("button", { name: "বাংলা" }));
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(screen.getByText("Describe symptoms")).toBeTruthy();
   });
 });

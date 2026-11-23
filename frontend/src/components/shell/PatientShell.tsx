@@ -53,7 +53,6 @@ export function PatientShell({ children }: { children: React.ReactNode }) {
             <Wordmark />
           </Link>
           <div className="flex items-center gap-2">
-            <LanguageSwitch locale={locale} />
             {!me && (
               <Link href={`/${locale}/login`} className={buttonVariants({ variant: "quiet", size: "sm" })}>
                 {t(locale, "shell.signIn")}

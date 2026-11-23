@@ -113,7 +113,7 @@ export function VoicePanel({
             <h2 className="m-0 font-serif text-title">{T("beforeStart")}</h2>
             <p className="m-0 mt-1 text-dense text-ink-muted">{T("beforeStartSubtitle")}</p>
           </div>
-          <LanguageSwitch locale={language} onChange={onLanguageChange} />
+          <LanguageSwitch locale={language} onChange={onLanguageChange} skipNavigation />
         </div>
 
         <ul className="m-0 flex list-disc flex-col gap-2 ps-5 text-body">
@@ -232,7 +232,7 @@ export function VoicePanel({
           </span>
         </div>
 
-        <LanguageSwitch locale={language} onChange={onLanguageChange} />
+        <LanguageSwitch locale={language} onChange={onLanguageChange} skipNavigation />
       </div>
 
       {phase === "unsupported_browser" && (

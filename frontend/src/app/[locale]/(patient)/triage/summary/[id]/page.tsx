@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ApiError, createIntentIdempotencyKey } from "../../../../../../api/client";
 import {
   useConfirmTriageSummary,
+  useEmergencyFacilities,
   useFinishTriageSession,
   useTriageSession,
   useTriageSessionControl,
@@ -14,6 +15,7 @@ import type { TriageSessionDetail } from "../../../../../../api/queries/types";
 import { t } from "../../../../../../i18n/format";
 import { type LocalePageProps } from "../../../../../resolveLocale";
 import { usePageLocale } from "../../../../../usePageLocale";
+import { EmergencyScreen } from "../../../../../../components/EmergencyScreen/EmergencyScreen";
 import { Column, QueryBoundary } from "../../../../../../components/QueryBoundary";
 import { PageHeader, Panel } from "../../../../../../components/ui/surfaces";
 import { Alert } from "../../../../../../components/ui/states";
@@ -56,6 +58,8 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
   const [confirmed, setConfirmed] = useState(session.state === "CONFIRMED_BY_PATIENT");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
+  const [showEmergencyFacilities, setShowEmergencyFacilities] = useState(false);
+  const emergencyFacilities = useEmergencyFacilities(showEmergencyFacilities);
 
   useEffect(() => {
     const next = extractInitialFields(session, locale);
@@ -63,6 +67,24 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
     setFields(next);
     if (session.state === "CONFIRMED_BY_PATIENT") setConfirmed(true);
   }, [session.id, locale]);
+
+  if (session.state === "EMERGENCY_PATHWAY") {
+    const emTurn = [...(session.turns ?? [])].reverse().find((turn) => turn.response_policy === "emergency");
+    return (
+      <EmergencyScreen
+        instructionText={
+          emTurn?.text ??
+          "PLACEHOLDER — NOT CLINICALLY APPROVED: Go to the nearest emergency hospital immediately."
+        }
+        locale={locale}
+        onShowNearestFacilities={() => setShowEmergencyFacilities(true)}
+        facilitiesRequested={showEmergencyFacilities}
+        facilitiesLoading={emergencyFacilities.isLoading}
+        facilitiesError={emergencyFacilities.isError}
+        facilities={emergencyFacilities.data ?? []}
+      />
+    );
+  }
 
   const sf = session.summary?.structured_fields ?? {};
   const specialtyCode = typeof sf.suggested_specialty_code === "string" ? sf.suggested_specialty_code : "";
@@ -80,7 +102,18 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
     setErrorMessage(null);
     try {
       let currentVersion = session.version;
-      if (session.state === "ACTIVE") {
+      let currentState = session.state;
+      if (currentState === "PAUSED") {
+        const resumed = await control.mutateAsync({
+          sessionId: session.id,
+          action: "resume",
+          version: currentVersion,
+          idempotencyKey: createIntentIdempotencyKey(),
+        });
+        currentVersion = resumed.version;
+        currentState = resumed.state;
+      }
+      if (currentState === "ACTIVE") {
         const finished = await finish.mutateAsync({
           sessionId: session.id,
           version: currentVersion,
@@ -91,7 +124,7 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
 
       const edits: Record<string, string> = {};
       (Object.keys(fields) as Array<keyof EditableFields>).forEach((k) => {
-        if (isChanged(k) || fields[k]) {
+        if (isChanged(k)) {
           edits[k] = fields[k];
         }
       });

@@ -53,10 +53,16 @@ def list_patient_triage_sessions(user, states=None):
 
 
 def _clinician_has_appointment_relationship(user, session: TriageSession) -> bool:
-    """True when authenticated staff belongs to a facility with an appointment linked to this triage session."""
+    """True when authenticated clinical staff has an active membership at a facility with a linked appointment."""
     if not user or not getattr(user, "is_authenticated", False):
         return False
-    facility_ids = list(user.memberships.values_list("facility_id", flat=True))
+    from apps.accounts.selectors import active_memberships
+
+    facility_ids = list(
+        active_memberships(user)
+        .filter(role__in=("clinician", "facility_staff"))
+        .values_list("facility_id", flat=True)
+    )
     if not facility_ids:
         return False
     from apps.scheduling.models import Appointment
@@ -258,8 +264,8 @@ def _build_clinical_dialogue_and_summary(session: TriageSession, latest_text: st
 
 
 def process_patient_turn(session: TriageSession, text: str, user=None, request_id=""):
-    if session.state in ("EMERGENCY_PATHWAY", "CONFIRMED_BY_PATIENT", "ENDED_BY_PATIENT", "ABANDONED"):
-        raise TransitionNotAllowedError(f"Session is already closed in state '{session.state}'.")
+    if session.state not in ("ACTIVE", "PAUSED"):
+        raise TransitionNotAllowedError(f"Session cannot accept turns in state '{session.state}'.")
 
     cleaned_text = normalize_text(text)
     if not cleaned_text:
