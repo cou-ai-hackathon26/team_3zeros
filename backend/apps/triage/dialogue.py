@@ -11,7 +11,7 @@ citations, doctor/hospital lookups by the model. Those need clinician-approved c
 """
 from typing import Optional
 
-from apps.ai.chat import gemini_generate_text
+from apps.ai.chat import generate_text
 
 TRIAGE_SYSTEM_PROMPT = """You are the triage assistant of a healthcare referral platform in Bangladesh. You are NOT a doctor.
 Your job: understand why the patient contacted us, collect a short history, and guide them to a doctor visit. Patient safety comes first.
@@ -41,4 +41,4 @@ def llm_next_reply(session) -> Optional[str]:
     while messages and messages[0]["role"] == "model":
         messages.pop(0)
     hint = f"\n\nSession language: {'English' if session.language == 'en' else 'Bangla'} (follow the patient's language if it differs)."
-    return gemini_generate_text(messages, system=TRIAGE_SYSTEM_PROMPT + hint, max_tokens=200)
+    return generate_text(messages, system=TRIAGE_SYSTEM_PROMPT + hint, max_tokens=200)

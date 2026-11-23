@@ -208,6 +208,7 @@ LLM_PROVIDER = env("LLM_PROVIDER", default="mock")
 OCR_PROVIDER = env("OCR_PROVIDER", default="mock")
 GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+CEREBRAS_API_KEY = env("CEREBRAS_API_KEY", default="")
 LLM_MODEL = env("LLM_MODEL", default="")
 
 

@@ -1,7 +1,7 @@
 """Caption translation Bangla <-> English (MASTERPLAN D-22). Always machine-labelled by the caller."""
 from typing import Optional
 
-from .chat import gemini_generate_text
+from .chat import generate_text
 
 LANG_NAMES = {"bn": "Bangla", "en": "English"}
 
@@ -14,4 +14,4 @@ def translate_text(text: str, source: str, target: str) -> Optional[str]:
         f"Translate the following {LANG_NAMES[source]} text to {LANG_NAMES[target]}. "
         "Translate literally. Do not add, remove, explain or give advice. Output only the translation.\n\n" + text
     )
-    return gemini_generate_text([{"role": "user", "text": prompt}], max_tokens=400, temperature=0)
+    return generate_text([{"role": "user", "text": prompt}], max_tokens=400, temperature=0)
