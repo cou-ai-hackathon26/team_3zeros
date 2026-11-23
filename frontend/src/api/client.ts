@@ -185,7 +185,8 @@ export function createApiClient(options?: ApiClientOptions) {
       if (apiError.status === 401) {
         if (apiError.code === "mfa_required") {
           options?.onMfaRequired?.();
-        } else {
+        } else if (!path.startsWith("/auth/")) {
+          // A 401 from /auth/* is a sign-in answer (bad credentials, signed out), not an expired session.
           options?.onUnauthenticated?.();
         }
       }

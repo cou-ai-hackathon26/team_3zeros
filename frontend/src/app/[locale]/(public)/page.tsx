@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import type { Locale } from "../../../i18n/config";
 import { getMessages } from "../../../i18n/format";
-import { SiteNav } from "../../../components/SiteNav/SiteNav";
 import { type LocalePageProps } from "../../resolveLocale";
 import { usePageLocale } from "@/app/usePageLocale";
 import styles from "../screens.module.css";
@@ -121,7 +120,6 @@ export default function PatientHomePage({ params }: LocalePageProps) {
 
   return (
     <div>
-      <SiteNav area="patient" locale={locale} onLanguageChange={setLocale} />
 
       <main className={styles.homeShell}>
         <section className={styles.heroBoard} aria-label="Wayfinding journey stops">

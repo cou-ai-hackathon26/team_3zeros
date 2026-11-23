@@ -1,17 +1,7 @@
-"use client";
-
 import React from "react";
-import { SiteNav } from "../../../components/SiteNav/SiteNav";
+import { RequireArea } from "../../../components/shell/RequireArea";
 
-/**
- * FRONTEND §3: Patient route group shell with wayfinding SiteNav.
- * # Q-03: Guest triage vs account-before-triage remains configurable via FEATURE_GUEST_TRIAGE.
- */
+/** Patient area. Q-03 is open, so triage and doctor discovery also work signed out (see isOpenPath). */
 export default function PatientLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div data-route-group="patient">
-      <SiteNav area="patient" />
-      {children}
-    </div>
-  );
+  return <RequireArea area="patient">{children}</RequireArea>;
 }

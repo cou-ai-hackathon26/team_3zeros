@@ -32,7 +32,7 @@ describe("UIUX §5 Core Wayfinding Components", () => {
     expect(screen.queryByRole("button", { name: /Cancel/i })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Decline request/i }));
-    const reasonInput = screen.getByLabelText(/Reason/i);
+    const reasonInput = await screen.findByLabelText(/Reason/i);
     fireEvent.change(reasonInput, { target: { value: "Doctor on emergency duty" } });
     fireEvent.click(screen.getByRole("button", { name: /Confirm decline/i }));
     expect(onAction).toHaveBeenCalledWith("decline", expect.objectContaining({ reason: "Doctor on emergency duty" }));

@@ -216,5 +216,199 @@
     "more": "More",
     "requestId": "Request ID",
     "back": "Back"
+  },
+  "nav": {
+    "home": "Home",
+    "doctors": "Doctors",
+    "appointments": "Appointments",
+    "reports": "Reports",
+    "queue": "Queue",
+    "patients": "Patients",
+    "referrals": "Referrals",
+    "emergency": "Emergency referral",
+    "facility": "Facility",
+    "schedules": "Schedules",
+    "capacity": "Capacity",
+    "staff": "Staff",
+    "consents": "Sharing permissions",
+    "notifications": "Notifications"
+  },
+  "shell": {
+    "signIn": "Sign in",
+    "staffSignIn": "Staff sign in",
+    "describeProblem": "Describe your problem",
+    "goHome": "Go to my home",
+    "signOut": "Sign out",
+    "menu": "Menu",
+    "account": "Account",
+    "mainNav": "Main navigation",
+    "skipToContent": "Skip to content",
+    "noFacility": "No facility selected",
+    "language": "Language",
+    "switchArea": "Switch to",
+    "loading": "Loading your account"
+  },
+  "area": {
+    "patient": "Patient",
+    "clinical": "Clinical workspace",
+    "admin": "Administration"
+  },
+  "role": {
+    "patient": "Patient",
+    "clinician": "Clinician",
+    "facility_staff": "Facility staff",
+    "facility_admin": "Facility admin",
+    "platform_admin": "Platform admin"
+  },
+  "notAuthorised": {
+    "title": "This area is not part of your account",
+    "body": "You are signed in, but this page belongs to another part of Medi Waypoint.",
+    "home": "Go to my home"
+  },
+  "notFound": {
+    "title": "We could not find that, or you do not have access to it.",
+    "home": "Go to home"
+  },
+  "errorPage": {
+    "title": "Something went wrong on our side.",
+    "body": "Try again. If it keeps happening, tell your facility desk and give this reference."
+  },
+  "auth": {
+    "patient": {
+      "title": "Sign in with your mobile number",
+      "help": "We will send a 6-digit code by SMS.",
+      "phone": "Mobile number",
+      "sendCode": "Send code",
+      "sending": "Sending…",
+      "codeTitle": "Enter the code",
+      "codeSent": "Sent to {phone}.",
+      "changeNumber": "Change number",
+      "code": "Code",
+      "signIn": "Sign in",
+      "signingIn": "Signing in…",
+      "resend": "Send a new code",
+      "resendIn": "Send a new code in {s} seconds",
+      "notSetUp": "Your account is not set up yet. Please ask the facility desk.",
+      "staffLink": "Staff sign in",
+      "orStaff": "Are you a doctor or facility staff?",
+      "privacy": "Your record is shared only when you agree."
+    },
+    "staff": {
+      "title": "Staff sign in",
+      "identifier": "Email or phone",
+      "password": "Password",
+      "show": "Show password",
+      "hide": "Hide password",
+      "signIn": "Sign in",
+      "signingIn": "Signing in…",
+      "forgotAsk": "Forgot your password? Ask your facility admin.",
+      "forgotLink": "Forgot password?",
+      "howAccess": "How do I get access?",
+      "mfaTitle": "Enter your verification code",
+      "mfaHelp": "Enter the 6-digit code from your verification method.",
+      "verify": "Verify",
+      "verifying": "Verifying…",
+      "back": "Back to sign in",
+      "patientLink": "Patient sign in",
+      "orPatient": "Are you a patient?",
+      "privacy": "Every record access is logged.",
+      "noAccess": "Your account has no facility access yet."
+    },
+    "error": {
+      "badCredentials": "Email, phone or password is not right.",
+      "inactive": "This account is not active. Contact your facility admin.",
+      "badCode": "That code is not right or has expired.",
+      "badMfa": "That code is not right.",
+      "mfaLost": "Please sign in again.",
+      "rateLimited": "Too many attempts. Try again in a few minutes.",
+      "offline": "No connection. Check your internet and try again.",
+      "required": "This field is required."
+    },
+    "brand": {
+      "patientLine": "Find the right doctor and keep your care in one place.",
+      "staffLine": "Send a patient on with their record, and hear what happened.",
+      "you": "You",
+      "doctor": "Doctor",
+      "hospital": "Hospital",
+      "sender": "Sender",
+      "receiver": "Receiver",
+      "returned": "Outcome returned"
+    },
+    "choose": {
+      "title": "Continue as",
+      "help": "Your account can use more than one part of Medi Waypoint."
+    },
+    "signedOut": {
+      "title": "You are signed out",
+      "expiredTitle": "You were signed out to keep your information private.",
+      "expiredBody": "Sign in to continue.",
+      "signIn": "Sign in",
+      "staff": "Staff sign in",
+      "home": "Go to home"
+    },
+    "access": {
+      "title": "How staff get access",
+      "intro": "Staff accounts are created by your facility admin. You cannot sign up on your own.",
+      "step1": "Your facility admin creates your account using your BMDC registration number.",
+      "step2": "You receive your sign-in details.",
+      "step3": "You sign in and set up your verification code.",
+      "signIn": "Staff sign in",
+      "requestTitle": "Request access",
+      "requestHelp": "This sends a request to the facility's admin. It does not create an account.",
+      "name": "Your name",
+      "bmdc": "BMDC registration number",
+      "facility": "Facility",
+      "contact": "Work phone or email",
+      "send": "Send request",
+      "sending": "Sending…",
+      "sent": "Request sent to {facility}. You will be contacted when it is reviewed.",
+      "reference": "Reference"
+    },
+    "welcome": {
+      "title": "Tell us who you are",
+      "help": "Doctors see this with your requests.",
+      "givenName": "Name",
+      "familyName": "Family name",
+      "nameBn": "Name in Bangla",
+      "birth": "Date of birth",
+      "age": "Or your age",
+      "sex": "Sex",
+      "female": "Female",
+      "male": "Male",
+      "other": "Other",
+      "area": "Area",
+      "language": "Language",
+      "continue": "Continue",
+      "duplicate": "We may already have a record for you. The facility desk will confirm."
+    },
+    "reset": {
+      "title": "Reset your password",
+      "help": "Enter your email or phone. If an account matches, we will send instructions.",
+      "identifier": "Email or phone",
+      "send": "Send reset instructions",
+      "neutral": "If an account matches, we have sent instructions.",
+      "newTitle": "Set a new password",
+      "rules": "Use at least 12 characters. Do not use a password that has appeared in a known breach.",
+      "newPassword": "New password",
+      "save": "Save password",
+      "done": "Password changed. Sign in with your new password.",
+      "expired": "This link has expired. Request a new one."
+    },
+    "verifyEmail": {
+      "success": "Email confirmed. You can sign in.",
+      "expired": "This link has expired.",
+      "used": "This link was already used.",
+      "signIn": "Sign in"
+    }
+  },
+  "place": {
+    "division": "Division",
+    "district": "District",
+    "upazila": "Upazila",
+    "choose": "Choose"
+  },
+  "idle": {
+    "title": "Session timeout warning",
+    "body": "For patient privacy on shared computers, you will be signed out in {s} seconds."
   }
 }

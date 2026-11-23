@@ -2,24 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { LOCALES, DEFAULT_PATIENT_LOCALE } from "./i18n/config";
 
-const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/patients",
-  "/referrals",
-  "/emergency",
-  "/appointments",
-  "/consents",
-  "/reports",
-  "/facility",
-  "/schedules",
-  "/capacity",
-  "/staff",
-];
+import { areaOfPath, isOpenPath } from "./auth/access";
+
+const SHARED_PROTECTED = ["/notifications"];
+
+const matches = (subPath: string, prefix: string) => subPath === prefix || subPath.startsWith(`${prefix}/`);
 
 /**
- * FRONTEND §3-4 & SECURITY §3.2:
- * Locale prefix guard + coarse unauthenticated redirect based on session cookie presence.
- * Actual authorization is always enforced on the Django server (INV-9).
+ * Locale prefix + coarse redirect when no session cookie is present, in every
+ * environment (AUTH_RBAC §5.4). It checks cookie presence only; it is not
+ * authorization, which the Django API enforces (INV-9). `NEXT_PUBLIC_AUTH_GUARD=off`
+ * exists for component tests only.
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -45,15 +38,20 @@ export function middleware(request: NextRequest) {
 
   const locale = firstSegment;
   const subPath = `/${segments.slice(1).join("/")}`;
-  const isProtected = PROTECTED_PREFIXES.some((prefix) => subPath === prefix || subPath.startsWith(`${prefix}/`));
+  const area = areaOfPath(subPath);
+  const isProtected =
+    !isOpenPath(subPath) &&
+    (area !== null || SHARED_PROTECTED.some((p) => matches(subPath, p)));
 
-  if (isProtected) {
-    const hasSessionCookie =
-      request.cookies.has("__Host-sessionid") || request.cookies.has("sessionid");
-    if (!hasSessionCookie && process.env.NODE_ENV === "production") {
+  const guardOff = process.env.NEXT_PUBLIC_AUTH_GUARD === "off" && process.env.NODE_ENV !== "production";
+  if (isProtected && !guardOff) {
+    const hasSessionCookie = request.cookies.has("__Host-sessionid") || request.cookies.has("sessionid");
+    if (!hasSessionCookie) {
       const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = `/${locale}/login`;
-      loginUrl.searchParams.set("next", pathname);
+      // Staff areas go to the staff form; everything else to patient sign-in.
+      loginUrl.pathname = area === "clinical" || area === "admin" ? `/${locale}/login/staff` : `/${locale}/login`;
+      loginUrl.search = "";
+      loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(loginUrl);
     }
   }

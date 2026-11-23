@@ -19,8 +19,40 @@ function useGet<T>(key: QueryKey, path: string, enabled = true) {
   return useQuery({ queryKey: key, queryFn: async () => (await api.get<T>(path)).data, enabled });
 }
 
-export const useAreas = () => useGet<Page<unknown>>(queryKeys.areas, "/directory/areas");
-export const useSpecialties = () => useGet<Page<unknown>>(queryKeys.specialties, "/directory/specialties");
+export interface DirectoryArea {
+  id: string;
+  level: "division" | "district" | "upazila";
+  parent_id: string | null;
+  name_en: string;
+  name_bn: string;
+  code: string;
+}
+
+/** The directory list endpoints return a bare array today, not the paged envelope in MASTERPLAN §6.1. Accept both. */
+export function asList<T>(data: Page<T> | T[] | undefined): T[] {
+  if (!data) return [];
+  return Array.isArray(data) ? data : data.results;
+}
+
+/** Areas of one level, optionally under a parent (division → district → upazila). */
+export function useAreaList(level: DirectoryArea["level"], parent?: string, enabled = true) {
+  const api = useApi();
+  return useQuery({
+    queryKey: [...queryKeys.areas, level, parent ?? ""],
+    queryFn: async () => asList((await api.get<Page<DirectoryArea> | DirectoryArea[]>(withQuery("/directory/areas", { level, parent }))).data),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
+}
+
+export function useSpecialties() {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.specialties,
+    queryFn: async () => asList((await api.get<Page<unknown> | unknown[]>("/directory/specialties")).data),
+    staleTime: 10 * 60_000,
+  });
+}
 export const usePractitioners = (filters?: QueryFilters) =>
   useGet<Page<unknown>>(queryKeys.practitioners(filters as Record<string, string>), withQuery("/directory/practitioners", filters));
 export const usePractitionerSlots = (practitionerId: string, facilityId?: string, enabled = true) =>

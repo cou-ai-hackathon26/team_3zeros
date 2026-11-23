@@ -30,7 +30,8 @@ Progress on branch `redesign/handover`:
 | 0 Governance | Done. Edits to MASTERPLAN, FRONTEND, UIUX_DESIGN, SECURITY and CLAUDE.md are committed; awaiting lead developer approval |
 | 1 Tokens | Done. Font checks in DESIGN_SYSTEM §3.1 (tabular figures, conjuncts on a low-end phone, Bangla reader sign-off) are still open |
 | 2 Components | Done except where noted in the Phase 2 rulings (see git log). Old `RouteLine`, `StatusLabel` and `SiteNav` remain until the pages using them migrate in Phases 3, 5 and 6 |
-| 3–10 | Not started |
+| 3 Auth and RBAC | Built and tested against mocked APIs. Exit proof with seeded users is blocked by backend A-02 and A-04. Flagged flows use the "unavailable" adapter until Q-14 to Q-17 have contracts |
+| 4–10 | Not started |
 
 ---
 

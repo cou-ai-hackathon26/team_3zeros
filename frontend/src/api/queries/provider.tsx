@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ApiError, defaultApiClient, type createApiClient } from "../client";
+import { ApiError, createApiClient, defaultApiClient } from "../client";
+import { handleSessionExpired } from "../../auth/sessionExpired";
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 
@@ -30,7 +31,7 @@ export function makeQueryClient(): QueryClient {
 
 export function AppProviders({
   children,
-  client = defaultApiClient,
+  client,
   queryClient,
 }: {
   children: React.ReactNode;
@@ -38,8 +39,17 @@ export function AppProviders({
   queryClient?: QueryClient;
 }) {
   const [qc] = useState(() => queryClient ?? makeQueryClient());
+  // The default client signs the user out of the UI on any 401 outside /auth/*.
+  const [api] = useState<ApiClient>(
+    () =>
+      client ??
+      createApiClient({
+        getLocale: () => (document.documentElement.lang === "en" ? "en" : "bn"),
+        onUnauthenticated: () => handleSessionExpired(qc, window.location, (url) => window.location.assign(url)),
+      }),
+  );
   return (
-    <ApiContext.Provider value={client}>
+    <ApiContext.Provider value={api}>
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     </ApiContext.Provider>
   );

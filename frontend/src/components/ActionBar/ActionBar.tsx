@@ -7,8 +7,11 @@ import { getActionDefinition, type StatefulEntity } from "../../state/actions";
 import { createIntentIdempotencyKey } from "../../api/client";
 import { cn } from "../../lib/cn";
 import { Button } from "../ui/button";
-import { Field, Input } from "../ui/field";
-import { Dialog, DialogContent } from "../ui/overlays";
+import dynamic from "next/dynamic";
+
+// The reason and alternate-slot dialogs are rare; loading them on demand keeps the Radix dialog out of
+// the first load of every page that has an ActionBar (170 KB patient budget, FRONTEND §11).
+const ActionDialogs = dynamic(() => import("./ActionDialogs").then((m) => m.ActionDialogs), { ssr: false });
 
 export interface ActionPayload {
   reason?: string;
@@ -106,51 +109,32 @@ export function ActionBar({
         </Button>
       ))}
 
-      <Dialog open={slotOpen} onOpenChange={(open) => !open && setActiveSlotAction(null)}>
-        {activeSlotAction && (
-          <DialogContent title={labelOf(activeSlotAction)} closeLabel={closeLabel}>
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!alternateSlotId.trim()) return;
-                onAction(activeSlotAction, {
-                  alternateSlotId: alternateSlotId.trim(),
-                  idempotencyKey: getOrMintIntentKey(activeSlotAction),
-                });
-                setActiveSlotAction(null);
-              }}
-            >
-              <Field label={locale === "bn" ? "বিকল্প স্লট নির্বাচন করুন" : "Alternate slot ID"} required locale={locale}>
-                {(p) => <Input {...p} type="text" required value={alternateSlotId} onChange={(e) => setAlternateSlotId(e.target.value)} />}
-              </Field>
-              <div className="flex justify-end gap-2">
-                <Button type="submit">{locale === "bn" ? "প্রস্তাব পাঠান" : "Confirm alternate slot"}</Button>
-              </div>
-            </form>
-          </DialogContent>
-        )}
-      </Dialog>
-
-      <Dialog open={reasonOpen} onOpenChange={(open) => !open && setActiveReasonAction(null)}>
-        {activeReasonAction && (
-          <DialogContent title={labelOf(activeReasonAction)} closeLabel={closeLabel}>
-            <form className="flex flex-col gap-4" onSubmit={handleConfirmReason}>
-              <Field label={locale === "bn" ? "কারণ লিখুন" : "Reason"} required locale={locale}>
-                {(p) => <Input {...p} type="text" required value={reasonText} onChange={(e) => setReasonText(e.target.value)} />}
-              </Field>
-              <div className="flex justify-end gap-2">
-                <Button variant="secondary" onClick={() => setActiveReasonAction(null)}>
-                  {t(locale, "common.back")}
-                </Button>
-                <Button type="submit" variant="danger" disabled={!reasonText.trim() || isPending}>
-                  {locale === "bn" ? "নিশ্চিত করুন" : `Confirm ${activeReasonAction.replace(/_/g, " ")}`}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        )}
-      </Dialog>
+      {(slotOpen || reasonOpen) && (
+        <ActionDialogs
+          locale={locale}
+          isPending={isPending}
+          slotAction={activeSlotAction}
+          reasonAction={activeReasonAction}
+          alternateSlotId={alternateSlotId}
+          reasonText={reasonText}
+          setAlternateSlotId={setAlternateSlotId}
+          setReasonText={setReasonText}
+          labelOf={labelOf}
+          closeLabel={closeLabel}
+          onCloseSlot={() => setActiveSlotAction(null)}
+          onCloseReason={() => setActiveReasonAction(null)}
+          onSubmitSlot={(e) => {
+            e.preventDefault();
+            if (!activeSlotAction || !alternateSlotId.trim()) return;
+            onAction(activeSlotAction, {
+              alternateSlotId: alternateSlotId.trim(),
+              idempotencyKey: getOrMintIntentKey(activeSlotAction),
+            });
+            setActiveSlotAction(null);
+          }}
+          onSubmitReason={handleConfirmReason}
+        />
+      )}
     </div>
   );
 }

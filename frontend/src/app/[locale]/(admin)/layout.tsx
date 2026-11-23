@@ -1,13 +1,7 @@
-"use client";
-
 import React from "react";
-import { SiteNav } from "../../../components/SiteNav/SiteNav";
+import { RequireArea } from "../../../components/shell/RequireArea";
 
+/** Administration for facility_admin and platform_admin. */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div data-route-group="admin">
-      <SiteNav area="admin" />
-      {children}
-    </div>
-  );
+  return <RequireArea area="admin">{children}</RequireArea>;
 }

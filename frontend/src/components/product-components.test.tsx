@@ -69,10 +69,11 @@ describe("Toaster and LanguageSwitch", () => {
     expect((await screen.findAllByText("Request accepted")).length).toBeGreaterThan(0);
   });
 
-  it("LanguageSwitch is a two-option radio group that marks the current language", async () => {
+  it("LanguageSwitch is a labelled group of two pressed-state buttons that marks the current language", async () => {
     const { LanguageSwitch } = await import("./LanguageSwitch/LanguageSwitch");
     render(<LanguageSwitch locale="bn" />);
-    expect(screen.getByRole("radio", { name: "বাংলা" }).getAttribute("aria-checked")).toBe("true");
-    expect(screen.getByRole("radio", { name: "English" }).getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByRole("group", { name: "Language" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "বাংলা" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "English" }).getAttribute("aria-pressed")).toBe("false");
   });
 });
