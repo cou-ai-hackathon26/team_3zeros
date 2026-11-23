@@ -8,6 +8,7 @@ import { usePageLocale } from "../../app/usePageLocale";
 import { t } from "../../i18n/format";
 import { LanguageSwitch } from "../LanguageSwitch/LanguageSwitch";
 import { Mark, Wordmark } from "../shell/Mark";
+import { BlurFade } from "../marketing/BlurFade";
 
 /** Static three-segment preview. Decorative: the real HandoverTracker is only used for a real case. */
 function BrandTracker({ labels }: { labels: string[] }) {
@@ -59,7 +60,9 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
           <LanguageSwitch locale={locale} />
         </div>
         <main id="main" className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center gap-6 py-8">
-          {children}
+          <BlurFade duration={0.25}>
+            {children}
+          </BlurFade>
         </main>
       </div>
     </div>

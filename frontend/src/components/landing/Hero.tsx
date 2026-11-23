@@ -5,6 +5,7 @@ import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";
 import { buttonVariants } from "../ui/button";
 import { HandoverTracker } from "../HandoverTracker/HandoverTracker";
+import { BlurText } from "../marketing/BlurText";
 import { ConsentPreview } from "./Client";
 import type { LandingClaims } from "./LandingPage";
 
@@ -20,7 +21,9 @@ export function Hero({ locale, claims }: { locale: Locale; claims: LandingClaims
   return (
     <section aria-labelledby="hero-title" className="mx-auto grid max-w-[1200px] gap-8 px-4 py-10 md:grid-cols-[7fr_5fr] md:gap-10 lg:py-16">
       <div className="flex flex-col gap-6">
-        <h1 id="hero-title" className="m-0 font-serif text-display">{L("hero.headline")}</h1>
+        <h1 id="hero-title" className="m-0 font-serif text-display">
+          <BlurText text={L("hero.headline")} />
+        </h1>
         <p className="m-0 max-w-xl text-body text-ink-muted">{L("hero.text")}</p>
         <div id="hero-cta" className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <a href={primary.href} className={buttonVariants({ size: "lg", className: "w-full sm:w-auto" })}>

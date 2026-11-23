@@ -7,6 +7,7 @@ import { Hero } from "./Hero";
 import { Audiences, Features, How, Problem, Safety } from "./Sections";
 import { FinalCall, Footer } from "./Chrome";
 import { SectionFocus, StickyStartBar } from "./Client";
+import { BlurFade } from "../marketing/BlurFade";
 
 export type LandingClaims = { -readonly [K in keyof typeof CLAIMS]: boolean };
 
@@ -20,13 +21,13 @@ export function LandingPage({ locale, claims = CLAIMS }: { locale: Locale; claim
     <>
       <a href="#main" className="sr-only focus:not-sr-only focus:p-3">{t(locale, "landing.skip")}</a>
       <main id="main">
-        <Hero locale={locale} claims={claims} />
-        <Problem locale={locale} />
-        <How locale={locale} />
-        <Features locale={locale} claims={claims} />
-        <Safety locale={locale} claims={claims} />
-        <Audiences locale={locale} claims={claims} />
-        <FinalCall locale={locale} claims={claims} />
+        <BlurFade delay={0.05}><Hero locale={locale} claims={claims} /></BlurFade>
+        <BlurFade delay={0.1}><Problem locale={locale} /></BlurFade>
+        <BlurFade delay={0.1}><How locale={locale} /></BlurFade>
+        <BlurFade delay={0.1}><Features locale={locale} claims={claims} /></BlurFade>
+        <BlurFade delay={0.1}><Safety locale={locale} claims={claims} /></BlurFade>
+        <BlurFade delay={0.1}><Audiences locale={locale} claims={claims} /></BlurFade>
+        <BlurFade delay={0.1}><FinalCall locale={locale} claims={claims} /></BlurFade>
       </main>
       <Footer locale={locale} />
       <StickyStartBar
