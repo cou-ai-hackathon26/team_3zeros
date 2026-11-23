@@ -513,11 +513,17 @@ Only `session_ref` (random) is sent; no name, phone or record ID (SECURITY §8).
 
 ## 10. AI module
 
-### 10.1 Interfaces
+### 10.1 Interfaces and Adapters
 
-`apps/ai/adapters.py` defines `LLM.generate(schema, messages, max_tokens)`
-and `OCR.extract(file) -> fields`. Concrete adapters are chosen by setting
-(Q-12). All calls log `model_version`, input references (IDs, not text) and
+`apps/ai/adapters.py` defines `LLMAdapter` (`generate(schema, messages, max_tokens)`)
+and `OCRAdapter` (`extract(file_bytes) -> fields`). Concrete adapters are chosen by setting
+(D-21):
+- LLM adapters: `MockLLMAdapter` (default/tests), `GeminiLLMAdapter` (`gemini-1.5-flash`), `OpenAILLMAdapter` (`gpt-4o-mini`). Factory: `get_llm_adapter()`.
+- OCR adapters: `MockOCRAdapter` (default/tests, returns realistic laboratory test candidate fields with coordinates and confidence), `TesseractOCRAdapter`. Factory: `get_ocr_adapter()`.
+- Tasks (`apps/ai/tasks.py`):
+  - `process_document_ocr(document_id)`: pulls file from storage, invokes OCR adapter, creates `ExtractionJob` and `ExtractedField` rows, transitions `Document` from `OCR_QUEUED` -> `OCR_RUNNING` -> `EXTRACTED_UNVERIFIED` (or `OCR_FAILED`).
+  - `generate_referral_draft_task(referral_id)`: gathers clinical context, queries LLM adapter with schema constraints, validates with `validate_referral_draft_schema`, records `ReferralDraftVersion`, and saves draft summary (INV-7).
+All calls log `model_version`, input references (IDs, not text) and
 latency. No patient data is sent to any endpoint outside the approved
 hosting boundary (Architecture §6.4).
 

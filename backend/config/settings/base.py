@@ -181,3 +181,33 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
 }
 
+# Media and Object Storage (DEPLOYMENT §6)
+MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "/media/"
+
+# Cache configuration (shared Redis cache in production / LocMem in local)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "medi-waypoint-cache",
+    }
+}
+
+# Celery Configuration (BACKEND §7)
+CELERY_BROKER_URL = env("REDIS_URL", default="memory://")
+CELERY_RESULT_BACKEND = env("REDIS_URL", default="cache+memory://")
+CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=True)
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+
+# AI and OCR Settings (MASTERPLAN D-21)
+LLM_PROVIDER = env("LLM_PROVIDER", default="mock")
+OCR_PROVIDER = env("OCR_PROVIDER", default="mock")
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+LLM_MODEL = env("LLM_MODEL", default="")
+
+

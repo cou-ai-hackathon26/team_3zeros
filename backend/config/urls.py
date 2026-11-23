@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from apps.common.views import HealthCheckView
 from apps.scheduling.views import (
     PractitionerSlotsView,
     AppointmentListCreateView,
@@ -40,6 +41,8 @@ from apps.organizations.views import (
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("health/", HealthCheckView.as_view(), name="health-check-root"),
+    path("api/v1/health", HealthCheckView.as_view(), name="health-check"),
     # OpenAPI 3.1 schema
     path("api/v1/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/v1/schema/swagger-ui/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

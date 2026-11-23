@@ -2,6 +2,9 @@ import uuid
 import hashlib
 from rest_framework import views, permissions, status
 from rest_framework.response import Response
+from django.http import HttpResponse, Http404
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from django.utils import timezone
 from .models import Document, ExtractionJob, ExtractedField
 from .serializers import DocumentSerializer, ExtractedFieldSerializer, ExtractionVerificationSerializer
@@ -36,6 +39,7 @@ class DocumentUploadView(views.APIView):
         content = file_obj.read()
         sha256 = hashlib.sha256(content).hexdigest()
         storage_key = f"documents/{uuid.uuid4()}"
+        default_storage.save(storage_key, ContentFile(content))
 
         encounter = None
         encounter_id = request.data.get("encounter_id")
@@ -216,6 +220,28 @@ class DocumentDownloadLinkView(views.APIView):
             "url": f"/api/v1/documents/{doc.public_id}/content?token={uuid.uuid4().hex}",
             "expires_at": expires_at.isoformat(),
         })
+
+
+class DocumentContentView(views.APIView):
+    """Serve the raw stored document bytes for authorized clinicians / viewers."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, public_id):
+        doc = Document.objects.filter(public_id=public_id).first()
+        if not doc or doc.state == "QUARANTINED":
+            raise NotFoundError("Document not found.")
+        get_patient_by_public_id(request.user, doc.patient.public_id)
+
+        if not default_storage.exists(doc.storage_key):
+            raise NotFoundError("Stored document file not found.")
+
+        with default_storage.open(doc.storage_key, "rb") as f:
+            file_data = f.read()
+
+        response = HttpResponse(file_data, content_type=doc.content_type)
+        response["Content-Disposition"] = f'inline; filename="{doc.original_filename}"'
+        response["Content-Length"] = len(file_data)
+        return response
 
 
 class PatientPriorResultsView(views.APIView):

@@ -14,6 +14,15 @@ CHANNEL_LAYERS = {
     },
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_CACHE_URL", default=env("REDIS_URL", default="redis://redis:6379/1")),
+    }
+}
+
+CELERY_TASK_ALWAYS_EAGER = False
+
 # Production security headers
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True

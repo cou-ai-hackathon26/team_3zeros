@@ -485,6 +485,7 @@ backend must match it. Paths are relative to `/api/v1`.
 | onboarding | `POST /admin/access-requests/{id}/reject` | Reject request with documented reason |
 | auth | `POST /auth/admin/login` | Admin password login, then `POST /auth/mfa/verify`. Non-admin accounts get the same error as bad credentials |
 | audit | `GET /audit/events?patient=&actor=` | Scoped audit metadata |
+| health | `GET /health/` | Service health check endpoint (database, cache, workers) |
 | fhir | `/integrations/fhir/*` | Controlled FHIR boundary for approved external systems |
 
 ### 6.4 Real-time events
@@ -581,6 +582,7 @@ Status labels shown to users come from i18n keys `state.<entity>.<STATE>`
 | D-18 | No one-time codes anywhere. Every user signs in with an email or username and a password (minimum 12 characters, common-password check). Patients register themselves at `POST /auth/register`; staff accounts are created by admins (D-16). Phone is a contact detail, not a sign-in identifier. Supersedes the patient phone-OTP design in SECURITY §3.1 | Product owner, 2026-11-23 |
 | D-19 | Private chamber onboarding. A solo doctor applies via `POST /access-requests` with BMDC registration number, facility name and contacts (answers Q-16). Upon platform admin approval, a `Facility` of type `private_chamber` is created, and the doctor is granted `facility_admin` + `clinician` memberships and linked `Practitioner`. The doctor switches between patient care and chamber admin via the area switcher. | Product plan Phase B, 2026-11-23 |
 | D-20 | Patient identity baseline. Primary patient identifier is phone number (and optional National ID / NID where available). Cross-facility record continuity relies on exact and fuzzy matching producing `DuplicateCandidate` records in `apps/identity`, which clinicians and staff confirm before merging records. National Health ID integration remains gated under Q-10. | Product plan Phase A, 2026-11-23 |
+| D-21 | Real AI and OCR pipeline architecture. LLM providers (Gemini / OpenAI) and OCR engines (Tesseract / Mock) are implemented behind `LLMAdapter` and `OCRAdapter` protocols in `apps/ai/adapters.py`, selectable via `LLM_PROVIDER` and `OCR_PROVIDER` configuration. Real generation requires consented de-identified input and enforces schema validation (INV-7, §10.3). Celery tasks execute OCR extraction and referral draft generation asynchronously, dispatched via `OutboxEvent` (`document.uploaded`, `referral.draft_requested`). Documents are persisted in private object storage (`default_storage`). | Product plan Phase E, 2026-11-23 |
 
 ### 8.2 Open questions — do not assume answers
 
@@ -658,6 +660,7 @@ Record every change to §4–§7 here so both ends see it. Newest first.
 
 | Date | Change | Backend updated | Frontend updated | By |
 |---|---|---|---|---|
+| 2026-11-23 | Phase E Real AI & OCR: D-21 adapter architecture (`GeminiLLMAdapter`, `OpenAILLMAdapter`, `TesseractOCRAdapter`, `MockOCRAdapter`); Celery asynchronous tasks for OCR extraction (`process_document_ocr`) and referral drafting (`generate_referral_draft_task`); outbox dispatch (`dispatch_outbox_events`); object storage file persistence; service health check endpoint `GET /health/` | yes | yes | Planning |
 | 2026-11-23 | Phase D Record Continuity: `POST /encounters/{id}/orders`, `GET /encounters/{id}/orders` with recent-results advisory (INV-15: non-suppression); `GET /patients/{id}/results?group_by=test` timeline; active clinical lists (allergies, medications, problems) on chart and referral draft reconciliation; patient-held summary | yes | yes | Planning |
 | 2026-11-23 | Phase C Emergency Department: `EDVisit` entity (§5.9), state transitions ARRIVED → TRIAGED → UNDER_CARE → {ADMITTED, DISCHARGED, TRANSFERRED, LEFT, DIED}; endpoints `POST /ed-visits`, `GET /ed-visits`, `GET /ed-visits/{id}`, `POST /ed-visits/{id}/actions/{action}`; permission `ed.manage` | yes | yes | Planning |
 | 2026-11-23 | Phase B Private Chamber: `POST /access-requests`, `GET /admin/access-requests`, `POST /admin/access-requests/{id}/approve`, `POST /admin/access-requests/{id}/reject`; `Facility.type` gains `private_chamber` | yes | yes | Planning |

@@ -11,6 +11,7 @@ CANONICAL_PATHS = [
     "/api/v1/auth/mfa/verify",
     "/api/v1/auth/register",
     "/api/v1/auth/admin/login",
+    "/api/v1/health",
     "/api/v1/admin/permissions",
     "/api/v1/access-requests",
     "/api/v1/admin/access-requests",
