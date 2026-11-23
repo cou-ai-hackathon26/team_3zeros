@@ -8,6 +8,7 @@ export interface ActiveFacilityInfo {
 
 export interface UserMe {
   id: string;
+  patient_id?: string | null;
   email: string | null;
   phone: string | null;
   display_name: string;

@@ -74,8 +74,12 @@ export interface DirectoryFacilityEntry {
   id: string;
   name: string;
   name_bn?: string;
+  type?: string;
   area_name?: string | null;
   area_name_bn?: string | null;
+  address?: string;
+  phone?: string;
+  services?: { id: string; code: string; name: string; name_bn?: string }[];
   latest_capacity: FacilityCapacity | null;
 }
 
@@ -151,6 +155,13 @@ export interface Encounter {
 export interface Chart {
   patient_id: string;
   encounters: Encounter[];
+  documents?: DocumentMeta[];
+}
+
+export interface DocumentDownloadLinkResponse {
+  document_id: string;
+  url: string;
+  expires_at: string;
 }
 
 export interface DocumentMeta {
@@ -182,12 +193,62 @@ export interface ExtractionResponse {
   fields: ApiExtractedField[];
 }
 
+export interface TriageTurn {
+  id: string;
+  role: "patient" | "assistant" | "system";
+  text: string;
+  language_detected: string;
+  red_flag_hits?: Array<{ rule_id: string; symptom: string; matched_keyword?: string }>;
+  response_policy?: "grounded" | "declined" | "emergency" | "question" | string;
+  at: string;
+}
+
+export interface TriageGuidanceSource {
+  title: string;
+  publisher?: string;
+  version?: string;
+}
+
+export interface TriageSummaryData {
+  patient_words?: string;
+  structured_fields?: {
+    chief_complaint?: string;
+    duration?: string;
+    severity?: string;
+    additional_notes?: string;
+    red_flag_check?: string;
+    suggested_specialty_code?: string;
+    suggested_specialty_en?: string;
+    suggested_specialty_bn?: string;
+    guidance_sources?: TriageGuidanceSource[];
+    [k: string]: unknown;
+  };
+  guidance_given?: string | unknown[];
+  patient_confirmed_at?: string | null;
+  patient_edits?: Record<string, string>;
+}
+
 export interface TriageSessionDetail {
   id: string;
   state: string;
-  language?: string;
-  mode?: string;
-  summary?: { patient_words?: string; structured_fields?: Record<string, unknown>; guidance_given?: unknown[] } | null;
+  allowed_actions?: string[];
+  version?: number;
+  language?: "bn" | "en" | string;
+  mode?: "voice" | "text" | string;
+  triage_disclosure_version?: string;
+  ruleset_version?: string;
+  turns?: TriageTurn[];
+  summary?: TriageSummaryData | null;
+  started_at?: string;
+  ended_at?: string | null;
+}
+
+export interface VoiceCredentialsResponse {
+  session_ref: string;
+  provider: string;
+  token: string;
+  expires_at: string;
+  status?: "placeholder" | "ready" | string;
 }
 
 /** Consent request as returned by `GET /consent-requests/{id}`. Wording comes from the backend, not message files. */
