@@ -14,6 +14,10 @@ import { createApiClient } from "../api/client";
 import { AppProviders, makeQueryClient } from "../api/queries/provider";
 import { Toaster } from "../components/Toast/Toast";
 import DashboardPage from "./[locale]/(clinician)/dashboard/page";
+import ReferralsPage from "./[locale]/(clinician)/referrals/page";
+import OutgoingReferralsPage from "./[locale]/(clinician)/referrals/outgoing/page";
+import NewReferralPage from "./[locale]/(clinician)/referrals/new/page";
+import ReferralWorkspacePage from "./[locale]/(clinician)/referrals/[id]/page";
 
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
 const err = (code: string, status: number) => json({ error: { code, message: code, request_id: "req-9" } }, status);
@@ -41,7 +45,7 @@ const appt = (id: string, state = "REQUESTED", o: Record<string, unknown> = {}) 
 });
 const referral = (id: string, state: string, o: Record<string, unknown> = {}) => ({
   id, state, reference_code: "R-" + id, urgency: "routine", emergency_mode: false, reason: "Chest pain", patient_id: "p" + id, patient_name: "Karim",
-  sender_facility_id: "f9", sender_facility_name: "Mirzapur UHC", receiver_facility_id: "f1", receiver_facility_name: "Tangail", summary: { sections: [{ title: "History", text: "Three days." }] },
+  sender_facility_id: "f9", sender_facility_name: "Mirzapur UHC", receiver_facility_id: "f1", receiver_facility_name: "Tangail", summary: { sections: [{ name: "History", statements: [{ text: "Three days.", source_refs: ["document:d1#page=1"] }] }] },
   consent_state: "active", allowed_actions: ["acknowledge", "decline"], version: 5, fhir_sync_status: "NOT_REQUIRED", history: [], created_at: "2026-11-23T07:00:00Z", updated_at: "2026-11-23T07:00:00Z", ...o,
 });
 const patient = (id: string, name: string, bn = "") => ({ id, given_name: name, family_name: "Uddin", name_bn: bn, sex: "male", birth_date: "1972-01-01", identifiers: [], version: 1 });
@@ -146,5 +150,188 @@ describe("/dashboard (APPLICATION_DESIGN §5.2)", () => {
     mount(<DashboardPage />, dashboardRoutes({ extra: { "GET /appointments": () => err("provider_unavailable", 503) } }));
     expect(await screen.findByText("We could not load the queue.", {}, { timeout: 4000 })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+  });
+});
+
+describe("/referrals index", () => {
+  beforeEach(() => { nav.pathname = "/en/referrals"; });
+  const routes = (inc: unknown[] = [], out: unknown[] = []) => ({
+    "GET /auth/me": () => json(ME(["clinician"])),
+    "GET /referrals?direction=incoming": () => page(inc),
+    "GET /referrals?direction=outgoing": () => page(out),
+  });
+
+  it("lists open referrals by default with state words, hides finished ones, and the chips switch the view", async () => {
+    mount(<ReferralsPage />, routes([referral("i1", "SENT"), referral("i2", "CLOSED", { patient_name: "Done Person" })]));
+    expect((await screen.findAllByText("Karim")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Done Person")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Finished" }));
+    expect((await screen.findAllByText("Done Person")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Finished" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("renders a table for large screens and a list for small ones, each with a link to the referral", async () => {
+    mount(<ReferralsPage />, routes([referral("i1", "SENT")]));
+    await screen.findAllByText("Karim");
+    expect(screen.getByRole("columnheader", { name: "Patient" })).toBeTruthy();
+    const links = screen.getAllByRole("link", { name: /Karim/ });
+    expect(links.every((a) => a.getAttribute("href") === "/en/referrals/i1")).toBe(true);
+  });
+
+  it("the outgoing tab offers New referral to clinicians only", async () => {
+    const { unmount } = mount(<OutgoingReferralsPage />, routes([], [referral("o1", "DRAFT", { allowed_actions: [] })]));
+    expect((await screen.findByRole("link", { name: "New referral" })).getAttribute("href")).toBe("/en/referrals/new");
+    unmount();
+    mount(<OutgoingReferralsPage />, { ...routes(), "GET /auth/me": () => json(ME(["facility_staff"], ["referral.acknowledge"])) });
+    await screen.findByRole("tab", { name: "Incoming" });
+    expect(screen.queryByRole("tab", { name: "Outgoing" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "New referral" })).toBeNull();
+  });
+
+  it("looks a referral up by slip code, and says so when none is found", async () => {
+    mount(<ReferralsPage />, { ...routes(), "GET /referrals/by-reference/EM-12": () => json(referral("i9", "SENT", { reference_code: "EM-12" })), "GET /referrals/by-reference/NOPE": () => err("not_found", 404) });
+    await screen.findByRole("tab", { name: "Incoming" });
+    fireEvent.change(screen.getByLabelText("Find by slip code"), { target: { value: "EM-12" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Find" })); });
+    expect((await screen.findByRole("link", { name: /Karim, EM-12/ })).getAttribute("href")).toBe("/en/referrals/i9");
+    fireEvent.change(screen.getByLabelText("Find by slip code"), { target: { value: "NOPE" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Find" })); });
+    expect(await screen.findByText("No referral with that code at your facility.")).toBeTruthy();
+  });
+
+  it("empty and error states", async () => {
+    const { unmount } = mount(<ReferralsPage />, routes([]));
+    expect(await screen.findByText("No referrals here yet.")).toBeTruthy();
+    unmount();
+    mount(<ReferralsPage />, { ...routes(), "GET /referrals?direction=incoming": () => err("provider_unavailable", 503) });
+    expect(await screen.findByText("We could not load referrals.", {}, { timeout: 4000 })).toBeTruthy();
+  });
+});
+
+describe("/referrals/new", () => {
+  beforeEach(() => { nav.pathname = "/en/referrals/new"; nav.search = ""; });
+  const routes = (extra: Record<string, Route> = {}) => ({
+    "GET /auth/me": () => json(ME(["clinician"])),
+    "GET /patients/": () => page([patient("p1", "Karim", "করিম")]),
+    "GET /patients/p1": () => json(patient("p1", "Karim", "করিম")),
+    "GET /patients/p1/chart": () => json({ patient_id: "p1", encounters: [{ id: "e1", patient_id: "p1", facility_id: "f1", facility_name: "Tangail", period_start: "2026-11-01T04:00:00Z", encounter_type: "outpatient", reason: "Fever", observations: [] }] }),
+    "GET /directory/facilities": () => page([{ id: "fx", name: "Dhaka Medical College Hospital", latest_capacity: { reported_value: 5, reported_at: new Date(Date.now() - 7200_000).toISOString(), source: "Facility desk", is_stale: false } }]),
+    ...extra,
+  });
+
+  it("before searching it says how to search and invents no recent-patients list", async () => {
+    mount(<NewReferralPage />, routes());
+    expect(await screen.findByText("Search by name, phone or ID.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Karim/ })).toBeNull();
+  });
+
+  it("validates required fields before sending", async () => {
+    const { calls } = mount(<NewReferralPage />, routes());
+    await act(async () => { fireEvent.click(await screen.findByRole("button", { name: "Create draft" })); });
+    expect(screen.getAllByText("This field is required.").length).toBeGreaterThanOrEqual(2);
+    expect(calls.some((c) => c.key.startsWith("POST"))).toBe(false);
+  });
+
+  it("search, pick a patient and a visit, choose a destination with dated capacity, and create the draft", async () => {
+    const { calls } = mount(<NewReferralPage />, routes({ "POST /referrals": () => json(referral("new1", "DRAFT"), 201) }));
+    fireEvent.change(await screen.findByLabelText("Search by name, phone or ID"), { target: { value: "Kar" } });
+    await act(async () => { fireEvent.click(await screen.findByRole("button", { name: /Karim Uddin/ })); });
+    expect(await screen.findByText(/Selected: Karim Uddin/)).toBeTruthy();
+    await screen.findByRole("option", { name: /Fever/ });
+    fireEvent.change(screen.getByLabelText("Visit (optional)"), { target: { value: "e1" } });
+    expect(await screen.findByRole("option", { name: /Dhaka Medical College Hospital, Reported 2 hours ago by Facility desk/ })).toBeTruthy();
+    fireEvent.change(screen.getByRole("combobox", { name: /Destination/ }), { target: { value: "fx" } });
+    fireEvent.change(screen.getByLabelText(/Reason for referral/), { target: { value: "Needs cardiology review" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Create draft" })); });
+    const post = await waitFor(() => { const c = calls.find((x) => x.key === "POST /referrals"); expect(c).toBeTruthy(); return c!; });
+    expect(JSON.parse(post.body)).toEqual({ patient_id: "p1", receiver_facility_id: "fx", urgency: "routine", reason: "Needs cardiology review", encounter_id: "e1" });
+    expect(post.headers.get("Idempotency-Key")).toBeTruthy();
+  });
+
+  it("opened from a chart it is pre-filled, and Emergency urgency offers the emergency referral instead", async () => {
+    nav.search = "?patient=p1";
+    mount(<NewReferralPage />, routes());
+    expect(await screen.findByText(/Selected: Karim Uddin/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Emergency" }));
+    expect(screen.getByRole("link", { name: "Use emergency referral instead" }).getAttribute("href")).toBe("/en/emergency");
+  });
+
+  it("binds server field errors to their fields", async () => {
+    nav.search = "?patient=p1";
+    mount(<NewReferralPage />, routes({ "POST /referrals": () => json({ error: { code: "validation_error", message: "x", field_errors: { reason: ["Reason is too short."] }, request_id: "r" } }, 400) }));
+    await screen.findByText(/Selected: Karim Uddin/);
+    fireEvent.change(await screen.findByRole("combobox", { name: /Destination/ }), { target: { value: "" } });
+    await screen.findByRole("option", { name: /Dhaka Medical/ });
+    fireEvent.change(screen.getByRole("combobox", { name: /Destination/ }), { target: { value: "fx" } });
+    fireEvent.change(screen.getByLabelText(/Reason for referral/), { target: { value: "x" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Create draft" })); });
+    expect(await screen.findByText("Reason is too short.")).toBeTruthy();
+  });
+});
+
+describe("/referrals/[id] workspace", () => {
+  beforeEach(() => { nav.pathname = "/en/referrals/r1"; nav.params = { id: "r1" }; });
+  const routes = (r: unknown, extra: Record<string, Route> = {}) => ({ "GET /auth/me": () => json(ME(["clinician"])), "GET /referrals/r1": () => json(r), ...extra });
+
+  it("leads with the holder, the tracker and, when sent, who it is waiting on", async () => {
+    mount(<ReferralWorkspacePage />, routes(referral("r1", "SENT", { sent_at: new Date(Date.now() - 3 * 3600_000).toISOString() })));
+    expect(await screen.findByRole("region", { name: "With Tangail" })).toBeTruthy();
+    expect(screen.getByText("Waiting for Tangail to acknowledge, 3 hours ago")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Acknowledge referral" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Approve|Send/ })).toBeNull();
+  });
+
+  it("a draft is editable; editing disables the actions until saved, and saving sends If-Match", async () => {
+    let saved = false;
+    const base = referral("r1", "DRAFT", { allowed_actions: ["request_consent", "cancel"], summary_origin: "ai" });
+    const { calls } = mount(<ReferralWorkspacePage />, routes(base, {
+      "GET /referrals/r1": () => json(saved ? { ...base, version: 6, reason: "Updated reason" } : base),
+      "PATCH /referrals/r1": () => { saved = true; return json({ ...base, version: 6, reason: "Updated reason" }); },
+    }));
+    expect((await screen.findAllByText("Draft")).length).toBeGreaterThanOrEqual(2); // status badge and the DraftBlock tag for unverified AI content
+    const ask = screen.getByRole("button", { name: /Ask patient to share|Request/ }) as HTMLButtonElement;
+    expect(ask.disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText("Reason for referral"), { target: { value: "Updated reason" } });
+    expect(await screen.findByText(/You have unsaved changes/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: /Ask patient to share|Request/ }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save changes" })); });
+    const patch = await waitFor(() => { const c = calls.find((x) => x.key === "PATCH /referrals/r1"); expect(c).toBeTruthy(); return c!; });
+    expect(patch.headers.get("If-Match")).toBe("5");
+    expect(JSON.parse(patch.body).reason).toBe("Updated reason");
+    await waitFor(() => expect(screen.queryByText(/You have unsaved changes/)).toBeNull());
+  });
+
+  it("after the draft stage the content is read-only", async () => {
+    mount(<ReferralWorkspacePage />, routes(referral("r1", "SENT")));
+    await screen.findByRole("region", { name: "With Tangail" });
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate draft" })).toBeNull();
+  });
+
+  it("recording an outcome asks for it and sends it with the action", async () => {
+    const { calls } = mount(<ReferralWorkspacePage />, routes(referral("r1", "IN_PROGRESS", { allowed_actions: ["record_outcome"] }), { "POST /referrals/r1/actions/record_outcome": () => json(referral("r1", "OUTCOME_RETURNED", { allowed_actions: [] })) }));
+    await act(async () => { fireEvent.click(await screen.findByRole("button", { name: /outcome/i })); });
+    fireEvent.change(await screen.findByLabelText(/Outcome/), { target: { value: "Admitted and stable" } });
+    await act(async () => { fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /outcome/i })); });
+    const post = await waitFor(() => { const c = calls.find((x) => x.key === "POST /referrals/r1/actions/record_outcome"); expect(c).toBeTruthy(); return c!; });
+    expect(JSON.parse(post.body)).toEqual({ outcome: { summary: "Admitted and stable" } });
+  });
+
+  it("FAILED_TO_SYNC and emergency referrals explain themselves", async () => {
+    const { unmount } = mount(<ReferralWorkspacePage />, routes(referral("r1", "FAILED_TO_SYNC", { allowed_actions: ["retry_sync"] })));
+    expect(await screen.findByText("This could not be saved to the record. Try again.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Retry/ })).toBeTruthy();
+    unmount();
+    mount(<ReferralWorkspacePage />, routes(referral("r1", "SENT", { emergency_mode: true, consent_state: "emergency_exception_pending_policy" })));
+    expect(await screen.findByText(/five essential details/)).toBeTruthy();
+  });
+
+  it("412 on an action refetches and says it was updated; 404 is one message", async () => {
+    const { unmount } = mount(<ReferralWorkspacePage />, routes(referral("r1", "SENT"), { "POST /referrals/r1/actions/acknowledge": () => err("stale_version", 412) }));
+    await act(async () => { fireEvent.click(await screen.findByRole("button", { name: "Acknowledge referral" })); });
+    expect(await screen.findByText(/updated by someone else|latest version/i)).toBeTruthy();
+    unmount();
+    mount(<ReferralWorkspacePage />, { "GET /auth/me": () => json(ME(["clinician"])), "GET /referrals/r1": () => err("not_found", 404) });
+    expect(await screen.findByText("We could not find that referral, or you do not have access to it.")).toBeTruthy();
   });
 });

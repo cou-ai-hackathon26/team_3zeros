@@ -97,7 +97,8 @@ export interface Referral extends Stateful {
   receiver_facility_id: string;
   receiver_facility_name: string;
   receiver_practitioner_id?: string | null;
-  summary: { sections?: { title?: string; text?: string; source_refs?: string[] }[]; [k: string]: unknown };
+  /** Draft summary: sections of statements, each with source references (ai/adapters.py). */
+  summary: { sections?: { name: string; statements: { text: string; source_refs: string[] }[] }[]; [k: string]: unknown };
   summary_origin?: string;
   content_hash?: string;
   consent_state: string;

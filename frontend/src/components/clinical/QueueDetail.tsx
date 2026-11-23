@@ -67,7 +67,7 @@ export function QueueDetail({ entry, patient, locale, onActed }: { entry: QueueE
         <section className="flex flex-col gap-2">
           <p className="m-0 text-dense">{entry.referral!.reason}</p>
           {(entry.referral!.summary?.sections ?? []).map((s, i) => (
-            <div key={i} className="text-dense"><strong>{s.title}</strong> {s.text}</div>
+            <div key={i} className="text-dense"><strong>{s.name}</strong> {s.statements.map((x) => x.text).join(" ")}</div>
           ))}
           <Link href={`/${locale}/referrals/${entry.referral!.id}`} className={buttonVariants({ variant: "secondary", size: "sm", className: "w-fit" })}>{t(locale, "queue.openReferral")}</Link>
         </section>

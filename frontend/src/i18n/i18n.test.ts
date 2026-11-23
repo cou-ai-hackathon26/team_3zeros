@@ -79,3 +79,27 @@ describe("formatTimeAgo (INV-14: dated capacity text)", () => {
     expect(formatTimeAgo("nope", "en", now)).toBe("");
   });
 });
+
+import fs from "node:fs";
+import path from "node:path";
+
+describe("message namespaces that load on demand", () => {
+  // `auth.*` and `landing.*` are registered by modules only the auth and public routes import (i18n/auth.ts,
+  // i18n/landing.ts). Any other file using those keys would show the raw key in production.
+  const ALLOWED = [/src[\\/]components[\\/]auth[\\/]/, /src[\\/]components[\\/]landing[\\/]/, /PublicHeader\.tsx$/, /MobileMenu\.tsx$/, /\(public\)[\\/]page\.tsx$/, /src[\\/]auth[\\/]errors\.ts$/];
+  function* walk(dir: string): Generator<string> {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) yield* walk(p);
+      else if (/\.(ts|tsx)$/.test(e.name) && !/\.(test|stories)\./.test(e.name)) yield p;
+    }
+  }
+  it("are only used by the files that load them", () => {
+    const offenders: string[] = [];
+    for (const file of walk(path.resolve(__dirname, ".."))) {
+      if (file.includes(`${path.sep}i18n${path.sep}`) || ALLOWED.some((re) => re.test(file))) continue;
+      if (/\bt\(\s*\w+\s*,\s*[`"'](auth|landing)\./.test(fs.readFileSync(file, "utf8"))) offenders.push(path.relative(process.cwd(), file));
+    }
+    expect(offenders).toEqual([]);
+  });
+});

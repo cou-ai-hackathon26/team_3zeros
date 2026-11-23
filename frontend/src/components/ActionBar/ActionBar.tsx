@@ -25,6 +25,8 @@ export interface ActionBarProps {
   entity: StatefulEntity;
   allowedActions: string[];
   isPending: boolean;
+  /** Actions to show but disable (for example while a draft has unsaved edits). They still come from `allowed_actions`. */
+  disabledActions?: string[];
   locale: Locale;
   className?: string;
   onAction: (action: string, payload: ActionPayload) => void;
@@ -41,6 +43,7 @@ export function ActionBar({
   entity,
   allowedActions,
   isPending,
+  disabledActions = [],
   locale,
   className,
   onAction,
@@ -110,7 +113,7 @@ export function ActionBar({
       {definitions.map((def) => (
         <Button
           key={def.action}
-          disabled={isPending}
+          disabled={isPending || disabledActions.includes(def.action)}
           variant={def.confirmationStyle === "primary" ? "primary" : "secondary"}
           onClick={() => handleActionClick(def.action, def.requiresReason, def.requiresAlternateSlot, def.requiresOutcome)}
         >
