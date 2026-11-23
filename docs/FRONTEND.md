@@ -31,15 +31,19 @@
 | API types | `openapi-typescript` + `openapi-fetch` from `/api/v1/schema/` | D-12; compile error on contract drift |
 | Forms | React Hook Form + Zod (schemas generated from OpenAPI where possible) | Client validation mirrors server; server remains authoritative |
 | i18n | `next-intl`, locales `bn`, `en` | Server and client components, ICU plurals, Bangla numerals |
-| Styling | CSS Modules + CSS custom properties from the token file | Tokens are the single source (UIUX §3); no utility-class sprawl that bypasses tokens |
-| Motion | `motion` (Framer Motion) for component transitions, View Transitions API for route transitions | UIUX §4 |
-| Icons | `lucide-react` | UIUX §3.5 |
+| Styling | Tailwind CSS v4 with a theme generated from `tokens.json` (default palette removed) | D-14. Tokens are the single source; a class that bypasses them does not exist. `lint:tokens` blocks arbitrary colour values |
+| Motion | `motion` (Framer Motion) for component transitions, View Transitions API for route transitions | docs/redesign/DESIGN_SYSTEM.md §5 |
+| Icons | `lucide-react` | docs/redesign/DESIGN_SYSTEM.md §7 |
 | Offline | Service worker (Serwist) + IndexedDB (`idb`) + WebCrypto | Emergency queue only (§9) |
 | Testing | Vitest + Testing Library, Playwright, `@axe-core/playwright`, Storybook | §12 |
 
-No component library with its own visual language (MUI, Chakra, default
-shadcn look). Headless primitives are allowed (Radix UI for dialog, popover,
-tabs, toast) and styled with our tokens.
+Components are shadcn/ui source files (Radix primitives) copied into
+`src/components/ui` and restyled with our tokens; no package component
+library with its own visual language (MUI, Chakra). Effect components for the
+public landing and auth pages are copied into `src/components/marketing` and
+limited to the list in
+[redesign/UI_COMPONENT_LIBRARY_STRATEGY.md](redesign/UI_COMPONENT_LIBRARY_STRATEGY.md) §4;
+only `(public)` and `(auth)` may import them (enforced by lint).
 
 ---
 
@@ -50,20 +54,26 @@ frontend/
   app/
     [locale]/
       (public)/              # landing, about, emergency info
-        page.tsx
+        page.tsx             # landing (redesign/LANDING_PAGE_ARCHITECTURE.md)
+      (auth)/                # auth layout: login, login/staff (+MFA step),
+                             # login/choose, signed-out, not-authorised, access;
+                             # flagged: welcome, login/staff/reset, verify-email
       (patient)/
+        home/                # signed-in patient home
         triage/              # start, session/[id], summary/[id]
         doctors/             # discovery
         appointments/        # list, [id]
-        consents/[requestId]
+        consents/            # list, [requestId]
         reports/
-        layout.tsx           # requires patient session (Q-03 may allow guest on /triage)
+        notifications/
+        layout.tsx           # PatientShell; requires patient session (Q-03 may allow guest on /triage)
       (clinician)/
         dashboard/           # queue + detail panes
-        patients/[id]/       # chart, encounters, reports/[docId]/verify
-        referrals/           # new, [id], incoming, outgoing
+        patients/            # search, [id] chart, [id]/reports/[docId]/verify
+        referrals/           # index (Incoming / Outgoing tabs), new, [id], incoming, outgoing
         emergency/           # emergency referral mode (offline-capable)
-        layout.tsx           # requires clinician/staff membership
+        notifications/
+        layout.tsx           # WorkspaceShell; requires clinician/staff membership
       (admin)/
         facility/            # directory, departments, services
         schedules/
@@ -75,15 +85,21 @@ frontend/
       schema.d.ts            # GENERATED — do not edit
       client.ts              # openapi-fetch instance, CSRF, idempotency, error mapping
       queries/               # one file per resource: hooks + query keys
-    auth/                    # session hook, role guards, active facility
-    state/                   # state → i18n key + RouteLine stop mapping
+    auth/                    # me.ts (useMe), access.ts, nav.ts, RequireArea, IdleTimeout
+    state/                   # state → i18n key + tracker stop/holder mapping
     voice/                   # provider adapters, mic preflight, session controller
     offline/                 # emergency queue, sync, slip
-    components/              # design-system components (UIUX §5)
-    tokens/                  # tokens.css generated from tokens.json
+    components/
+      ui/                    # shadcn/ui source restyled with tokens
+      marketing/             # landing/auth effects only
+      (product components: HandoverTracker, StatusBadge, ActionBar, …)
+    tokens/                  # tokens.json → generated theme CSS
     i18n/messages/{bn,en}.json
   middleware.ts              # locale + coarse route-group guard (redirect only)
 ```
+Route additions are specified in
+[redesign/APPLICATION_DESIGN_ARCHITECTURE.md](redesign/APPLICATION_DESIGN_ARCHITECTURE.md) §1.1 and
+[redesign/AUTH_RBAC_ARCHITECTURE.md](redesign/AUTH_RBAC_ARCHITECTURE.md) §3.1. All previously existing URLs are kept.
 
 Server Components fetch read-only data where it helps first paint (directory,
 static content). Anything user-specific and interactive (queues, workflow
@@ -103,9 +119,13 @@ refetch on events.
 - `middleware.ts` only redirects obviously unauthenticated users to sign-in
   based on cookie presence. It is not an authorization check; the API is
   (INV-9).
-- `useSession()` exposes `me` (roles, memberships, active facility,
-  permissions). Facility switch calls `POST /auth/active-facility` and clears
-  the query cache.
+- `useMe()` (`src/auth/me.ts`, TanStack Query over `GET /auth/me`) exposes
+  roles, the active facility and permissions; memberships are not returned
+  today (MASTERPLAN §8.3 G-4). `src/auth/access.ts` is the only module that
+  names role or permission strings and derives areas, navigation and home
+  route. Facility switch calls `POST /auth/active-facility` and clears the
+  query cache. Hiding navigation is convenience only; the API decides (INV-9).
+  See [redesign/AUTH_RBAC_ARCHITECTURE.md](redesign/AUTH_RBAC_ARCHITECTURE.md) §5.
 - On `401`, clear cache and redirect to sign-in with a return path. On
   `mfa_required`, route to MFA.
 - Idle timeout warning for clinician sessions (SECURITY §3.3) with a visible
@@ -159,7 +179,8 @@ The frontend never decides workflow rules.
 - **Labels:** `state.<entity>.<STATE>` i18n keys. A test asserts every state
   in MASTERPLAN §5 has a key in both `bn.json` and `en.json`.
 - **Route stops:** `src/state/routes.ts` defines which states appear as stops
-  on each `RouteLine` and which render as exception branches (UIUX §5).
+  on each `HandoverTracker` and which render as exception branches
+  (redesign/DESIGN_SYSTEM.md §6.1).
 - **Sync:** any object with `pending_action` or `fhir_sync_status` of
   `PENDING` shows `SyncBadge` with the pending action ("Sending…");
   `FAILED`/`FAILED_TO_SYNC` shows "Needs attention" with `retry_sync` if
@@ -282,20 +303,24 @@ is cached offline. The full chart is never stored offline.
 
 ### 10.1 Tokens
 
-`src/tokens/tokens.json` is the single source for UIUX §3–§4 values, compiled
-to CSS custom properties (`--color-forest`, `--motion-route-duration`, …).
-Components read only variables, never raw hex values. A lint rule
-(stylelint `declaration-property-value-disallowed-list`) blocks hex colors
-outside the token file.
+`src/tokens/tokens.json` is the single source for values in
+[redesign/DESIGN_SYSTEM.md](redesign/DESIGN_SYSTEM.md) (three layers:
+primitive, semantic, component). `build-tokens.mjs` compiles it to a Tailwind
+v4 `@theme` block with the default palette removed, plus the shadcn semantic
+variables. Components use token-backed classes only, never raw colour values.
+`npm run lint:tokens` fails the build on colour literals and arbitrary
+colour values outside the token file; the stylelint hex rule is retired when
+the last CSS Module is removed.
 
 ### 10.2 Components
 
-Built per UIUX §5 in Storybook with every state from that list, in both
+Built per redesign/DESIGN_SYSTEM.md §6 in Storybook with every state from that list, in both
 locales. Key implementation notes:
 
-- `RouteLine`: SVG path; draw via `stroke-dasharray`/`stroke-dashoffset`
-  animated with `motion`; stops are `<li>` elements inside an `<ol>` for
-  screen readers; SVG is `aria-hidden`.
+- `HandoverTracker` (replaces `RouteLine`): segments and the holder line are
+  derived from `src/state/routes.ts`; stops are `<li>` elements inside an
+  `<ol>` for screen readers; decorative SVG is `aria-hidden`. Advance
+  animation only when `shouldAnimateRouteAdvance` says the state is newer.
 - `VoicePanel` live segment: `AnalyserNode` RMS level, smoothed, drawn on
   `requestAnimationFrame` capped at 30 fps; stops when hidden.
 - `QueueList`: `AnimatePresence` for row exit; virtualization above 200 rows.
@@ -306,7 +331,7 @@ locales. Key implementation notes:
 
 ### 10.3 Checks
 
-- Contrast checker script runs over token pairs in CI (UIUX §3.2).
+- Contrast checker script runs over the token pairs in redesign/DESIGN_SYSTEM.md §2.2 in CI.
 - Visual regression on Storybook stories (Playwright screenshots) for both
   locales.
 - `prefers-reduced-motion` stories for every animated component.
@@ -324,6 +349,7 @@ Target device: low-end Android on 3G-like conditions.
 | Fonts | Bangla subset preloaded; Latin loaded on demand in `bn` locale |
 | Voice code | Loaded only on the triage route (dynamic import) |
 | Images | None required on the critical path |
+| JS on first load (public landing) | ≤ 200 KB gzipped (proposed; see redesign/LANDING_PAGE_ARCHITECTURE.md §8), effects loaded when their sections approach |
 
 These are build checks, not claims about real-world speed (Architecture §10).
 

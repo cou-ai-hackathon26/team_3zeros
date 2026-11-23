@@ -1,12 +1,14 @@
 # Medi Waypoint — UI/UX Design Plan
 
-> **BLUF:** The visual idea is wayfinding. Every journey in Medi Waypoint
-> (triage, appointment, referral, outcome) is drawn as one continuous route
-> line with stops, in turmeric yellow on a cool mist ground, set in Anek, a
-> Bangla + Latin family whose width axis does the expressive work. That route
-> line is the one bold element and the one orchestrated animation. Everything
-> else stays quiet: left-aligned, list-based, no card grids, no gradients, no
-> decorative motion. Emergency red is reserved for emergencies only.
+> **BLUF:** Sections 3–5 (design system, motion, components) are superseded
+> by the "Handover" identity (MASTERPLAN D-15) and now live in
+> [redesign/DESIGN_SYSTEM.md](redesign/DESIGN_SYSTEM.md),
+> [redesign/UI_COMPONENT_LIBRARY_STRATEGY.md](redesign/UI_COMPONENT_LIBRARY_STRATEGY.md) and
+> [redesign/APPLICATION_DESIGN_ARCHITECTURE.md](redesign/APPLICATION_DESIGN_ARCHITECTURE.md).
+> The brief (§2), writing rules (§7) and accessibility rules (§8) are unchanged.
+> Behaviour rules that survive the redesign: emergency red is reserved for
+> emergencies; the emergency screen has no motion; drafts are marked by
+> pattern and word, never colour alone; status is never colour alone.
 
 ---
 
@@ -35,182 +37,44 @@
 
 ---
 
-## 3. Design system plan
+## 3. Design system
 
-### 3.1 Concept: the route
-
-Bangladesh healthcare is a network of stops: community clinic, upazila
-complex, district hospital, medical college. Patients get lost between them.
-The product's promise is that someone always knows where the patient is on
-that route. The interface makes that literal:
-
-- A **route line** shows each journey as stops on a line. Completed stops are
-  filled, the current stop has a ring, future stops are outlined.
-- When a state advances (doctor accepts, receiver acknowledges, outcome
-  returns), the line draws forward to the new stop. This is the only
-  animation that plays without the user directly causing it, and it plays
-  only when something really changed.
-- The same line, live and responding to microphone level, is the listening
-  indicator in voice triage. No glowing orb.
-
-### 3.2 Color
-
-| Token | Hex | Role |
-|---|---|---|
-| `mist` | `#EEF2F0` | App background (cool grey-green, not cream) |
-| `paper` | `#FFFFFF` | Panels, inputs, reading surfaces |
-| `ink` | `#16302A` | Primary text, icons (deep forest ink chosen to sit with `forest`, not a stand-in for black) |
-| `ink-muted` | `#4E6660` | Secondary text (contrast 6.1:1 on `paper`) |
-| `line` | `#CFD9D5` | Dividers, input borders |
-| `forest` | `#0B5D4B` | Primary actions, selected state, links in patient UI |
-| `turmeric` | `#D99A1E` | Route line, current-stop ring, focus halo. Never used for text on light backgrounds |
-| `river` | `#1F5FA8` | Informational notices, links in clinician UI |
-| `draft` | `#6B5AA6` | Anything not yet verified by a clinician: AI drafts, OCR candidates |
-| `signal` | `#C42B1C` | Emergency pathway and destructive confirmation only |
-| `signal-wash` | `#FBE9E7` | Emergency screen background |
-
-Rules:
-
-- `signal` appears nowhere except the emergency pathway, emergency referral
-  mode, escalated referrals and destructive confirmation. If a user sees red,
-  something urgent is happening.
-- Unverified content always uses `draft` with a dashed 1.5px border and the
-  word "Draft" (or "যাচাই হয়নি"). Verified content uses solid `line` borders.
-  The difference must survive grayscale printing and color blindness, which
-  is why the dash pattern carries the meaning, not the color alone.
-- Status is never shown by color alone. Each status has a text label and a
-  route-stop shape.
-- All text pairs meet WCAG 2.2 AA (4.5:1 body, 3:1 large text and UI
-  boundaries). Verify with the token checker in FRONTEND §10.3.
-
-### 3.3 Typography
-
-One family in two scripts: **Anek Bangla** and **Anek Latin** (Ek Type, open
-font license, variable weight 100–800 and width 75–125). Using one family for
-both scripts keeps Bangla and English the same visual weight on bilingual
-screens, which most Bangla/Latin pairings fail at.
-
-The width axis is the expressive tool:
-
-| Use | Width | Weight | Size (mobile / desktop) | Line height |
-|---|---|---|---|---|
-| Patient screen title | 112 (semi-expanded) | 600 | 28 / 36 px | 1.25 |
-| Section heading | 100 | 600 | 20 / 22 px | 1.3 |
-| Body (Bangla) | 100 | 400 | 17 / 17 px | 1.65 |
-| Body (English) | 100 | 400 | 16 / 16 px | 1.5 |
-| Clinician table and queue text | 88 (semi-condensed) | 450 | 14 / 14 px | 1.4 |
-| Numbers: vitals, results, times | 88 | 500, tabular figures | context size | — |
-| Voice captions | 106 | 500 | 24 / 28 px | 1.45 |
-
-- Bangla needs more size and line height than Latin because of conjuncts and
-  vowel signs above and below the line. Never set Bangla below 15px.
-- Patient UI is wide and open; clinician UI is condensed and dense. Same
-  family, different width: that is how the two products look related without
-  looking identical.
-- Line length: 34–38 characters for Bangla body on mobile, ≤ 72 for English
-  body on desktop.
-- No all-caps labels, no letter-spaced eyebrows, no single-word color or
-  italic accents in headings. Headings are sentence case.
-- Tabular figures for any number that is compared in a column.
-  `[⚠️ UNVERIFIED]` Anek's `tnum` support must be checked in Phase 1; if
-  missing, use `font-variant-numeric` fallback to **Noto Sans** for numerals
-  only.
-
-### 3.4 Space, shape, elevation
-
-- Spacing scale (px): 4, 8, 12, 16, 24, 32, 48, 72. Patient UI spaces sections
-  at 32–48; clinician UI at 16–24.
-- Radius by hierarchy, not one value for everything: 4px for inputs, chips and
-  table rows; 12px for panels and sheets; full pill only for the voice control
-  and the language switch.
-- Elevation only for things that float above the page (sheets, menus,
-  toasts): `0 8px 24px rgba(22,48,42,.14)`. Panels on the page use a 1px
-  `line` border, not a shadow.
-- No gradients, no glassmorphism, no illustrated blobs.
-
-### 3.5 Iconography
-
-Lucide icon set at 1.75px stroke, sized 20px (patient) / 18px (clinician),
-always paired with a text label on primary actions. Route stops are drawn in
-SVG, not icons.
-
-### 3.6 Review against generic defaults
-
-Checked against the common generated-design defaults before building:
-
-| Default I was drifting toward | Change made and why |
-|---|---|
-| Teal + white "health app" palette | Moved to `forest` + `turmeric`. Forest relates to Bangladesh's green and the Sundarbans; turmeric reads as wayfinding signage and is distinct from every major health app in the region. |
-| Dashboard as a grid of rounded stat cards | Clinician home is a single prioritized queue list with dividers. Counts appear as plain numbers in the queue tabs, not as hero tiles. |
-| Pulsing gradient orb for voice | Replaced with the live route line, which ties voice to the product's main idea. |
-| Fade-up entrance on every section | Removed. One orchestrated motion (route advance). Everything else animates only in response to the user. |
-| Separate "nice" display serif for headings | Rejected: a Latin-only serif breaks on Bangla screens. Single family with width variation instead. |
-
----
+Superseded. See [redesign/DESIGN_SYSTEM.md](redesign/DESIGN_SYSTEM.md) for
+identity, colour, typography, space and the bento rule (§4.1), and for
+iconography (§7). The "route line" concept and the `forest`/`turmeric`/Anek
+values that used to be here no longer apply to new work.
 
 ## 4. Motion
 
-### 4.1 Tokens
+Superseded. See [redesign/DESIGN_SYSTEM.md](redesign/DESIGN_SYSTEM.md) §5:
+two tiers (functional everywhere; expressive on the public landing and auth
+pages only, listed in UI_COMPONENT_LIBRARY_STRATEGY §4). Unchanged rules:
 
-| Token | Duration | Easing | Use |
-|---|---|---|---|
-| `motion.feedback` | 120 ms | `cubic-bezier(.2,0,0,1)` | Press, toggle, checkbox |
-| `motion.state` | 220 ms | `cubic-bezier(.2,.8,.2,1)` | Panel open/close, row leaving a queue, sheet |
-| `motion.route` | 520 ms | `cubic-bezier(.65,0,.35,1)` | Route line drawing to a new stop |
-| `motion.page` | 280 ms | `cubic-bezier(.2,.8,.2,1)` | Route-level transition (View Transitions API) |
-
-### 4.2 Where motion is used
-
-| Moment | Motion | Why it exists |
-|---|---|---|
-| State advances on a journey | Route stroke draws to the next stop; stop fills; label crossfades | Shows exactly what changed. Only plays when the state is newer than the last one the user saw (stored per object) |
-| Clinician accepts or declines a queue item | Row collapses height over `motion.state`; next row moves up; toast confirms with the same verb ("Accepted") | Confirms the action and keeps the eye on the queue |
-| Opening a queue item | Detail panel slides 16px and fades in, list stays put | Keeps spatial memory in a three-pane layout |
-| Voice listening | Route line's live segment bends with microphone amplitude (smoothed, 30 fps cap) | Proves the mic is hearing them |
-| Voice speaking | Caption text appears word by word in sync with TTS where timing data exists, otherwise whole sentence | Lets users read along; helps when audio is unclear |
-| Draft becomes verified | Dashed border animates to solid over `motion.state` | Makes verification visible |
-| Page navigation | Shared-element transition of the page title (View Transitions) | Continuity between list and detail |
-
-### 4.3 Where motion is forbidden
-
-- The emergency screen. It appears instantly, without transition, and nothing
-  on it moves.
-- Loading skeleton shimmer. Use a static skeleton; show a progress label after
-  1 second ("Loading your appointments").
-- Scroll-triggered reveals, parallax, hover lift on rows, animated counters.
-
-### 4.4 Reduced motion
-
-With `prefers-reduced-motion: reduce`, route advances render the final state
-immediately with a 2px `turmeric` outline flash on the new stop (no movement),
-the voice indicator becomes a static "Listening" label with a level bar that
-updates without easing, and page transitions are instant.
-
----
+- The emergency screen appears instantly and nothing on it moves.
+- No skeleton shimmer, parallax, hover lift on rows, animated counters, or
+  looping and autoplaying animation.
+- With `prefers-reduced-motion: reduce`, every animation renders its final
+  state immediately.
 
 ## 5. Components
 
-Each component lists its states. Built in FRONTEND §10.
-
-| Component | Notes |
-|---|---|
-| `RouteLine` | Stops and exception branches come from MASTERPLAN §5 via the mapping in FRONTEND §6 (`src/state/routes.ts`); do not list states here. Variants: patient (vertical, large), clinician (horizontal, compact); terminal side states render as a branch off the line with a labeled end cap |
-| `StatusLabel` | Text + stop shape; never color alone |
-| `ActionBar` | Renders only `allowed_actions`; primary action right-aligned on desktop, bottom-fixed full-width on mobile; destructive actions require a reason sheet where MASTERPLAN requires a reason |
-| `QueueList` | Row: patient name (Bangla + English if both), reason, age of item ("Waiting 2 h 10 min"), urgency; sorted by urgency then age; keyboard navigable (J/K, Enter) |
-| `DraftBlock` | Dashed `draft` border, "Draft" tag, source chips; editable |
-| `SourceChip` | Links a statement to its report page or record entry; opens the source beside the text |
-| `ReportViewer` | Original file left, extracted fields right; clicking a field highlights its bounding box |
-| `ConsentSheet` | Recipient, purpose, data categories as a plain list, expiry; buttons "Share with Dr. …" / "Don't share" |
-| `VoicePanel` | Language switch, live route indicator, captions, End button, "Type instead" link |
-| `EmergencyScreen` | Full-screen `signal-wash`, instruction text, call action if approved numbers exist (Q-06) |
-| `SyncBadge` | `fhir_sync_status` and offline queue states: "Saved", "Saving…", "Not saved yet — will retry", "Needs attention" |
-| `Toast` | Same verb as the action; no apologies; errors say what to do |
-| `LanguageSwitch` | বাংলা / English pill; persists to profile |
+Superseded. See [redesign/DESIGN_SYSTEM.md](redesign/DESIGN_SYSTEM.md) §6 and
+[redesign/UI_COMPONENT_LIBRARY_STRATEGY.md](redesign/UI_COMPONENT_LIBRARY_STRATEGY.md) §3.
+Behavioural contracts that carry over unchanged: `ActionBar` renders only
+`allowed_actions` and asks for a reason where MASTERPLAN requires one;
+`ConsentSheet` offers "share" and "don't share" with equal weight; `DraftBlock`
+is marked by dashed border and the word "Draft"; `SyncBadge` shows "Saved",
+"Saving…", "Not saved yet — will retry", "Needs attention"; the emergency
+screen is full-screen and static.
 
 ---
 
 ## 6. Screens
+
+> Where a screen below overlaps a page in
+> [redesign/APPLICATION_DESIGN_ARCHITECTURE.md](redesign/APPLICATION_DESIGN_ARCHITECTURE.md),
+> that document wins on layout. The behaviour in §6.3, §6.12 and §6.13
+> (emergency, offline emergency form, printed slip) is unchanged.
 
 ASCII wireframes show structure, not final proportions. All layouts are
 left-aligned.
@@ -235,7 +99,7 @@ left-aligned.
 │ My reports                   │
 │                              │
 ├──────────────────────────────┤
-│ [  Start talking  ]          │  ← bottom-fixed primary, forest
+│ [  Start talking  ]          │  ← bottom-fixed primary
 │  Type instead                │
 └──────────────────────────────┘
 ```
@@ -319,7 +183,7 @@ indicator.
 │                              │
 │ ●  Request sent  10:42       │
 │ │                            │
-│ ◉  Waiting for doctor        │  ← current stop, turmeric ring
+│ ◉  Waiting for doctor        │  ← current stop
 │ │  Requests expire after …   │  ← Q-04
 │ ○  Confirmed                 │
 │ ○  Visit                     │
@@ -416,12 +280,12 @@ facility and time, receiving facility. No QR unless Q-09 approves it.
 
 ## 8. Accessibility
 
-- WCAG 2.2 AA. Touch targets ≥ 44×44 px. Visible focus: 2px `ink` outline +
-  4px `turmeric` halo.
+- WCAG 2.2 AA. Touch targets ≥ 44×44 px. Visible focus: as defined in
+  redesign/DESIGN_SYSTEM.md §6.7.
 - Every voice feature has a text equivalent. Captions are always on.
 - Screen-reader labels in the active language; set `lang="bn"` / `lang="en"`
   on mixed-language fragments.
-- Route line has a text alternative: an ordered list of stops with states.
+- The handover tracker has a text alternative: an ordered list of stops with states.
 - Test with TalkBack (Bangla voice) on a low-end Android device and with
   keyboard-only navigation on the clinician dashboard.
 

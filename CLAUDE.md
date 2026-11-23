@@ -18,5 +18,8 @@ Rules:
    same change, add a row to MASTERPLAN §10 (Interface ledger).
 3. Open questions (MASTERPLAN §8.2) stay open in code: feature flag or adapter,
    tagged with the question ID.
-4. UI work follows UIUX_DESIGN.md tokens and motion rules; no raw hex values,
-   no decorative animation.
+4. UI work follows UIUX_DESIGN.md and docs/redesign/DESIGN_SYSTEM.md tokens and
+   motion rules; no raw colour values. Expressive motion only on the public
+   landing and auth pages, limited to the components listed in
+   docs/redesign/UI_COMPONENT_LIBRARY_STRATEGY.md §4; no decorative animation
+   elsewhere.

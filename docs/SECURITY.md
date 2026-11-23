@@ -318,3 +318,10 @@ Detailed in DEPLOYMENT §4–§6. Required controls:
 sessions, disable feature flag) → 3. assess scope from audit log → 4. notify
 per applicable law and Ministry policy → 5. fix and review. Named contacts
 and notification duties are confirmed before pilot.
+
+### 10.2 Open findings from the UI redesign audit
+
+Recorded in [redesign/PRODUCT_UX_AUDIT.md](redesign/PRODUCT_UX_AUDIT.md) §6; no rule in this document changes.
+
+- **A-01 (high):** the voice provider key is copied into a `NEXT_PUBLIC_*` variable and shipped in the browser bundle, contrary to §8.1. Fix before any public deployment.
+- **A-02 (high):** the OTP and MFA codes are fixed development values with no attempt limits or rate limits, contrary to §3.1 and §3.4. Nothing stops them running in production settings.
