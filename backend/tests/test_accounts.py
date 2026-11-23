@@ -61,3 +61,43 @@ def test_otp_auth_flow(api_client):
     assert ver_resp.status_code == 200
     assert "user_id" in ver_resp.data
 
+    # 3. Call /auth/me -> verify 'patient' role is assigned (A-04 fix)
+    me_resp = api_client.get("/api/v1/auth/me")
+    assert me_resp.status_code == 200
+    assert "patient" in me_resp.data["roles"]
+
+
+@pytest.mark.django_db
+def test_admin_role_access_and_views(api_client):
+    admin_user = User.objects.create_user(
+        email="admin@medidemo.com",
+        password="secretpassword123",
+        display_name="Facility Administrator",
+    )
+    facility = Facility.objects.create(name="Upazila Health Complex Savar", name_bn="সাভার উপজেলা স্বাস্থ্য কমপ্লেক্স")
+    Membership.objects.create(user=admin_user, facility=facility, role="facility_admin")
+
+    api_client.post("/api/v1/auth/login", {
+        "email": "admin@medidemo.com",
+        "password": "secretpassword123",
+    })
+
+    # A-23: active_facility defaulted automatically
+    me_resp = api_client.get("/api/v1/auth/me")
+    assert me_resp.status_code == 200
+    assert me_resp.data["active_facility"] is not None
+    assert me_resp.data["active_facility"]["id"] == str(facility.public_id)
+
+    # A-05: /admin/facilities, /admin/staff, /admin/schedules work without field error
+    fac_resp = api_client.get("/api/v1/admin/facilities")
+    assert fac_resp.status_code == 200
+    assert len(fac_resp.data["results"]) >= 1
+
+    staff_resp = api_client.get("/api/v1/admin/staff")
+    assert staff_resp.status_code == 200
+    assert len(staff_resp.data["results"]) >= 1
+
+    sched_resp = api_client.get("/api/v1/admin/schedules")
+    assert sched_resp.status_code == 200
+
+

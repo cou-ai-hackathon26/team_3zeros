@@ -71,7 +71,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
 
 class AppointmentCreateSerializer(serializers.Serializer):
-    patient_id = serializers.UUIDField()
+    patient_id = serializers.UUIDField(required=False, allow_null=True)
     slot_id = serializers.UUIDField()
     triage_session_id = serializers.UUIDField(required=False, allow_null=True)
 

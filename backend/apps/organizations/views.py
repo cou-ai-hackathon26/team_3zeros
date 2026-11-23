@@ -3,6 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 from rest_framework import views, permissions, status
 from rest_framework.response import Response
+from django.db.models import Q
 from .models import Facility, Practitioner
 from apps.directory.models import CapacityReport
 from apps.directory.serializers import FacilityDirectorySerializer, PractitionerDirectorySerializer, CapacityReportSerializer
@@ -11,9 +12,15 @@ from apps.common.exceptions import PermissionDeniedError
 
 def _require_admin_role(user):
     """MASTERPLAN §4.2 & INV-9: Only facility_admin (own facility) or platform_admin may call /admin/*."""
-    if getattr(user, "is_platform_admin", False) or getattr(user, "is_superuser", False):
+    if hasattr(user, "platform_admin") or getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
         return None
-    membership = user.memberships.filter(role="facility_admin", active=True).select_related("facility").first()
+    now = timezone.now()
+    membership = (
+        user.memberships.filter(role="facility_admin")
+        .filter(Q(active_to__isnull=True) | Q(active_to__gte=now))
+        .select_related("facility")
+        .first()
+    )
     if not membership:
         raise PermissionDeniedError("Facility admin or platform admin role is required.")
     return membership.facility
@@ -75,8 +82,29 @@ class AdminSchedulesView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        _require_admin_role(request.user)
-        return Response({"results": [], "next_cursor": None})
+        scoped_facility = _require_admin_role(request.user)
+        from apps.scheduling.models import Schedule
+        qs = Schedule.objects.select_related(
+            "practitioner_role__practitioner",
+            "practitioner_role__specialty",
+            "practitioner_role__facility",
+        ).all()
+        if scoped_facility:
+            qs = qs.filter(practitioner_role__facility=scoped_facility)
+        results = [
+            {
+                "id": str(s.public_id),
+                "practitioner_id": str(s.practitioner_role.practitioner.public_id),
+                "practitioner_name": s.practitioner_role.practitioner.name,
+                "specialty": s.practitioner_role.specialty.name_en,
+                "facility_id": str(s.practitioner_role.facility.public_id),
+                "facility_name": s.practitioner_role.facility.name,
+                "slots_count": s.slots.count(),
+                "recurrence_rules": s.recurrence_rules,
+            }
+            for s in qs
+        ]
+        return Response({"results": results, "next_cursor": None})
 
 
 class AdminCapacityReportsView(views.APIView):
@@ -96,8 +124,28 @@ class AdminStaffView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        _require_admin_role(request.user)
-        return Response({"results": [], "next_cursor": None})
+        scoped_facility = _require_admin_role(request.user)
+        from apps.accounts.models import Membership
+        qs = Membership.objects.select_related("user", "facility").all()
+        if scoped_facility:
+            qs = qs.filter(facility=scoped_facility)
+        results = [
+            {
+                "id": str(m.public_id),
+                "user_id": str(m.user.public_id),
+                "name": m.user.display_name or m.user.phone or m.user.email,
+                "email": m.user.email,
+                "phone": m.user.phone,
+                "facility_id": str(m.facility.public_id),
+                "facility_name": m.facility.name,
+                "role": m.role,
+                "permissions": m.permissions,
+                "active_from": m.active_from.isoformat() if m.active_from else None,
+                "active_to": m.active_to.isoformat() if m.active_to else None,
+            }
+            for m in qs
+        ]
+        return Response({"results": results, "next_cursor": None})
 
 
 class FhirIntegrationBoundaryView(views.APIView):

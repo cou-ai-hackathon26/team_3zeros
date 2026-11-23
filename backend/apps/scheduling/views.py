@@ -51,9 +51,21 @@ class AppointmentListCreateView(views.APIView):
         serializer = AppointmentCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         request_id = getattr(request, "request_id", "")
+        patient_id = serializer.validated_data.get("patient_id")
+        if not patient_id:
+            if hasattr(request.user, "patient_account") and request.user.patient_account.patient:
+                patient_id = request.user.patient_account.patient.public_id
+            else:
+                raise ValidationError("patient_id is required.")
+        else:
+            if hasattr(request.user, "patient_account") and str(request.user.patient_account.patient.public_id) != str(patient_id):
+                if not (request.user.is_staff or request.user.memberships.exists() or getattr(request.user, "is_superuser", False)):
+                    from apps.common.exceptions import PermissionDeniedError
+                    raise PermissionDeniedError("Cannot create appointment for another patient.")
+
         appointment = create_appointment_request(
             user=request.user,
-            patient_id=serializer.validated_data["patient_id"],
+            patient_id=patient_id,
             slot_id=serializer.validated_data["slot_id"],
             triage_session_id=serializer.validated_data.get("triage_session_id"),
             request_id=request_id,

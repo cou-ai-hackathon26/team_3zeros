@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from .models import ConsentRequest, Consent
 from .serializers import ConsentRequestSerializer, ConsentSerializer
 from .services import grant_consent_request, refuse_consent_request, revoke_consent
-from apps.common.exceptions import NotFoundError
+from apps.common.exceptions import NotFoundError, PermissionDeniedError
 
 class PatientConsentsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -30,6 +30,12 @@ class ConsentRequestDetailView(views.APIView):
         req = ConsentRequest.objects.filter(public_id=public_id).first()
         if not req:
             raise NotFoundError("Consent request not found.")
+        user = request.user
+        if hasattr(user, "patient_account"):
+            if req.patient_id != user.patient_account.patient_id:
+                raise PermissionDeniedError("Not authorized to view this consent request.")
+        elif not (user.is_superuser or user.is_staff or hasattr(user, "platform_admin") or user.memberships.exists()):
+            raise PermissionDeniedError("Not authorized to view this consent request.")
         return Response(ConsentRequestSerializer(req).data)
 
 

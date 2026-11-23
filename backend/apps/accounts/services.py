@@ -102,7 +102,23 @@ def verify_phone_otp_and_login(request, phone: str, code: str):
     if not user:
         with transaction.atomic():
             user = User.objects.create_user(phone=phone, display_name=f"Patient {phone[-4:]}")
-            # Patient record is linked when profile is created in identity app
+            from apps.identity.models import Patient
+            patient = Patient.objects.create(
+                given_name=f"Patient {phone[-4:]}",
+                phone=phone,
+            )
+            PatientAccount.objects.create(user=user, patient=patient)
+    else:
+        if not hasattr(user, "patient_account"):
+            with transaction.atomic():
+                from apps.identity.models import Patient
+                patient = Patient.objects.filter(phone=phone).first()
+                if not patient:
+                    patient = Patient.objects.create(
+                        given_name=user.display_name or f"Patient {phone[-4:]}",
+                        phone=phone,
+                    )
+                PatientAccount.objects.create(user=user, patient=patient)
     login(request, user)
     record_audit_event(
         action="login",

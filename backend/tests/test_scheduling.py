@@ -1,6 +1,11 @@
 from datetime import timedelta
 import pytest
+from rest_framework.test import APIClient
 from django.utils import timezone
+
+@pytest.fixture
+def api_client():
+    return APIClient()
 from apps.accounts.models import User, Membership
 from apps.identity.models import Patient
 from apps.organizations.models import Facility, Practitioner, PractitionerRole
@@ -58,8 +63,27 @@ def test_appointment_request_and_concurrency_lock(scheduling_setup):
     # 3. Clinician accepts appointment -> slot moves to BOOKED
     appt, allowed = execute_appointment_transition(user, appointment.public_id, "accept")
     assert appt.state == "CONFIRMED"
+
     slot1.refresh_from_db()
     assert slot1.state == "BOOKED"
+
+
+@pytest.mark.django_db
+def test_appointment_create_inferred_patient(api_client, scheduling_setup):
+    # A-16: patient can create appointment without specifying patient_id
+    data = scheduling_setup
+    slot = data["slot2"]
+    user = User.objects.create_user(phone="+8801755555555", display_name="Test Patient")
+    from apps.accounts.models import PatientAccount
+    PatientAccount.objects.create(user=user, patient=data["patient"])
+
+    api_client.force_authenticate(user=user)
+    resp = api_client.post("/api/v1/appointments", {
+        "slot_id": str(slot.public_id),
+    })
+    assert resp.status_code == 201
+    assert resp.data["state"] == "REQUESTED"
+    assert resp.data["patient_id"] == str(data["patient"].public_id)
 
 @pytest.mark.django_db
 def test_appointment_propose_alternate_slot(scheduling_setup):

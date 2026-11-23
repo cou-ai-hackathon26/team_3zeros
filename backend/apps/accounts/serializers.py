@@ -11,6 +11,7 @@ class UserMeSerializer(serializers.Serializer):
     active_facility = serializers.DictField(allow_null=True)
     permissions = serializers.ListField(child=serializers.CharField())
     is_platform_admin = serializers.BooleanField()
+    memberships = serializers.ListField(child=serializers.DictField(), required=False)
 
 
 class LoginSerializer(serializers.Serializer):

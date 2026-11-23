@@ -84,9 +84,15 @@ class MeView(views.APIView):
         roles = get_user_roles(user)
         active_facility_id = request.session.get("active_facility_id")
 
+        if not active_facility_id:
+            first_membership = user.memberships.select_related("facility").first()
+            if first_membership:
+                active_facility_id = str(first_membership.facility.public_id)
+                request.session["active_facility_id"] = active_facility_id
+
         active_facility_data = None
         if active_facility_id:
-            membership = user.memberships.filter(facility__public_id=active_facility_id).first()
+            membership = user.memberships.filter(facility__public_id=active_facility_id).select_related("facility").first()
             if membership:
                 active_facility_data = {
                     "id": str(membership.facility.public_id),
@@ -94,6 +100,16 @@ class MeView(views.APIView):
                     "name_bn": membership.facility.name_bn,
                     "role": membership.role,
                 }
+
+        memberships_data = [
+            {
+                "facility_id": str(m.facility.public_id),
+                "facility_name": m.facility.name,
+                "facility_name_bn": m.facility.name_bn,
+                "role": m.role,
+            }
+            for m in user.memberships.select_related("facility").all()
+        ]
 
         permissions_list = get_user_permissions(user, active_facility_id)
 
@@ -107,6 +123,7 @@ class MeView(views.APIView):
             "active_facility": active_facility_data,
             "permissions": permissions_list,
             "is_platform_admin": hasattr(user, "platform_admin"),
+            "memberships": memberships_data,
         }
         serializer = UserMeSerializer(data)
         return Response(serializer.data)
