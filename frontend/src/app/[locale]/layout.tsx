@@ -1,21 +1,21 @@
 import React from "react";
-import { Anek_Bangla, Anek_Latin } from "next/font/google";
-import "../../tokens/tokens.css";
+import { Hind_Siliguri, Tiro_Bangla } from "next/font/google";
+import "../globals.css";
 import { SessionProvider } from "../../auth/session";
 import { resolveSyncLocale, type LocaleLayoutProps } from "../resolveLocale";
 
-const anekBangla = Anek_Bangla({
-  subsets: ["bengali"],
-  axes: ["wdth"],
+const hindSiliguri = Hind_Siliguri({
+  subsets: ["bengali", "latin"],
+  weight: ["400", "500", "600"],
   display: "swap",
-  variable: "--font-anek-bangla",
+  variable: "--font-hind-siliguri",
 });
 
-const anekLatin = Anek_Latin({
-  subsets: ["latin"],
-  axes: ["wdth"],
+const tiroBangla = Tiro_Bangla({
+  subsets: ["bengali", "latin"],
+  weight: "400",
   display: "swap",
-  variable: "--font-anek-latin",
+  variable: "--font-tiro-bangla",
 });
 
 export default async function LocaleRootLayout({
@@ -30,7 +30,7 @@ export default async function LocaleRootLayout({
   return (
     <html
       lang={locale}
-      className={`${anekBangla.variable} ${anekLatin.variable}`}
+      className={`${hindSiliguri.variable} ${tiroBangla.variable}`}
     >
       <body>
         <SessionProvider>{children}</SessionProvider>

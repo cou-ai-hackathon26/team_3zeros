@@ -1,0 +1,7 @@
+/* One global stylesheet. Theme comes from the generated token file.
+   Preflight is intentionally not imported yet: it would restyle every page
+   that still uses CSS Modules. It is enabled with the shells in Phase 3. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "../tokens/tokens.css";

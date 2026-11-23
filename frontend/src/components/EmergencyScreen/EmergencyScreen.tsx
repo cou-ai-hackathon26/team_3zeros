@@ -16,7 +16,7 @@ export interface EmergencyScreenProps {
 
 /**
  * UIUX §4.3, §5, §6.3 & MASTERPLAN INV-5, INV-8, Q-06:
- * - Full-screen signal-wash background (#FBE9E7), zero transition, nothing on it moves.
+ * - Full-screen signal-wash background, zero transition, nothing on it moves.
  * - No further questions, no doctor booking, no "continue anyway" link.
  * - Clearly marks PLACEHOLDER — NOT CLINICALLY APPROVED content until Q-06 is approved.
  */

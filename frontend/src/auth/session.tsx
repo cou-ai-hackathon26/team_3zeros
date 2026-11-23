@@ -122,7 +122,7 @@ export function IdleTimeoutWarning({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "rgba(22, 48, 42, 0.45)",
+        backgroundColor: "color-mix(in srgb, var(--color-ink) 45%, transparent)",
         zIndex: 1000,
       }}
     >
