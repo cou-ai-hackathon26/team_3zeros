@@ -88,6 +88,26 @@ class EncounterDetailView(views.APIView):
         get_patient_by_public_id(request.user, encounter.patient.public_id)
         return Response(EncounterSerializer(encounter).data)
 
+    def patch(self, request, public_id):
+        encounter = Encounter.objects.filter(public_id=public_id).first()
+        if not encounter:
+            raise NotFoundError("Encounter not found.")
+        get_patient_by_public_id(request.user, encounter.patient.public_id)
+        if "reason" in request.data:
+            encounter.reason = str(request.data["reason"])
+        if "period_end" in request.data:
+            encounter.period_end = request.data["period_end"]
+        encounter.save()
+        record_audit_event(
+            action="update",
+            object_type="encounter",
+            object_id=str(encounter.public_id),
+            actor_user=request.user,
+            patient_id=str(encounter.patient.public_id),
+            request_id=getattr(request, "request_id", ""),
+        )
+        return Response(EncounterSerializer(encounter).data)
+
 
 class EncounterObservationCreateView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -96,6 +116,7 @@ class EncounterObservationCreateView(views.APIView):
         encounter = Encounter.objects.filter(public_id=public_id).first()
         if not encounter:
             raise NotFoundError("Encounter not found.")
+        get_patient_by_public_id(request.user, encounter.patient.public_id)
 
         serializer = ObservationCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -110,5 +131,14 @@ class EncounterObservationCreateView(views.APIView):
             unit=serializer.validated_data.get("unit", ""),
             observed_date=serializer.validated_data.get("observed_date"),
         )
+        record_audit_event(
+            action="create",
+            object_type="observation",
+            object_id=str(observation.public_id),
+            actor_user=request.user,
+            patient_id=str(encounter.patient.public_id),
+            request_id=getattr(request, "request_id", ""),
+        )
         return Response(ClinicalObservationSerializer(observation).data, status=status.HTTP_201_CREATED)
+
 

@@ -20,10 +20,11 @@ env = environ.Env(
     FHIR_SYNC_MODE=(str, "live"),
 )
 
-# Read .env if present
-env_file = BASE_DIR / ".env"
-if env_file.exists():
-    environ.Env.read_env(str(env_file))
+# Read single root .env (or backend/.env fallback) if present
+for candidate_env in (BASE_DIR.parent / ".env", BASE_DIR / ".env"):
+    if candidate_env.exists():
+        environ.Env.read_env(str(candidate_env))
+        break
 
 SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")

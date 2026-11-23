@@ -109,3 +109,25 @@ class ReferralByReferenceView(views.APIView):
         referral = get_referral_by_code(request.user, code)
         return Response(ReferralSerializer(referral, context={"request": request}).data)
 
+
+class ReferralGenerateDraftView(views.APIView):
+    """Queue AI summary draft generation for a DRAFT referral (MASTERPLAN §6.3, INV-7)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, public_id):
+        from apps.workflow.models import OutboxEvent
+        referral = get_referral_by_public_id(request.user, public_id)
+        if referral.state != "DRAFT":
+            raise ValidationError("AI draft can only be generated while referral is in DRAFT state.")
+        OutboxEvent.objects.create(
+            aggregate_type="referral",
+            aggregate_id=referral.public_id,
+            event_type="referral.draft_requested",
+            payload={"id": str(referral.public_id)},
+        )
+        return Response(
+            {"referral_id": str(referral.public_id), "status": "queued"},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+

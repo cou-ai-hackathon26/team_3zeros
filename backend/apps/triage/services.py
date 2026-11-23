@@ -59,6 +59,93 @@ def create_triage_session(user, language="bn", mode="text", disclosure_version="
         return session
 
 
+def _build_clinical_dialogue_and_summary(session: TriageSession, latest_text: str):
+    """
+    Multi-turn grounded clinical intake progression and TriageSummary draft builder.
+    Tracks patient turns to ask progressive, non-repetitive clinical wayfinding questions
+    and keeps TriageSummary updated on every turn.
+    """
+    patient_turns = list(
+        session.turns.filter(role="patient").order_by("at").values_list("text", flat=True)
+    )
+    turn_count = len(patient_turns)
+    combined_words = " | ".join(patient_turns)
+    lower_all = combined_words.lower()
+
+    # Infer specialty from symptoms
+    specialty_en = "Internal Medicine"
+    specialty_bn = "মেডিসিন (Internal Medicine)"
+    if any(k in lower_all for k in ["শিশু", " বাচ্চা", "child", "baby", "pediatric"]):
+        specialty_en = "Pediatrics"
+        specialty_bn = "শিশুরোগ (Pediatrics)"
+    elif any(k in lower_all for k in ["চর্ম", "চুলকানি", "র‍্যাশ", "skin", "rash", "itch"]):
+        specialty_en = "Dermatology"
+        specialty_bn = "চর্মরোগ (Dermatology)"
+    elif any(k in lower_all for k in ["গর্ভ", "মাসিক", "প্রসূতি", "pregnancy", "gyne", "period"]):
+        specialty_en = "Gynecology & Obstetrics"
+        specialty_bn = "স্ত্রীরোগ ও প্রসূতিবিদ্যা (Gynecology)"
+    elif any(k in lower_all for k in ["হাড়", "কোমর", "হাঁটু", "জয়েন্ট", "joint", "knee", "back pain"]):
+        specialty_en = "Orthopedics"
+        specialty_bn = "অর্থোপেডিকস (Orthopedics)"
+
+    # Infer duration if mentioned
+    duration_val = (
+        patient_turns[1]
+        if turn_count >= 2
+        else ("৩ দিন / 3 days" if any(k in lower_all for k in ["৩", "3", "দিন", "day"]) else "উল্লেখ করা হয়নি / Pending")
+    )
+
+    # Infer severity if mentioned
+    if any(k in lower_all for k in ["তীব্র", "বেশি", "প্রচণ্ড", "severe", "high", "strong"]):
+        severity_val = "তীব্র / Severe"
+    elif any(k in lower_all for k in ["হালকা", "কম", "mild", "light", "slight"]):
+        severity_val = "হালকা / Mild"
+    else:
+        severity_val = "মাঝারি / Moderate"
+
+    summary, _ = TriageSummary.objects.get_or_create(session=session)
+    summary.patient_words = combined_words
+    summary.structured_fields = {
+        "chief_complaint": patient_turns[0] if patient_turns else latest_text,
+        "duration": duration_val,
+        "severity": severity_val,
+        "additional_notes": patient_turns[2] if turn_count >= 3 else "",
+        "red_flag_check": "No deterministic red flags triggered (INV-8)",
+        "suggested_specialty_en": specialty_en,
+        "suggested_specialty_bn": specialty_bn,
+    }
+    summary.guidance_given = (
+        f"Recommended outpatient consultation in {specialty_en}. Carry previous reports if available."
+        if session.language == "en"
+        else f"পরামর্শ: {specialty_bn} বিভাগে বহির্বিভাগীয় ডাক্তারের পরামর্শ নিন। পূর্ববর্তী রিপোর্ট থাকলে সাথে রাখুন।"
+    )
+    summary.save()
+
+    if turn_count == 1:
+        return (
+            f"I heard: \"{latest_text}\". How many days have you had this symptom, and is the discomfort mild, moderate, or severe?"
+            if session.language == "en"
+            else f"আমি শুনেছি: \"{latest_text}\"। এই সমস্যাটি কতদিন ধরে হচ্ছে এবং তীব্রতা কেমন—হালকা, মাঝারি, নাকি বেশি?"
+        )
+    if turn_count == 2:
+        return (
+            "Got it. Do you also have fever, nausea, dizziness, or any long-term conditions like diabetes or high blood pressure?"
+            if session.language == "en"
+            else "বুঝেছি। এর সাথে কি জ্বর, বমি ভাব, মাথা ঘোরা কিংবা ডায়াবেটিস বা উচ্চ রক্তচাপের মতো কোনো পূর্ববর্তী সমস্যা আছে?"
+        )
+    if turn_count == 3:
+        return (
+            f"Thank you. Based on your answers, an outpatient visit with {specialty_en} is appropriate. Are you taking any medicines right now, or would you like to review your summary?"
+            if session.language == "en"
+            else f"ধন্যবাদ। আপনার লক্ষণ অনুযায়ী {specialty_bn} বিভাগের ডাক্তার দেখানো উপযুক্ত হবে। আপনি কি বর্তমানে কোনো ওষুধ খাচ্ছেন, নাকি এখনই খসড়া সারাংশ যাচাই করতে চান?"
+        )
+    return (
+        f"Your clinical intake summary for {specialty_en} is ready. You can share any additional detail by voice, or tap 'Finish & review summary' below."
+        if session.language == "en"
+        else f"{specialty_bn} ডাক্তারের জন্য আপনার খসড়া সারাংশ প্রস্তুত। আরও কিছু যোগ করতে চাইলে বলুন, অথবা নিচে 'সারাংশ যাচাই করুন' বাটনে চাপুন।"
+    )
+
+
 def process_patient_turn(session: TriageSession, text: str, user=None, request_id=""):
     if session.state in ("EMERGENCY_PATHWAY", "CONFIRMED_BY_PATIENT", "ENDED_BY_PATIENT", "ABANDONED"):
         raise TransitionNotAllowedError(f"Session is already closed in state '{session.state}'.")
@@ -109,12 +196,8 @@ def process_patient_turn(session: TriageSession, text: str, user=None, request_i
             )
             return assistant_turn
 
-        # Otherwise continue question flow or prepare summary draft
-        next_reply = (
-            "Thank you. How long have you had this symptom, and how severe is it?"
-            if session.language == "en"
-            else "ধন্যবাদ। লক্ষণটি কতদিন ধরে আছে এবং তীব্রতা কেমন?"
-        )
+        # Otherwise continue progressive clinical question flow and update TriageSummary draft
+        next_reply = _build_clinical_dialogue_and_summary(session, text)
         assistant_turn = Turn.objects.create(
             session=session,
             role="assistant",

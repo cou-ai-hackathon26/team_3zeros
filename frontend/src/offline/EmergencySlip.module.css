@@ -1,0 +1,75 @@
+.slip {
+  max-width: 520px;
+  padding: var(--space-24);
+  border: 2px solid var(--color-ink);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-bottom: var(--space-16);
+  border-bottom: 2px solid var(--color-ink);
+}
+
+.titleBlock {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.platformTitle {
+  font-weight: 600;
+}
+
+.codeType {
+  color: var(--color-ink-muted);
+}
+
+.referenceCode {
+  font-family: var(--font-numeral);
+  font-variant-numeric: tabular-nums;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  margin: var(--space-16) 0 0 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.field dt {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
+.field dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.urgencyValue {
+  font-weight: 700;
+}
+
+@media print {
+  .slip {
+    max-width: 148mm;
+    border-color: var(--color-ink);
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+}

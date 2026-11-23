@@ -66,23 +66,37 @@ def is_negated(text: str, keyword: str, language: str = "bn") -> bool:
 def evaluate_red_flags(utterance: str, language: str = "bn") -> Tuple[bool, List[Dict[str, Any]], str]:
     """
     Deterministic red-flag evaluation per MASTERPLAN INV-8, §8.3 / BACKEND §8.3.
-    Returns (is_emergency, hits, instruction_text).
+    Checks both English and Bangla red-flag lexicons so bilingual / code-switched speech
+    never misses a red flag, and returns instruction text in the requested session language.
     """
     hits = []
     instruction_text = ""
 
     for rf in RED_FLAGS:
-        keywords = rf["keywords_en"] if language == "en" else rf["keywords_bn"]
-        for kw in keywords:
-            if kw.lower() in utterance.lower():
-                if not is_negated(utterance, kw, language=language):
-                    hits.append({
-                        "rule_id": rf["id"],
-                        "symptom": rf["symptom"],
-                        "matched_keyword": kw,
-                    })
-                    instruction_text = rf["instruction_en"] if language == "en" else rf["instruction_bn"]
-                    break
+        matched_kw = None
+        matched_lang = language
+        for lang_code, kw_list in (("en", rf["keywords_en"]), ("bn", rf["keywords_bn"])):
+            for kw in kw_list:
+                if kw.lower() in utterance.lower():
+                    if not is_negated(utterance, kw, language=lang_code):
+                        matched_kw = kw
+                        matched_lang = lang_code
+                        break
+            if matched_kw:
+                break
+
+        if matched_kw:
+            hits.append({
+                "rule_id": rf["id"],
+                "symptom": rf["symptom"],
+                "matched_keyword": matched_kw,
+                "language_detected": matched_lang,
+            })
+            base_instr = rf["instruction_en"] if language == "en" else rf["instruction_bn"]
+            if "PLACEHOLDER — NOT CLINICALLY APPROVED" not in base_instr:
+                instruction_text = f"PLACEHOLDER — NOT CLINICALLY APPROVED: {base_instr}"
+            else:
+                instruction_text = base_instr
 
     is_emergency = len(hits) > 0
     return is_emergency, hits, instruction_text

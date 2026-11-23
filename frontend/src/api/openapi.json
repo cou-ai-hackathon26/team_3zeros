@@ -1,0 +1,2173 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Medi Waypoint API",
+        "version": "1.0.0",
+        "description": "Healthcare referral, triage, and scheduling API for Bangladesh"
+    },
+    "paths": {
+        "/api/v1/admin/capacity-reports": {
+            "get": {
+                "operationId": "admin_capacity_reports_retrieve",
+                "tags": [
+                    "admin"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/facilities": {
+            "get": {
+                "operationId": "admin_facilities_retrieve",
+                "tags": [
+                    "admin"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/practitioners": {
+            "get": {
+                "operationId": "admin_practitioners_retrieve",
+                "tags": [
+                    "admin"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/schedules": {
+            "get": {
+                "operationId": "admin_schedules_retrieve",
+                "tags": [
+                    "admin"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/staff": {
+            "get": {
+                "operationId": "admin_staff_retrieve",
+                "tags": [
+                    "admin"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/appointments": {
+            "get": {
+                "operationId": "appointments_retrieve",
+                "tags": [
+                    "appointments"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "appointments_create",
+                "tags": [
+                    "appointments"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/appointments/{public_id}": {
+            "get": {
+                "operationId": "appointments_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "appointments"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/appointments/{public_id}/actions/{action}": {
+            "post": {
+                "operationId": "appointments_actions_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "action",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "appointments"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/audit/events/": {
+            "get": {
+                "operationId": "audit_events_retrieve",
+                "tags": [
+                    "audit"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/active-facility": {
+            "post": {
+                "operationId": "auth_active_facility_create",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/login": {
+            "post": {
+                "operationId": "auth_login_create",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "operationId": "auth_logout_create",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/me": {
+            "get": {
+                "operationId": "auth_me_retrieve",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/mfa/verify": {
+            "post": {
+                "operationId": "auth_mfa_verify_create",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/otp/request": {
+            "post": {
+                "operationId": "auth_otp_request_create",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/otp/verify": {
+            "post": {
+                "operationId": "auth_otp_verify_create",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/consent-requests/{public_id}": {
+            "get": {
+                "operationId": "consent_requests_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "consent-requests"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/consent-requests/{public_id}/grant": {
+            "post": {
+                "operationId": "consent_requests_grant_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "consent-requests"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/consent-requests/{public_id}/refuse": {
+            "post": {
+                "operationId": "consent_requests_refuse_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "consent-requests"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/consents/": {
+            "get": {
+                "operationId": "consents_retrieve",
+                "tags": [
+                    "consents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/consents/{public_id}/revoke": {
+            "post": {
+                "operationId": "consents_revoke_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "consents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/consents/requests/{public_id}": {
+            "get": {
+                "operationId": "consents_requests_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "consents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/consents/requests/{public_id}/grant": {
+            "post": {
+                "operationId": "consents_requests_grant_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "consents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/consents/requests/{public_id}/refuse": {
+            "post": {
+                "operationId": "consents_requests_refuse_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "consents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/devices/{public_id}/revoke": {
+            "post": {
+                "operationId": "devices_revoke_create",
+                "description": "Revoke an enrolled offline device (MASTERPLAN §6.3, Q-09).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/devices/enroll": {
+            "post": {
+                "operationId": "devices_enroll_create",
+                "description": "Enroll a facility device for offline emergency mode (MASTERPLAN §6.3, gated behind Q-09 FEATURE_OFFLINE_EMERGENCY).",
+                "tags": [
+                    "devices"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/directory/areas": {
+            "get": {
+                "operationId": "directory_areas_retrieve",
+                "tags": [
+                    "directory"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/directory/facilities": {
+            "get": {
+                "operationId": "directory_facilities_retrieve",
+                "tags": [
+                    "directory"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/directory/practitioners": {
+            "get": {
+                "operationId": "directory_practitioners_retrieve",
+                "tags": [
+                    "directory"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/directory/specialties": {
+            "get": {
+                "operationId": "directory_specialties_retrieve",
+                "tags": [
+                    "directory"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/documents/": {
+            "post": {
+                "operationId": "documents_create",
+                "tags": [
+                    "documents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/documents/{public_id}": {
+            "get": {
+                "operationId": "documents_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/documents/{public_id}/actions/retry_ocr": {
+            "post": {
+                "operationId": "documents_actions_retry_ocr_create",
+                "description": "Retry OCR on an OCR_FAILED document (MASTERPLAN §5.4 retry_ocr).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/documents/{public_id}/download-link": {
+            "post": {
+                "operationId": "documents_download_link_create",
+                "description": "Short-lived signed download link bound to the session (MASTERPLAN §6.3, SECURITY §6.2).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/documents/{public_id}/extraction": {
+            "get": {
+                "operationId": "documents_extraction_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/documents/{public_id}/extraction/reject": {
+            "post": {
+                "operationId": "documents_extraction_reject_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/documents/{public_id}/extraction/verify": {
+            "post": {
+                "operationId": "documents_extraction_verify_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/encounters/{public_id}": {
+            "get": {
+                "operationId": "encounters_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "encounters"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "encounters_partial_update",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "encounters"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/encounters/{public_id}/allergies": {
+            "post": {
+                "operationId": "encounters_allergies_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "encounters"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/encounters/{public_id}/medications": {
+            "post": {
+                "operationId": "encounters_medications_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "encounters"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/encounters/{public_id}/observations": {
+            "post": {
+                "operationId": "encounters_observations_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "encounters"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/integrations/fhir/{resource_path}": {
+            "get": {
+                "operationId": "integrations_fhir_retrieve",
+                "description": "Controlled FHIR boundary for approved external systems (MASTERPLAN §6.3, DEPLOYMENT §2).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "resource_path",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "integrations"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/": {
+            "get": {
+                "operationId": "notifications_retrieve",
+                "tags": [
+                    "notifications"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/{public_id}/read": {
+            "post": {
+                "operationId": "notifications_read_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/patients/": {
+            "get": {
+                "operationId": "patients_retrieve",
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "patients_create",
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/patients/{patient_id}/chart": {
+            "get": {
+                "operationId": "patients_chart_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "patient_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/patients/{patient_id}/encounters": {
+            "get": {
+                "operationId": "patients_encounters_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "patient_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "patients_encounters_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "patient_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/patients/{patient_id}/results": {
+            "get": {
+                "operationId": "patients_results_retrieve",
+                "description": "Prior verified results with date and lab; never suppresses tests (MASTERPLAN §6.3, INV-15).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "patient_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/patients/{public_id}": {
+            "get": {
+                "operationId": "patients_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/patients/{public_id}/duplicate-candidates": {
+            "get": {
+                "operationId": "patients_duplicate_candidates_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/patients/{public_id}/duplicate-candidates/{candidate_id}/resolve": {
+            "post": {
+                "operationId": "patients_duplicate_candidates_resolve_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "candidate_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "patients"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/practitioners/{practitioner_id}/slots": {
+            "get": {
+                "operationId": "practitioners_slots_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "practitioner_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "practitioners"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/records/encounters/{public_id}": {
+            "get": {
+                "operationId": "records_encounters_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "records"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "records_encounters_partial_update",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "records"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/records/encounters/{public_id}/allergies": {
+            "post": {
+                "operationId": "records_encounters_allergies_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "records"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/records/encounters/{public_id}/medications": {
+            "post": {
+                "operationId": "records_encounters_medications_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "records"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/records/encounters/{public_id}/observations": {
+            "post": {
+                "operationId": "records_encounters_observations_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "records"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/records/patients/{patient_id}/chart": {
+            "get": {
+                "operationId": "records_patients_chart_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "patient_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "records"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/records/patients/{patient_id}/encounters": {
+            "get": {
+                "operationId": "records_patients_encounters_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "patient_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "records"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "records_patients_encounters_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "patient_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "records"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/referrals/": {
+            "get": {
+                "operationId": "referrals_retrieve",
+                "tags": [
+                    "referrals"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "referrals_create",
+                "tags": [
+                    "referrals"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/referrals/{public_id}": {
+            "get": {
+                "operationId": "referrals_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "referrals"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "referrals_partial_update",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "referrals"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/referrals/{public_id}/actions/{action}": {
+            "post": {
+                "operationId": "referrals_actions_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "action",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "referrals"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/referrals/{public_id}/generate-draft": {
+            "post": {
+                "operationId": "referrals_generate_draft_create",
+                "description": "Queue AI summary draft generation for a DRAFT referral (MASTERPLAN §6.3, INV-7).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "referrals"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/referrals/by-reference/{code}": {
+            "get": {
+                "operationId": "referrals_by_reference_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "code",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "referrals"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/referrals/emergency": {
+            "post": {
+                "operationId": "referrals_emergency_create",
+                "tags": [
+                    "referrals"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/scheduling/appointments": {
+            "get": {
+                "operationId": "scheduling_appointments_retrieve",
+                "tags": [
+                    "scheduling"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "scheduling_appointments_create",
+                "tags": [
+                    "scheduling"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/scheduling/appointments/{public_id}": {
+            "get": {
+                "operationId": "scheduling_appointments_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "scheduling"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/scheduling/appointments/{public_id}/actions/{action}": {
+            "post": {
+                "operationId": "scheduling_appointments_actions_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "action",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "scheduling"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/scheduling/practitioners/{practitioner_id}/slots": {
+            "get": {
+                "operationId": "scheduling_practitioners_slots_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "practitioner_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "scheduling"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/triage/provider-events": {
+            "post": {
+                "operationId": "triage_provider_events_create",
+                "description": "Server-to-server signed webhook from voice provider (MASTERPLAN §6.3, SECURITY §8.1, Q-05).",
+                "tags": [
+                    "triage"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/triage/sessions": {
+            "post": {
+                "operationId": "triage_sessions_create",
+                "tags": [
+                    "triage"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/triage/sessions/{public_id}": {
+            "get": {
+                "operationId": "triage_sessions_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "triage"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/triage/sessions/{public_id}/end": {
+            "post": {
+                "operationId": "triage_sessions_end_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "triage"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/triage/sessions/{public_id}/finish": {
+            "post": {
+                "operationId": "triage_sessions_finish_create",
+                "description": "Patient says they are done answering; the summary is then ready to review (§5.3 finish_questions).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "triage"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/triage/sessions/{public_id}/summary/confirm": {
+            "post": {
+                "operationId": "triage_sessions_summary_confirm_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "triage"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/triage/sessions/{public_id}/turns": {
+            "post": {
+                "operationId": "triage_sessions_turns_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "triage"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/v1/triage/sessions/{public_id}/voice-credentials": {
+            "post": {
+                "operationId": "triage_sessions_voice_credentials_create",
+                "description": "Issue short-lived single-session provider credentials with random session_ref only (MASTERPLAN §6.3, SECURITY §8.1, Q-05).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "public_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "triage"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "sessionid"
+            }
+        }
+    }
+}

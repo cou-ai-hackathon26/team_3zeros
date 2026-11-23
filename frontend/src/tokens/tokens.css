@@ -1,0 +1,63 @@
+/* GENERATED FROM src/tokens/tokens.json — DO NOT EDIT DIRECTLY */
+:root {
+  --color-mist: #EEF2F0;
+  --color-paper: #FFFFFF;
+  --color-ink: #16302A;
+  --color-ink-muted: #4E6660;
+  --color-line: #CFD9D5;
+  --color-forest: #0B5D4B;
+  --color-turmeric: #D99A1E;
+  --color-river: #1F5FA8;
+  --color-draft: #6B5AA6;
+  --color-signal: #C42B1C;
+  --color-signal-wash: #FBE9E7;
+  --font-sans: var(--font-anek-bangla), var(--font-anek-latin), 'Anek Bangla', 'Anek Latin', 'Noto Sans Bengali', 'Noto Sans', sans-serif;
+  --font-numeral: var(--font-anek-latin), 'Anek Latin', 'Noto Sans', sans-serif;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+  --space-72: 72px;
+  --radius-sm: 4px;
+  --radius-md: 12px;
+  --radius-pill: 9999px;
+  --elevation-float: 0 8px 24px rgba(22,48,42,.14);
+  --motion-feedback-duration: 120ms;
+  --motion-feedback-easing: cubic-bezier(.2,0,0,1);
+  --motion-state-duration: 220ms;
+  --motion-state-easing: cubic-bezier(.2,.8,.2,1);
+  --motion-route-duration: 520ms;
+  --motion-route-easing: cubic-bezier(.65,0,.35,1);
+  --motion-page-duration: 280ms;
+  --motion-page-easing: cubic-bezier(.2,.8,.2,1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-feedback-duration: 0ms;
+    --motion-state-duration: 0ms;
+    --motion-route-duration: 0ms;
+    --motion-page-duration: 0ms;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-mist);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+::selection {
+  background-color: var(--color-forest);
+  color: var(--color-paper);
+}
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  box-shadow: 0 0 0 4px var(--color-turmeric);
+}

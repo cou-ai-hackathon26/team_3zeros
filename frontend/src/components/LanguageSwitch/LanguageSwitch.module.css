@@ -1,0 +1,26 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-paper);
+  padding: 2px;
+}
+
+.option {
+  min-height: 40px;
+  padding: 0 var(--space-12);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.active {
+  background-color: var(--color-forest);
+  color: var(--color-paper);
+}

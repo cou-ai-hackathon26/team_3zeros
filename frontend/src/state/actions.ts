@@ -1,0 +1,292 @@
+/**
+ * Action Registry (FRONTEND §6, MASTERPLAN §5).
+ * The frontend never decides workflow rules. ActionBar renders only allowed_actions
+ * returned by the server, looking up UI configuration here. An unknown action throws
+ * so a missing UI configuration fails tests immediately rather than silently hiding a button.
+ */
+
+export type StatefulEntity = "appointment" | "referral" | "document";
+
+export type ConfirmationStyle = "primary" | "secondary" | "destructive";
+
+export interface ActionDefinition {
+  action: string;
+  entity: StatefulEntity;
+  labelKey: string;
+  toastKey: string;
+  requiresReason: boolean;
+  requiresAlternateSlot?: boolean;
+  requiresOutcome?: boolean;
+  fhirGated: boolean;
+  confirmationStyle: ConfirmationStyle;
+  buildEndpoint: (objectId: string) => string;
+}
+
+export const ACTION_REGISTRY: Record<StatefulEntity, Record<string, ActionDefinition>> = {
+  appointment: {
+    request: {
+      action: "request",
+      entity: "appointment",
+      labelKey: "action.appointment.request",
+      toastKey: "toast.appointment.request",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: () => `/appointments`,
+    },
+    accept: {
+      action: "accept",
+      entity: "appointment",
+      labelKey: "action.appointment.accept",
+      toastKey: "toast.appointment.accept",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/appointments/${id}/actions/accept`,
+    },
+    decline: {
+      action: "decline",
+      entity: "appointment",
+      labelKey: "action.appointment.decline",
+      toastKey: "toast.appointment.decline",
+      requiresReason: true,
+      fhirGated: false,
+      confirmationStyle: "destructive",
+      buildEndpoint: (id) => `/appointments/${id}/actions/decline`,
+    },
+    propose_alternate: {
+      action: "propose_alternate",
+      entity: "appointment",
+      labelKey: "action.appointment.propose_alternate",
+      toastKey: "toast.appointment.propose_alternate",
+      requiresReason: false,
+      requiresAlternateSlot: true,
+      fhirGated: false,
+      confirmationStyle: "secondary",
+      buildEndpoint: (id) => `/appointments/${id}/actions/propose_alternate`,
+    },
+    patient_accept: {
+      action: "patient_accept",
+      entity: "appointment",
+      labelKey: "action.appointment.patient_accept",
+      toastKey: "toast.appointment.patient_accept",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/appointments/${id}/actions/patient_accept`,
+    },
+    patient_decline: {
+      action: "patient_decline",
+      entity: "appointment",
+      labelKey: "action.appointment.patient_decline",
+      toastKey: "toast.appointment.patient_decline",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "destructive",
+      buildEndpoint: (id) => `/appointments/${id}/actions/patient_decline`,
+    },
+    cancel: {
+      action: "cancel",
+      entity: "appointment",
+      labelKey: "action.appointment.cancel",
+      toastKey: "toast.appointment.cancel",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "destructive",
+      buildEndpoint: (id) => `/appointments/${id}/actions/cancel`,
+    },
+    complete: {
+      action: "complete",
+      entity: "appointment",
+      labelKey: "action.appointment.complete",
+      toastKey: "toast.appointment.complete",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/appointments/${id}/actions/complete`,
+    },
+    mark_no_show: {
+      action: "mark_no_show",
+      entity: "appointment",
+      labelKey: "action.appointment.mark_no_show",
+      toastKey: "toast.appointment.mark_no_show",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "secondary",
+      buildEndpoint: (id) => `/appointments/${id}/actions/mark_no_show`,
+    },
+  },
+  referral: {
+    request_consent: {
+      action: "request_consent",
+      entity: "referral",
+      labelKey: "action.referral.request_consent",
+      toastKey: "toast.referral.request_consent",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/request_consent`,
+    },
+    use_existing_consent: {
+      action: "use_existing_consent",
+      entity: "referral",
+      labelKey: "action.referral.use_existing_consent",
+      toastKey: "toast.referral.use_existing_consent",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "secondary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/use_existing_consent`,
+    },
+    reopen_draft: {
+      action: "reopen_draft",
+      entity: "referral",
+      labelKey: "action.referral.reopen_draft",
+      toastKey: "toast.referral.reopen_draft",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "secondary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/reopen_draft`,
+    },
+    approve: {
+      action: "approve",
+      entity: "referral",
+      labelKey: "action.referral.approve",
+      toastKey: "toast.referral.approve",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/approve`,
+    },
+    send: {
+      action: "send",
+      entity: "referral",
+      labelKey: "action.referral.send",
+      toastKey: "toast.referral.send",
+      requiresReason: false,
+      fhirGated: true,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/send`,
+    },
+    acknowledge: {
+      action: "acknowledge",
+      entity: "referral",
+      labelKey: "action.referral.acknowledge",
+      toastKey: "toast.referral.acknowledge",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/acknowledge`,
+    },
+    decline: {
+      action: "decline",
+      entity: "referral",
+      labelKey: "action.referral.decline",
+      toastKey: "toast.referral.decline",
+      requiresReason: true,
+      fhirGated: false,
+      confirmationStyle: "destructive",
+      buildEndpoint: (id) => `/referrals/${id}/actions/decline`,
+    },
+    start: {
+      action: "start",
+      entity: "referral",
+      labelKey: "action.referral.start",
+      toastKey: "toast.referral.start",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/start`,
+    },
+    record_outcome: {
+      action: "record_outcome",
+      entity: "referral",
+      labelKey: "action.referral.record_outcome",
+      toastKey: "toast.referral.record_outcome",
+      requiresReason: false,
+      requiresOutcome: true,
+      fhirGated: true,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/record_outcome`,
+    },
+    close: {
+      action: "close",
+      entity: "referral",
+      labelKey: "action.referral.close",
+      toastKey: "toast.referral.close",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/close`,
+    },
+    close_with_exception: {
+      action: "close_with_exception",
+      entity: "referral",
+      labelKey: "action.referral.close_with_exception",
+      toastKey: "toast.referral.close_with_exception",
+      requiresReason: true,
+      fhirGated: false,
+      confirmationStyle: "destructive",
+      buildEndpoint: (id) => `/referrals/${id}/actions/close_with_exception`,
+    },
+    cancel: {
+      action: "cancel",
+      entity: "referral",
+      labelKey: "action.referral.cancel",
+      toastKey: "toast.referral.cancel",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "destructive",
+      buildEndpoint: (id) => `/referrals/${id}/actions/cancel`,
+    },
+    retry_sync: {
+      action: "retry_sync",
+      entity: "referral",
+      labelKey: "action.referral.retry_sync",
+      toastKey: "toast.referral.retry_sync",
+      requiresReason: false,
+      fhirGated: true,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/referrals/${id}/actions/retry_sync`,
+    },
+  },
+  document: {
+    retry_ocr: {
+      action: "retry_ocr",
+      entity: "document",
+      labelKey: "action.document.retry_ocr",
+      toastKey: "toast.document.retry_ocr",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "secondary",
+      buildEndpoint: (id) => `/documents/${id}/actions/retry_ocr`,
+    },
+    verify: {
+      action: "verify",
+      entity: "document",
+      labelKey: "action.document.verify",
+      toastKey: "toast.document.verify",
+      requiresReason: false,
+      fhirGated: true,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/documents/${id}/extraction/verify`,
+    },
+    reject: {
+      action: "reject",
+      entity: "document",
+      labelKey: "action.document.reject",
+      toastKey: "toast.document.reject",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "destructive",
+      buildEndpoint: (id) => `/documents/${id}/extraction/reject`,
+    },
+  },
+};
+
+export function getActionDefinition(entity: StatefulEntity, action: string): ActionDefinition {
+  const def = ACTION_REGISTRY[entity]?.[action];
+  if (!def) {
+    throw new Error(`Unconfigured action "${action}" for entity "${entity}"`);
+  }
+  return def;
+}

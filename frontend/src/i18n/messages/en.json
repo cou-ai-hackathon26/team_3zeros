@@ -1,0 +1,184 @@
+{
+  "state": {
+    "appointment": {
+      "REQUESTED": "Request sent",
+      "CONFIRMED": "Confirmed",
+      "COMPLETED": "Visit completed",
+      "CANCELLED": "Cancelled",
+      "NO_SHOW": "Did not attend",
+      "ALTERNATE_SLOT_PROPOSED": "New time proposed",
+      "PATIENT_ACCEPTED": "Waiting for final confirmation",
+      "DECLINED": "Declined",
+      "EXPIRED": "Request expired"
+    },
+    "referral": {
+      "DRAFT": "Draft",
+      "AWAITING_PATIENT_CONSENT": "Waiting for patient sharing decision",
+      "READY_FOR_SENDER_APPROVAL": "Ready for doctor approval",
+      "APPROVED_BY_SENDER": "Approved by sending doctor",
+      "SENT": "Sent",
+      "ACKNOWLEDGED_BY_RECEIVER": "Acknowledged by receiving facility",
+      "IN_PROGRESS": "Under care at receiving facility",
+      "OUTCOME_RECORDED": "Outcome recorded",
+      "OUTCOME_RETURNED": "Outcome returned to sender",
+      "CLOSED": "Closed",
+      "ESCALATED": "Escalated — unacknowledged emergency",
+      "DECLINED": "Declined by receiving facility",
+      "CANCELLED": "Cancelled",
+      "EXPIRED": "Consent request expired",
+      "FAILED_TO_SYNC": "Sync attention required"
+    },
+    "triage_session": {
+      "CREATED": "Ready to start",
+      "ACTIVE": "Listening",
+      "PAUSED": "Paused",
+      "EMERGENCY_PATHWAY": "Emergency pathway",
+      "SUMMARY_PENDING_REVIEW": "Review your summary",
+      "CONFIRMED_BY_PATIENT": "Summary confirmed",
+      "ENDED_BY_PATIENT": "Session ended",
+      "ABANDONED": "Session timed out"
+    },
+    "document": {
+      "UPLOADED": "Uploaded",
+      "OCR_QUEUED": "Queued for reading",
+      "OCR_RUNNING": "Reading values",
+      "EXTRACTED_UNVERIFIED": "Draft values ready to check",
+      "OCR_FAILED": "Reading failed",
+      "VERIFIED": "Verified",
+      "REJECTED": "Extraction discarded",
+      "QUARANTINED": "Blocked by security check"
+    },
+    "emergency_queue": {
+      "QUEUED_LOCAL": "Saved on this device. Will send when connected.",
+      "SYNCING": "Sending…",
+      "SYNCED": "Saved",
+      "CONFLICT": "Conflict — review both versions",
+      "FAILED": "Not saved yet — will keep trying"
+    },
+    "consent_request": {
+      "PENDING": "Waiting for your decision",
+      "GRANTED": "Shared",
+      "REFUSED": "Not shared",
+      "EXPIRED": "Expired",
+      "SUPERSEDED": "Replaced by updated draft"
+    },
+    "consent": {
+      "ACTIVE": "Active",
+      "REVOKED": "Sharing stopped",
+      "EXPIRED": "Expired"
+    },
+    "fhir_sync": {
+      "NOT_REQUIRED": "Local record",
+      "PENDING": "Sending…",
+      "SYNCED": "Saved",
+      "FAILED": "Needs attention"
+    }
+  },
+  "action": {
+    "appointment": {
+      "request": "Request appointment",
+      "accept": "Accept request",
+      "decline": "Decline request",
+      "propose_alternate": "Propose another time",
+      "patient_accept": "Accept proposed time",
+      "patient_decline": "Decline proposed time",
+      "cancel": "Cancel request",
+      "complete": "Mark visit complete",
+      "mark_no_show": "Mark no-show"
+    },
+    "referral": {
+      "request_consent": "Ask patient to share",
+      "use_existing_consent": "Use active consent",
+      "reopen_draft": "Reopen draft",
+      "approve": "Approve referral",
+      "send": "Send referral",
+      "acknowledge": "Acknowledge referral",
+      "decline": "Decline referral",
+      "start": "Start care",
+      "record_outcome": "Record outcome",
+      "close": "Close referral",
+      "close_with_exception": "Close with documented reason",
+      "cancel": "Cancel referral",
+      "retry_sync": "Retry sync"
+    },
+    "document": {
+      "retry_ocr": "Retry reading",
+      "verify": "Confirm values",
+      "reject": "Discard extraction"
+    }
+  },
+  "toast": {
+    "appointment": {
+      "request": "Appointment requested",
+      "accept": "Request accepted",
+      "decline": "Request declined",
+      "propose_alternate": "New time proposed",
+      "patient_accept": "Proposed time accepted",
+      "patient_decline": "Proposed time declined",
+      "cancel": "Request cancelled",
+      "complete": "Visit marked complete",
+      "mark_no_show": "Marked no-show"
+    },
+    "referral": {
+      "request_consent": "Asked patient to share",
+      "use_existing_consent": "Active consent linked",
+      "reopen_draft": "Draft reopened",
+      "approve": "Referral approved",
+      "send": "Referral sent",
+      "acknowledge": "Referral acknowledged",
+      "decline": "Referral declined",
+      "start": "Care started",
+      "record_outcome": "Outcome recorded",
+      "close": "Referral closed",
+      "close_with_exception": "Referral closed with reason",
+      "cancel": "Referral cancelled",
+      "retry_sync": "Sync retried"
+    },
+    "document": {
+      "retry_ocr": "Reading queued",
+      "verify": "Values confirmed",
+      "reject": "Extraction discarded"
+    }
+  },
+  "error": {
+    "validation_error": "Check the highlighted fields and submit again.",
+    "not_authenticated": "Sign in to continue.",
+    "mfa_required": "Enter your verification code to finish signing in.",
+    "permission_denied": "Your current role or facility does not have access to perform this action.",
+    "consent_required": "Accept the disclosure first to continue.",
+    "csrf_failed": "Your session security token expired. Reload the page and try again.",
+    "not_found": "Record not found or not available in your current scope.",
+    "transition_not_allowed": "This action is no longer available for the current status.",
+    "slot_unavailable": "That time was just taken. Pick another available slot.",
+    "idempotency_conflict": "A different submission with this key already exists on the server. Review both versions.",
+    "duplicate_candidate": "A matching patient record exists. Review the duplicate candidates before continuing.",
+    "stale_version": "This was updated by someone else. Review the latest version.",
+    "sync_pending": "A health-exchange write is still completing. Wait a moment for the status to update.",
+    "rate_limited": "Too many attempts. Wait a few minutes before trying again.",
+    "fhir_unavailable": "The clinical exchange service is unreachable right now. Your draft is safe; retry in a moment.",
+    "provider_unavailable": "Voice connection is unavailable right now. Continue by typing below.",
+    "generic": "Action could not be completed. Reference ID:"
+  },
+  "patient": {
+    "homeTitle": "Tell us what is bothering you. We will guide you to a suitable doctor.",
+    "routePreview": ["Tell us", "Doctor", "Visit", "Follow-up"],
+    "automatedGuideNotice": "This is an automated guide, not a doctor. In an emergency, go to the nearest emergency hospital immediately.",
+    "startTalking": "Start talking",
+    "typeInstead": "Type instead",
+    "myAppointments": "My appointments",
+    "myReports": "My reports",
+    "changedByYou": "Changed by you",
+    "findDoctor": "Find a doctor"
+  },
+  "clinician": {
+    "needsYou": "Needs you",
+    "incomingReferrals": "Incoming referrals",
+    "verifyReports": "Verify reports",
+    "outgoingReferrals": "Outgoing referrals",
+    "emptyQueue": "No requests waiting. New requests appear here.",
+    "draftBadge": "Draft",
+    "checkThis": "Check this",
+    "staySignedIn": "Stay signed in",
+    "signOut": "Sign out"
+  }
+}

@@ -177,3 +177,69 @@ class DocumentRejectView(views.APIView):
             )
         return Response(DocumentSerializer(doc).data)
 
+
+class DocumentRetryOcrView(views.APIView):
+    """Retry OCR on an OCR_FAILED document (MASTERPLAN §5.4 retry_ocr)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, public_id):
+        with transaction.atomic():
+            doc = _get_document_for_clinician(request, public_id)
+            execute_transition(
+                doc, "retry_ocr", request.user,
+                request_id=getattr(request, "request_id", ""),
+            )
+        return Response(DocumentSerializer(doc).data)
+
+
+
+class DocumentDownloadLinkView(views.APIView):
+    """Short-lived signed download link bound to the session (MASTERPLAN §6.3, SECURITY §6.2)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, public_id):
+        doc = Document.objects.filter(public_id=public_id).first()
+        if not doc or doc.state == "QUARANTINED":
+            raise NotFoundError("Document not found.")
+        get_patient_by_public_id(request.user, doc.patient.public_id)
+        record_audit_event(
+            action="download",
+            object_type="document",
+            object_id=str(doc.public_id),
+            actor_user=request.user,
+            patient_id=str(doc.patient.public_id),
+            request_id=getattr(request, "request_id", ""),
+        )
+        expires_at = timezone.now() + timezone.timedelta(seconds=60)
+        return Response({
+            "document_id": str(doc.public_id),
+            "url": f"/api/v1/documents/{doc.public_id}/content?token={uuid.uuid4().hex}",
+            "expires_at": expires_at.isoformat(),
+        })
+
+
+class PatientPriorResultsView(views.APIView):
+    """Prior verified results with date and lab; never suppresses tests (MASTERPLAN §6.3, INV-15)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, patient_id):
+        patient = get_patient_by_public_id(request.user, patient_id)
+        test_filter = request.query_params.get("test")
+        qs = ClinicalObservation.objects.filter(patient=patient).select_related("encounter", "encounter__facility").order_by("-observed_date")
+        if test_filter:
+            qs = qs.filter(code__iexact=test_filter)
+        results = [
+            {
+                "id": str(obs.public_id),
+                "code": obs.code,
+                "display_name": obs.display_name,
+                "value": obs.value_string or (str(obs.value_numeric) if obs.value_numeric is not None else ""),
+                "unit": obs.unit,
+                "observed_date": obs.observed_date.isoformat() if obs.observed_date else None,
+                "lab": obs.encounter.facility.name if obs.encounter and obs.encounter.facility else "",
+            }
+            for obs in qs
+        ]
+        return Response({"patient_id": str(patient.public_id), "results": results})
+
+

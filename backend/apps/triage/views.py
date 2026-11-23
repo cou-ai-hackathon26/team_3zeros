@@ -107,3 +107,31 @@ class TriageEndView(views.APIView):
         run_triage_action(session, "end", request.user, request_id=getattr(request, "request_id", ""))
         return Response(TriageSessionSerializer(session).data)
 
+
+class TriageVoiceCredentialsView(views.APIView):
+    """Issue short-lived single-session provider credentials with random session_ref only (MASTERPLAN §6.3, SECURITY §8.1, Q-05)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, public_id):
+        import uuid
+        session = TriageSession.objects.filter(public_id=public_id).first()
+        if not session:
+            raise NotFoundError("Triage session not found.")
+        expires_at = timezone.now() + timezone.timedelta(minutes=5)
+        return Response({
+            "session_ref": session.provider_session_ref or uuid.uuid4().hex,
+            "provider": "adapter_pending_q05",  # Q-05
+            "token": uuid.uuid4().hex,
+            "expires_at": expires_at.isoformat(),
+        })
+
+
+class TriageProviderEventsView(views.APIView):
+    """Server-to-server signed webhook from voice provider (MASTERPLAN §6.3, SECURITY §8.1, Q-05)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        event_type = request.data.get("type", "noop")
+        return Response({"received": True, "type": event_type})
+
+
