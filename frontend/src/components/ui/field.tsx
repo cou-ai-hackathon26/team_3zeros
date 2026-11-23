@@ -74,6 +74,12 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
   },
 );
 
+export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
+  function Select({ className, ...props }, ref) {
+    return <select ref={ref} className={cn(control, "h-12", className)} {...props} />;
+  },
+);
+
 /** Single field for OTP and reference codes: one input handles Bangla digits and paste (AUTH_RBAC §4.1). */
 export const CodeInput = React.forwardRef<HTMLInputElement, InputProps>(function CodeInput(
   { className, ...props },

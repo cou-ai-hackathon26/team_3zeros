@@ -106,14 +106,15 @@ describe("resolveNext prevents open redirects and role confusion", () => {
 describe("navigation filtered by permissions (AUTH_RBAC §5.3)", () => {
   const ids = (me: UserMe | null, area: "patient" | "clinical" | "admin") => visibleNav(me, area).map((i) => i.id);
 
-  it("clinician sees queue, patients, referrals and emergency", () => {
-    expect(ids(user(["clinician"]), "clinical")).toEqual(["queue", "patients", "referrals", "emergency"]);
+  it("clinician sees queue, patients, referrals, ed and emergency", () => {
+    expect(ids(user(["clinician"]), "clinical")).toEqual(["queue", "patients", "referrals", "ed", "emergency"]);
   });
   it("facility staff with no permissions see only the queue", () => {
     expect(ids(user(["facility_staff"]), "clinical")).toEqual(["queue"]);
   });
-  it("facility staff see referrals with referral.acknowledge and emergency with emergency.create", () => {
+  it("facility staff see referrals with referral.acknowledge, ed with ed.manage, and emergency with emergency.create", () => {
     expect(ids(user(["facility_staff"], ["referral.acknowledge"]), "clinical")).toEqual(["queue", "referrals"]);
+    expect(ids(user(["facility_staff"], ["ed.manage"]), "clinical")).toEqual(["queue", "ed"]);
     expect(ids(user(["facility_staff"], ["emergency.create"]), "clinical")).toEqual(["queue", "emergency"]);
   });
   it("shows nothing for an area the user cannot enter", () => {

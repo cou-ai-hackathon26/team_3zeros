@@ -47,6 +47,7 @@ backend/
     notifications/       # Notification, channel adapters (in-app, SMS, email)
     fhir/                # client, mappers, profiles, sync tasks
     ai/                  # model adapters, RAG, schemas, prompt templates
+    emergency_dept/      # EDVisit, triage, intake observations, disposition transitions
     audit/               # AuditEvent (append-only), writers
     integrations/        # Health ID / SHR adapters (disabled until Q-10)
     workflow/            # transition engine, outbox (shared by stateful apps)
@@ -225,6 +226,17 @@ Only the fields that drive behavior are listed. All models extend
 - `Notification`: `recipient`, `type`, `object_ref`, `channel`, `state`,
   `sent_at`, `read_at`. Templates per language. SMS body contains no clinical
   details (SECURITY §7).
+
+### 4.12 emergency_dept
+
+- `EDVisit`: `facility`, `patient`, `encounter`, `state` (MASTERPLAN §5.9:
+  `ARRIVED → TRIAGED → UNDER_CARE → {ADMITTED, DISCHARGED, TRANSFERRED, LEFT, DIED}`),
+  `triage_category` (`RED`, `ORANGE`, `YELLOW`, `GREEN`, `BLUE`), `chief_complaint`,
+  `arrival_mode`, `arrived_at`, `triaged_at`, `triaged_by`, `disposition_at`,
+  `disposition_notes`, `discharge_summary`, `transfer_facility`, `transfer_referral`.
+- Permissions: Governed by `ed.manage` catalogue permission.
+- Unidentified emergency arrivals create an emergency unverified patient immediately without blocking care (INV-16).
+- Vitals and clinical observations are recorded as `records.ClinicalObservation` on the linked emergency `Encounter`.
 
 ---
 

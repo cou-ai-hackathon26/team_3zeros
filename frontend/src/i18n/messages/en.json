@@ -48,6 +48,16 @@
       "REJECTED": "Extraction discarded",
       "QUARANTINED": "Blocked by security check"
     },
+    "ed_visit": {
+      "ARRIVED": "Arrived",
+      "TRIAGED": "Triaged",
+      "UNDER_CARE": "Under care",
+      "DISCHARGED": "Discharged",
+      "ADMITTED": "Admitted to ward",
+      "TRANSFERRED": "Transferred",
+      "LEFT": "Left without being seen",
+      "DIED": "Deceased"
+    },
     "emergency_queue": {
       "QUEUED_LOCAL": "Saved on this device. Will send when connected.",
       "SYNCING": "Sending…",
@@ -105,6 +115,15 @@
       "retry_ocr": "Retry reading",
       "verify": "Confirm values",
       "reject": "Discard extraction"
+    },
+    "ed_visit": {
+      "triage": "Triage",
+      "start_care": "Start care",
+      "admit": "Admit to ward",
+      "discharge": "Discharge",
+      "transfer": "Transfer",
+      "mark_left": "Mark as left",
+      "mark_died": "Mark as deceased"
     }
   },
   "toast": {
@@ -138,6 +157,15 @@
       "retry_ocr": "Reading queued",
       "verify": "Values confirmed",
       "reject": "Extraction discarded"
+    },
+    "ed_visit": {
+      "triage": "Triage assessment saved",
+      "start_care": "Care started",
+      "admit": "Patient admitted to ward",
+      "discharge": "Patient discharged",
+      "transfer": "Patient transferred",
+      "mark_left": "Marked as left",
+      "mark_died": "Record updated"
     }
   },
   "error": {
@@ -227,6 +255,7 @@
     "queue": "Queue",
     "patients": "Patients",
     "referrals": "Referrals",
+    "ed": "Emergency (ED)",
     "emergency": "Emergency referral",
     "facility": "Facility",
     "schedules": "Schedules",
@@ -674,7 +703,8 @@
         "schedule_manage": "Decide appointment requests and manage the schedule",
         "referral_acknowledge": "Acknowledge or decline incoming referrals",
         "referral_create": "Create outgoing referrals",
-        "emergency_create": "Create emergency referrals"
+        "emergency_create": "Create emergency referrals",
+        "ed_manage": "Intake, triage, and manage emergency department visits"
       },
       "changeError": "We could not make that change."
     }
@@ -699,5 +729,60 @@
     "markRead": "Mark as read",
     "read": "Read",
     "unread": "New"
+  },
+  "ed": {
+    "title": "Emergency Department",
+    "subtitle": "Intake queue, triage, and emergency disposition",
+    "registerArrival": "Register arrival",
+    "intakeModalTitle": "Emergency Department Intake",
+    "intakeNotice": "Emergency care is never blocked. If identity is unknown, register immediately and match later.",
+    "patientType": "Patient identity",
+    "existingPatient": "Existing patient ID",
+    "unidentified": "Unidentified / Walk-in",
+    "name": "Patient name",
+    "phone": "Phone number",
+    "sex": "Sex",
+    "male": "Male",
+    "female": "Female",
+    "other": "Other",
+    "unknown": "Unknown",
+    "chiefComplaint": "Chief complaint",
+    "arrivalMode": "Arrival mode",
+    "ambulance": "Ambulance",
+    "walkIn": "Walk-in",
+    "police": "Police / Escort",
+    "referral": "Referral",
+    "otherMode": "Other",
+    "vitalsTitle": "Vital signs",
+    "pulse": "Heart rate (bpm)",
+    "systolic": "Systolic BP (mmHg)",
+    "diastolic": "Diastolic BP (mmHg)",
+    "temperature": "Temperature (°C)",
+    "spo2": "SpO2 (%)",
+    "respiratoryRate": "Respiratory rate (/min)",
+    "triageCategory": "Triage category",
+    "triageRed": "Red — Immediate (Priority 1)",
+    "triageOrange": "Orange — Very urgent (Priority 2)",
+    "triageYellow": "Yellow — Urgent (Priority 3)",
+    "triageGreen": "Green — Standard (Priority 4)",
+    "triageBlue": "Blue — Non-urgent (Priority 5)",
+    "triageModalTitle": "Triage assessment",
+    "dischargeModalTitle": "Discharge patient",
+    "dischargeSummary": "Clinical discharge summary",
+    "admitModalTitle": "Admit patient to ward",
+    "transferModalTitle": "Transfer patient",
+    "destinationFacility": "Destination facility",
+    "dispositionNotes": "Clinical notes",
+    "empty": "No emergency arrivals found.",
+    "loading": "Loading emergency visits",
+    "error": "Failed to load emergency visits.",
+    "tabActive": "Active arrivals",
+    "tabAll": "All visits",
+    "openVisit": "Open visit",
+    "observations": "Clinical observations",
+    "arrivedAt": "Arrived",
+    "triagedAt": "Triaged",
+    "dispositionAt": "Disposition",
+    "noObservations": "No observations recorded yet."
   }
 }

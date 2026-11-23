@@ -3,7 +3,7 @@
  * (FRONTEND §6, redesign/DESIGN_SYSTEM.md §6.1).
  */
 
-export type RouteEntity = "appointment" | "referral" | "triage_session";
+export type RouteEntity = "appointment" | "referral" | "triage_session" | "ed_visit";
 export type StopStatus = "completed" | "current" | "upcoming";
 
 export interface RouteStop {
@@ -48,6 +48,12 @@ const MAIN_STOPS: Record<RouteEntity, string[]> = {
     "SUMMARY_PENDING_REVIEW",
     "CONFIRMED_BY_PATIENT",
   ],
+  ed_visit: [
+    "ARRIVED",
+    "TRIAGED",
+    "UNDER_CARE",
+    "DISCHARGED",
+  ],
 };
 
 /**
@@ -65,6 +71,7 @@ const INLINE_STATE_ALIASES: Record<RouteEntity, Record<string, string>> = {
   triage_session: {
     PAUSED: "ACTIVE",
   },
+  ed_visit: {},
 };
 
 const EXCEPTION_BRANCHES: Record<RouteEntity, Record<string, { fromState: string; tone: "exception" | "emergency" }>> = {
@@ -85,6 +92,12 @@ const EXCEPTION_BRANCHES: Record<RouteEntity, Record<string, { fromState: string
     EMERGENCY_PATHWAY: { fromState: "ACTIVE", tone: "emergency" },
     ENDED_BY_PATIENT: { fromState: "ACTIVE", tone: "exception" },
     ABANDONED: { fromState: "ACTIVE", tone: "exception" },
+  },
+  ed_visit: {
+    ADMITTED: { fromState: "UNDER_CARE", tone: "exception" },
+    TRANSFERRED: { fromState: "UNDER_CARE", tone: "emergency" },
+    LEFT: { fromState: "UNDER_CARE", tone: "exception" },
+    DIED: { fromState: "UNDER_CARE", tone: "exception" },
   },
 };
 
@@ -177,6 +190,16 @@ const HOLDERS: Record<RouteEntity, Record<string, Holder>> = {
     ENDED_BY_PATIENT: "none",
     ABANDONED: "none",
   },
+  ed_visit: {
+    ARRIVED: "practitioner",
+    TRIAGED: "practitioner",
+    UNDER_CARE: "practitioner",
+    DISCHARGED: "none",
+    ADMITTED: "none",
+    TRANSFERRED: "none",
+    LEFT: "none",
+    DIED: "none",
+  },
 };
 
 export function holderOf(entity: RouteEntity, state: string): Holder {
@@ -248,6 +271,15 @@ const STATE_ORDER: Record<string, number> = {
   PAUSED: 2,
   SUMMARY_PENDING_REVIEW: 3,
   CONFIRMED_BY_PATIENT: 4,
+  // ED Visit
+  ARRIVED: 1,
+  TRIAGED: 2,
+  UNDER_CARE: 3,
+  DISCHARGED: 4,
+  ADMITTED: 4,
+  TRANSFERRED: 4,
+  LEFT: 4,
+  DIED: 4,
 };
 
 /**

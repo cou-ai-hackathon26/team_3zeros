@@ -71,6 +71,7 @@ urlpatterns = [
     path("api/v1/admin/access-requests", AdminAccessRequestListView.as_view(), name="admin-access-requests-list"),
     path("api/v1/admin/access-requests/<uuid:public_id>/approve", AdminAccessRequestApproveView.as_view(), name="admin-access-requests-approve"),
     path("api/v1/admin/access-requests/<uuid:public_id>/reject", AdminAccessRequestRejectView.as_view(), name="admin-access-requests-reject"),
+    path("api/v1/", include("apps.emergency_dept.urls")),
     path("api/v1/integrations/fhir/<path:resource_path>", FhirIntegrationBoundaryView.as_view(), name="fhir-boundary"),
     # App-prefixed API endpoints v1
     path("api/v1/auth/", include("apps.accounts.urls")),

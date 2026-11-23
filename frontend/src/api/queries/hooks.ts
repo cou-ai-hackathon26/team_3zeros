@@ -4,8 +4,8 @@ import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, ty
 import type { RequestOptions } from "../client";
 import { queryKeys } from "./index";
 import { useApi } from "./provider";
-import type { AccessRequestItem, ApiExtractedField, Appointment, Chart, DocumentMeta, ExtractionResponse, Patient, TriageSessionDetail, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot } from "./types";
-export type { AccessRequestItem } from "./types";
+import type { AccessRequestItem, ApiExtractedField, Appointment, Chart, DocumentMeta, ExtractionResponse, Patient, TriageSessionDetail, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot, EDVisitItem, NewEDVisit } from "./types";
+export type { AccessRequestItem, EDVisitItem, NewEDVisit } from "./types";
 
 /** Builds `?a=1&b=2`, skipping undefined and empty values. */
 export function withQuery(path: string, params?: QueryFilters): string {
@@ -455,4 +455,48 @@ export function useStaffAccess() {
     onSuccess: done,
   });
   return { create, update, action };
+}
+
+// ---- Emergency Department Intake & Disposition (MASTERPLAN §5.9) ----
+
+export const useEDVisits = (state?: string) =>
+  useGet<Page<EDVisitItem> | EDVisitItem[]>(
+    queryKeys.edVisits(state),
+    state ? `/ed-visits?state=${state}` : "/ed-visits"
+  );
+
+export const useEDVisit = (id: string) =>
+  useGet<EDVisitItem>(queryKeys.edVisit(id), `/ed-visits/${id}`, Boolean(id));
+
+export function useCreateEDVisit() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: NewEDVisit) =>
+      (await api.post<EDVisitItem>("/ed-visits", { body })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["edVisits"] });
+    },
+  });
+}
+
+export function useEDVisitAction(id: string) {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { action: string; payload?: Record<string, unknown>; ifMatch?: number }) => {
+      const headers: Record<string, string> = {};
+      if (v.ifMatch !== undefined) headers["If-Match"] = String(v.ifMatch);
+      return (
+        await api.post<EDVisitItem>(`/ed-visits/${id}/actions/${v.action}`, {
+          body: v.payload ?? {},
+          headers,
+        })
+      ).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.edVisit(id) });
+      qc.invalidateQueries({ queryKey: ["edVisits"] });
+    },
+  });
 }

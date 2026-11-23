@@ -1,0 +1,2 @@
+"""Emergency Department app package."""
+

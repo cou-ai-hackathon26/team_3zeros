@@ -345,6 +345,29 @@ set, any other action returns `423 sync_pending`. If retries are exhausted,
 place with `fhir_sync_status=FAILED` (documents), and the actor is notified.
 A receiver therefore never sees a referral before its FHIR write succeeded.
 
+### 5.9 Emergency department visit (EDVisit)
+
+```text
+ARRIVED → TRIAGED → UNDER_CARE → {ADMITTED, DISCHARGED, TRANSFERRED, LEFT, DIED}
+```
+
+| Action | From | To | Actor | FHIR |
+|---|---|---|---|---|
+| `triage` | ARRIVED | TRIAGED | clinician or triage staff (`ed.manage`) | no |
+| `start_care` | ARRIVED, TRIAGED | UNDER_CARE | clinician or staff (`ed.manage`) | no |
+| `admit` | TRIAGED, UNDER_CARE | ADMITTED | clinician (`ed.manage`) | no |
+| `discharge` | UNDER_CARE | DISCHARGED | clinician (`ed.manage`) | no |
+| `transfer` | ARRIVED, TRIAGED, UNDER_CARE | TRANSFERRED | clinician or staff (`ed.manage`) | no |
+| `mark_left` | ARRIVED, TRIAGED, UNDER_CARE | LEFT | clinician or staff (`ed.manage`) | no |
+| `mark_died` | ARRIVED, TRIAGED, UNDER_CARE | DIED | clinician (`ed.manage`) | no |
+
+Terminal: ADMITTED, DISCHARGED, TRANSFERRED, LEFT, DIED.
+
+Rules:
+- Emergency care is never blocked (INV-16). If the patient is unidentified, an unverified emergency patient record is created immediately; duplicate linking occurs later via `identity.DuplicateCandidate`.
+- Arrival can capture vital signs and observations directly, automatically creating an underlying `records.Encounter` (`type=emergency`) and `records.ClinicalObservation` rows.
+- Discharge can attach an AI-drafted clinical discharge summary via `DraftBlock`, which must be approved and edited by a clinician before discharge commits.
+
 ---
 
 ## 6. API contract (v1)
@@ -451,6 +474,14 @@ backend must match it. Paths are relative to `/api/v1`.
 | admin | `POST /admin/staff` | Create a staff account and membership. Returns a one-time temporary password and TOTP setup URI |
 | admin | `PATCH /admin/staff/{id}` | Change role or permissions of a membership |
 | admin | `POST /admin/staff/{id}/deactivate`, `…/reactivate`, `…/reset-password`, `…/reset-mfa`, `…/revoke-sessions` | Access control actions. Secrets are returned once |
+| ed | `POST /ed-visits` | Record emergency department arrival / intake |
+| ed | `GET /ed-visits?state=` | List facility ED visits filterable by state |
+| ed | `GET /ed-visits/{id}` | Single ED visit details, observations and handover |
+| ed | `POST /ed-visits/{id}/actions/{action}` | ED state machine transition (§5.9) |
+| onboarding | `POST /access-requests` | Public clinician registration / private chamber access request (D-19) |
+| onboarding | `GET /admin/access-requests` | Admin review list for access requests |
+| onboarding | `POST /admin/access-requests/{id}/approve` | Approve request (creates chamber facility + doctor account) |
+| onboarding | `POST /admin/access-requests/{id}/reject` | Reject request with documented reason |
 | auth | `POST /auth/admin/login` | Admin password login, then `POST /auth/mfa/verify`. Non-admin accounts get the same error as bad credentials |
 | audit | `GET /audit/events?patient=&actor=` | Scoped audit metadata |
 | fhir | `/integrations/fhir/*` | Controlled FHIR boundary for approved external systems |
@@ -626,6 +657,8 @@ Record every change to §4–§7 here so both ends see it. Newest first.
 
 | Date | Change | Backend updated | Frontend updated | By |
 |---|---|---|---|---|
+| 2026-11-23 | Phase C Emergency Department: `EDVisit` entity (§5.9), state transitions ARRIVED → TRIAGED → UNDER_CARE → {ADMITTED, DISCHARGED, TRANSFERRED, LEFT, DIED}; endpoints `POST /ed-visits`, `GET /ed-visits`, `GET /ed-visits/{id}`, `POST /ed-visits/{id}/actions/{action}`; permission `ed.manage` | yes (in progress) | yes (in progress) | Planning |
+| 2026-11-23 | Phase B Private Chamber: `POST /access-requests`, `GET /admin/access-requests`, `POST /admin/access-requests/{id}/approve`, `POST /admin/access-requests/{id}/reject`; `Facility.type` gains `private_chamber` | yes | yes | Planning |
 | 2026-11-23 | Product expansion decisions: D-19 (private chambers), D-20 (patient identity baseline), Q-18 (ED intake minimum dataset), Q-19 (research ethics deferral); access-request and ED visit entities initiated | yes (in progress) | yes (in progress) | Planning |
 | 2026-11-23 | Admin access control: D-16, D-17; `GET /admin/permissions`, `POST /admin/staff`, `PATCH /admin/staff/{id}` and five action endpoints; `POST /auth/admin/login`; `POST /auth/register` replaces `POST /auth/otp/request` and `/auth/otp/verify` (D-18); error code `rate_limited` now returned for sign-in attempts; `me` roles ignore expired memberships | yes | yes | Planning |
 | 2026-11-23 | UI redesign governance: D-14, D-15, Q-14–Q-17, §8.3 known gaps; frontend route map additions (`/home`, `/consents`, `/notifications`, `/patients`, `/referrals`, auth routes). No change to §4–§7 contracts | n/a | n/a (docs only, FRONTEND §2–§4, §10–§11) | Planning |

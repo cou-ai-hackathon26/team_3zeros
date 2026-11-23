@@ -5,7 +5,7 @@
  * so a missing UI configuration fails tests immediately rather than silently hiding a button.
  */
 
-export type StatefulEntity = "appointment" | "referral" | "document";
+export type StatefulEntity = "appointment" | "referral" | "document" | "ed_visit";
 
 export type ConfirmationStyle = "primary" | "secondary" | "destructive";
 
@@ -279,6 +279,78 @@ export const ACTION_REGISTRY: Record<StatefulEntity, Record<string, ActionDefini
       fhirGated: false,
       confirmationStyle: "destructive",
       buildEndpoint: (id) => `/documents/${id}/extraction/reject`,
+    },
+  },
+  ed_visit: {
+    triage: {
+      action: "triage",
+      entity: "ed_visit",
+      labelKey: "action.ed_visit.triage",
+      toastKey: "toast.ed_visit.triage",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/ed-visits/${id}/actions/triage`,
+    },
+    start_care: {
+      action: "start_care",
+      entity: "ed_visit",
+      labelKey: "action.ed_visit.start_care",
+      toastKey: "toast.ed_visit.start_care",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/ed-visits/${id}/actions/start_care`,
+    },
+    admit: {
+      action: "admit",
+      entity: "ed_visit",
+      labelKey: "action.ed_visit.admit",
+      toastKey: "toast.ed_visit.admit",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "secondary",
+      buildEndpoint: (id) => `/ed-visits/${id}/actions/admit`,
+    },
+    discharge: {
+      action: "discharge",
+      entity: "ed_visit",
+      labelKey: "action.ed_visit.discharge",
+      toastKey: "toast.ed_visit.discharge",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "primary",
+      buildEndpoint: (id) => `/ed-visits/${id}/actions/discharge`,
+    },
+    transfer: {
+      action: "transfer",
+      entity: "ed_visit",
+      labelKey: "action.ed_visit.transfer",
+      toastKey: "toast.ed_visit.transfer",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "secondary",
+      buildEndpoint: (id) => `/ed-visits/${id}/actions/transfer`,
+    },
+    mark_left: {
+      action: "mark_left",
+      entity: "ed_visit",
+      labelKey: "action.ed_visit.mark_left",
+      toastKey: "toast.ed_visit.mark_left",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "secondary",
+      buildEndpoint: (id) => `/ed-visits/${id}/actions/mark_left`,
+    },
+    mark_died: {
+      action: "mark_died",
+      entity: "ed_visit",
+      labelKey: "action.ed_visit.mark_died",
+      toastKey: "toast.ed_visit.mark_died",
+      requiresReason: false,
+      fhirGated: false,
+      confirmationStyle: "destructive",
+      buildEndpoint: (id) => `/ed-visits/${id}/actions/mark_died`,
     },
   },
 };

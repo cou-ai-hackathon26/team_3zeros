@@ -6,6 +6,7 @@ from apps.documents.transitions import DOCUMENT_TRANSITIONS
 from apps.referrals.transitions import REFERRAL_TRANSITIONS
 from apps.scheduling.transitions import APPOINTMENT_TRANSITIONS
 from apps.triage.transitions import TRIAGE_TRANSITIONS
+from apps.emergency_dept.transitions import ED_VISIT_TRANSITIONS
 
 MASTERPLAN = Path(__file__).resolve().parents[2] / "MASTERPLAN.md"
 
@@ -14,6 +15,7 @@ SECTIONS = {
     "5.2": REFERRAL_TRANSITIONS,
     "5.3": TRIAGE_TRANSITIONS,
     "5.4": DOCUMENT_TRANSITIONS,
+    "5.9": ED_VISIT_TRANSITIONS,
 }
 # retry_sync's target is the failed action's target, resolved at runtime (§5.8).
 RUNTIME_TARGET = {("5.2", "retry_sync")}
@@ -58,6 +60,7 @@ SYSTEM_ONLY = {
     "5.2": {"consent_granted", "consent_refused", "consent_revoked", "return_outcome", "expire", "escalate", "sync_failed"},
     "5.3": {"connect", "red_flag", "abandon"},
     "5.4": {"queue_ocr", "start_ocr", "ocr_succeeded", "ocr_failed", "quarantine"},
+    "5.9": set(),
 }
 
 

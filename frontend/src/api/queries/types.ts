@@ -255,4 +255,55 @@ export interface AccessRequestItem {
   reviewed_at?: string | null;
 }
 
+export interface ClinicalObservationItem {
+  code: string;
+  display_name: string;
+  value_string?: string;
+  value_numeric?: number | null;
+  unit?: string;
+  observed_date?: string | null;
+}
+
+export interface EDVisitItem {
+  id: string;
+  facility_id: string;
+  facility_name: string;
+  facility_name_bn?: string;
+  patient_id: string;
+  patient_name: string;
+  patient_name_bn?: string;
+  patient_phone?: string;
+  patient_sex?: string;
+  encounter_id?: string | null;
+  state: "ARRIVED" | "TRIAGED" | "UNDER_CARE" | "ADMITTED" | "DISCHARGED" | "TRANSFERRED" | "LEFT" | "DIED";
+  triage_category?: "RED" | "ORANGE" | "YELLOW" | "GREEN" | "BLUE" | null;
+  chief_complaint: string;
+  arrival_mode: "AMBULANCE" | "WALK_IN" | "POLICE" | "REFERRAL" | "OTHER";
+  arrived_at: string;
+  triaged_at?: string | null;
+  triaged_by_name?: string | null;
+  disposition_at?: string | null;
+  disposition_notes?: string;
+  discharge_summary?: string;
+  transfer_facility_id?: string | null;
+  transfer_facility_name?: string | null;
+  observations: ClinicalObservationItem[];
+  version: number;
+  allowed_actions: string[];
+  created_at: string;
+}
+
+export interface NewEDVisit {
+  facility_id?: string;
+  patient_id?: string;
+  patient_name?: string;
+  patient_name_bn?: string;
+  patient_phone?: string;
+  patient_sex?: "male" | "female" | "other" | "unknown";
+  chief_complaint: string;
+  arrival_mode?: "AMBULANCE" | "WALK_IN" | "POLICE" | "REFERRAL" | "OTHER";
+  vitals?: Record<string, string | number>;
+  notes?: string;
+}
+
 export type QueryFilters = Record<string, string | undefined>;

@@ -37,6 +37,13 @@ const NAV: Record<Area, NavItem[]> = {
       visible: (me) => clinicianOnly(me) || can(me, PERMISSIONS.referralAcknowledge),
     },
     {
+      id: "ed",
+      labelKey: "nav.ed",
+      href: "/ed",
+      icon: "siren",
+      visible: (me) => clinicianOnly(me) || can(me, PERMISSIONS.edManage),
+    },
+    {
       id: "emergency",
       labelKey: "nav.emergency",
       href: "/emergency",
