@@ -21,13 +21,13 @@ export function LandingPage({ locale, claims = CLAIMS }: { locale: Locale; claim
     <>
       <a href="#main" className="sr-only focus:not-sr-only focus:p-3">{t(locale, "landing.skip")}</a>
       <main id="main">
-        <BlurFade delay={0.05}><Hero locale={locale} claims={claims} /></BlurFade>
-        <BlurFade delay={0.1}><Problem locale={locale} /></BlurFade>
-        <BlurFade delay={0.1}><How locale={locale} /></BlurFade>
-        <BlurFade delay={0.1}><Features locale={locale} claims={claims} /></BlurFade>
-        <BlurFade delay={0.1}><Safety locale={locale} claims={claims} /></BlurFade>
-        <BlurFade delay={0.1}><Audiences locale={locale} claims={claims} /></BlurFade>
-        <BlurFade delay={0.1}><FinalCall locale={locale} claims={claims} /></BlurFade>
+        <Hero locale={locale} claims={claims} />
+        <BlurFade delay={0.05}><Problem locale={locale} /></BlurFade>
+        <BlurFade delay={0.05}><How locale={locale} /></BlurFade>
+        <BlurFade delay={0.05}><Features locale={locale} claims={claims} /></BlurFade>
+        <BlurFade delay={0.05}><Safety locale={locale} claims={claims} /></BlurFade>
+        <BlurFade delay={0.05}><Audiences locale={locale} claims={claims} /></BlurFade>
+        <BlurFade delay={0.05}><FinalCall locale={locale} claims={claims} /></BlurFade>
       </main>
       <Footer locale={locale} />
       <StickyStartBar

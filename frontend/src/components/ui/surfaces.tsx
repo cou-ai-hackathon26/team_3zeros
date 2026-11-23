@@ -2,7 +2,7 @@ import React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/cn";
 
-/** DESIGN_SYSTEM §6.5. Default container: surface, 1px line, panel radius, no shadow. */
+/** DESIGN_SYSTEM §6.5. Default container: calm surface, hairline border, generous friendly radius, no shadow clutter. */
 export function Panel({
   className,
   title,
@@ -10,17 +10,17 @@ export function Panel({
   ...props
 }: React.HTMLAttributes<HTMLElement> & { title?: React.ReactNode }) {
   return (
-    <section className={cn("rounded-panel border border-line bg-surface", className)} {...props}>
-      {title && <h2 className="m-0 border-b border-line px-4 py-3 text-subheading font-semibold">{title}</h2>}
-      <div className="p-4">{children}</div>
+    <section className={cn("rounded-[20px] border border-line bg-surface", className)} {...props}>
+      {title && <h2 className="m-0 border-b border-line px-5 py-3.5 text-subheading font-semibold">{title}</h2>}
+      <div className="p-5">{children}</div>
     </section>
   );
 }
 
-const tile = cva("block rounded-tile p-5 no-underline", {
+const tile = cva("block rounded-[24px] p-6 no-underline transition-all duration-[var(--motion-state-duration)] ease-[var(--motion-state-easing)]", {
   variants: {
     tone: {
-      default: "border border-line bg-surface text-ink",
+      default: "border border-line/80 bg-surface text-ink",
       brand: "bg-brand text-brand-foreground",
       wash: "bg-accent text-accent-foreground",
     },
@@ -37,7 +37,14 @@ export function Tile({
 }: VariantProps<typeof tile> & { className?: string; href?: string; children: React.ReactNode }) {
   const Tag = href ? "a" : "div";
   return (
-    <Tag href={href} className={cn(tile({ tone }), href && "hover:bg-sunken", className)}>
+    <Tag
+      href={href}
+      className={cn(
+        tile({ tone }),
+        href && "hover:-translate-y-0.5 hover:border-indigo/30 hover:bg-sunken/70",
+        className,
+      )}
+    >
       {children}
     </Tag>
   );
@@ -66,11 +73,11 @@ export function ListRow({
       {trailing && <span className="shrink-0 text-dense">{trailing}</span>}
     </>
   );
-  const row = "flex min-h-14 items-center gap-3 border-b border-line px-1 py-3 no-underline text-ink";
+  const row = "flex min-h-14 items-center gap-3 border-b border-line px-2 py-3.5 no-underline text-ink transition-colors duration-[var(--motion-feedback-duration)]";
   return (
     <li className={cn("m-0 list-none", className)}>
       {href ? (
-        <a href={href} className={cn(row, "hover:bg-sunken")}>
+        <a href={href} className={cn(row, "rounded-panel hover:bg-sunken/80")}>
           {body}
         </a>
       ) : (

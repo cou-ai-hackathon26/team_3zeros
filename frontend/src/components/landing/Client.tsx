@@ -35,8 +35,10 @@ export function StickyStartBar({ href, label }: { href: string; label: string })
   const show = heroSeen && !heroVisible && !finalVisible;
   if (!show) return null;
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper p-3 sm:hidden">
-      <a href={href} className={buttonVariants({ size: "lg", className: "w-full" })}>{label}</a>
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line/80 bg-paper/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-float backdrop-blur-md sm:hidden">
+      <a href={href} className={buttonVariants({ size: "lg", className: "w-full shadow-raised" })}>
+        {label}
+      </a>
     </div>
   );
 }

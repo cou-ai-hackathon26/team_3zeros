@@ -48,22 +48,24 @@ export function PatientShell({ children }: { children: React.ReactNode }) {
     return (
       <div data-route-group="patient" data-shell="focus" className="flex min-h-dvh flex-col bg-paper">
         <a href="#main" className="sr-only focus:not-sr-only focus:p-3">{t(locale, "shell.skipToContent")}</a>
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-paper px-4 py-2">
-          <Link href={exitHref} className="no-underline" aria-label="Medi Waypoint">
-            <Wordmark />
-          </Link>
-          <div className="flex items-center gap-2">
-            {!me && (
-              <Link href={`/${locale}/login`} className={buttonVariants({ variant: "quiet", size: "sm" })}>
-                {t(locale, "shell.signIn")}
-              </Link>
-            )}
-            <Link href={exitHref} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t(locale, "shell.exitFocus")}
+        <header className="sticky top-0 z-30 bg-paper/95 backdrop-blur-sm">
+          <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-6">
+            <Link href={exitHref} className="no-underline transition-opacity hover:opacity-80" aria-label="Medi Waypoint">
+              <Wordmark />
             </Link>
+            <div className="flex items-center gap-2">
+              {!me && (
+                <Link href={`/${locale}/login`} className={buttonVariants({ variant: "quiet", size: "sm" })}>
+                  {t(locale, "shell.signIn")}
+                </Link>
+              )}
+              <Link href={exitHref} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                {t(locale, "shell.exitFocus")}
+              </Link>
+            </div>
           </div>
         </header>
-        <main id="main" className="mx-auto w-full max-w-[760px] flex-1 px-4 py-6">
+        <main id="main" className="mx-auto w-full max-w-[780px] flex-1 px-4 py-8 sm:px-6">
           {children}
         </main>
       </div>
@@ -73,78 +75,80 @@ export function PatientShell({ children }: { children: React.ReactNode }) {
   return (
     <div data-route-group="patient" className="flex min-h-dvh flex-col bg-paper">
       <a href="#main" className="sr-only focus:not-sr-only focus:p-3">{t(locale, "shell.skipToContent")}</a>
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-paper px-4 py-2">
-        <Link href={`/${locale}${me ? "/home" : ""}`} className="no-underline" aria-label="Medi Waypoint">
-          <Wordmark />
-        </Link>
-        {items.length > 0 && (
-          <nav aria-label={t(locale, "shell.mainNav")} className="hidden items-center gap-1 lg:flex">
-            {items.map((item) => (
-              <Link
-                key={item.id}
-                href={`/${locale}${item.href}`}
-                aria-current={isCurrent(item.href) ? "page" : undefined}
-                className={cn(
-                  "flex min-h-11 items-center rounded-control px-3 text-dense no-underline",
-                  isCurrent(item.href) ? "bg-indigo-wash font-semibold text-ink" : "text-ink hover:bg-sunken",
-                )}
-              >
-                {t(locale, item.labelKey)}
-              </Link>
-            ))}
-          </nav>
-        )}
-        <div className="flex items-center gap-2">
-          {me ? (
-            <>
-              <Link
-                href={`/${locale}/notifications`}
-                aria-label={t(locale, "nav.notifications")}
-                className="relative flex size-11 items-center justify-center rounded-control hover:bg-sunken"
-              >
-                <Bell aria-hidden className="size-5" />
-                {unreadCount > 0 && (
-                  <>
-                    <span aria-hidden="true" className="absolute end-2 top-2 size-2 rounded-pill bg-indigo" />
-                    <span className="sr-only">{fill(t(locale, "shell.unreadNotifications"), { n: unreadCount })}</span>
-                  </>
-                )}
-              </Link>
-              <div className="relative">
-                <AccountMenu me={me} locale={locale} area="patient" extraItems={[{ href: "/consents", label: t(locale, "nav.consents") }]} />
-                {pendingConsentCount > 0 && (
-                  <>
-                    <span aria-hidden="true" className="pointer-events-none absolute end-1 top-1 size-2 rounded-pill bg-indigo" />
-                    <span className="sr-only">{fill(t(locale, "shell.pendingConsents"), { n: pendingConsentCount })}</span>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <LanguageSwitch locale={locale} />
-              <Link href={`/${locale}/login`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-                {t(locale, "shell.signIn")}
-              </Link>
-            </>
+      <header className="sticky top-0 z-30 bg-paper/95 backdrop-blur-sm">
+        <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-6">
+          <Link href={`/${locale}${me ? "/home" : ""}`} className="no-underline transition-opacity hover:opacity-80" aria-label="Medi Waypoint">
+            <Wordmark />
+          </Link>
+          {items.length > 0 && (
+            <nav aria-label={t(locale, "shell.mainNav")} className="hidden items-center gap-1.5 lg:flex">
+              {items.map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/${locale}${item.href}`}
+                  aria-current={isCurrent(item.href) ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-11 items-center rounded-pill px-4 text-dense no-underline transition-colors duration-[var(--motion-feedback-duration)]",
+                    isCurrent(item.href) ? "bg-indigo-wash font-semibold text-indigo" : "font-medium text-ink hover:bg-sunken",
+                  )}
+                >
+                  {t(locale, item.labelKey)}
+                </Link>
+              ))}
+            </nav>
           )}
+          <div className="flex items-center gap-2">
+            {me ? (
+              <>
+                <Link
+                  href={`/${locale}/notifications`}
+                  aria-label={t(locale, "nav.notifications")}
+                  className="relative flex size-11 items-center justify-center rounded-pill transition-colors hover:bg-sunken"
+                >
+                  <Bell aria-hidden className="size-5" />
+                  {unreadCount > 0 && (
+                    <>
+                      <span aria-hidden="true" className="absolute end-2 top-2 size-2 rounded-pill bg-indigo" />
+                      <span className="sr-only">{fill(t(locale, "shell.unreadNotifications"), { n: unreadCount })}</span>
+                    </>
+                  )}
+                </Link>
+                <div className="relative">
+                  <AccountMenu me={me} locale={locale} area="patient" extraItems={[{ href: "/consents", label: t(locale, "nav.consents") }]} />
+                  {pendingConsentCount > 0 && (
+                    <>
+                      <span aria-hidden="true" className="pointer-events-none absolute end-1 top-1 size-2 rounded-pill bg-indigo" />
+                      <span className="sr-only">{fill(t(locale, "shell.pendingConsents"), { n: pendingConsentCount })}</span>
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <LanguageSwitch locale={locale} />
+                <Link href={`/${locale}/login`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                  {t(locale, "shell.signIn")}
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      <main id="main" className={cn("mx-auto w-full max-w-[960px] flex-1 px-4 py-6", items.length > 0 && "pb-24 lg:pb-6")}>
+      <main id="main" className={cn("mx-auto w-full max-w-[1040px] flex-1 px-4 py-8 sm:px-6", items.length > 0 && "pb-24 lg:pb-10")}>
         {children}
       </main>
 
       {items.length > 0 && (
-        <nav aria-label={t(locale, "shell.mainNav")} className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-line bg-surface lg:hidden">
+        <nav aria-label={t(locale, "shell.mainNav")} className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-line bg-surface/95 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-sm lg:hidden">
           {items.map((item) => (
             <Link
               key={item.id}
               href={`/${locale}${item.href}`}
               aria-current={isCurrent(item.href) ? "page" : undefined}
               className={cn(
-                "flex min-h-14 flex-col items-center justify-center gap-0.5 text-caption no-underline",
-                isCurrent(item.href) ? "bg-indigo-wash font-semibold text-ink" : "text-ink-muted",
+                "flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-[14px] text-caption no-underline transition-colors",
+                isCurrent(item.href) ? "bg-indigo-wash font-semibold text-indigo" : "text-ink-muted hover:bg-sunken/60",
               )}
             >
               <NavGlyph icon={item.icon} />
