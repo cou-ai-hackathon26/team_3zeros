@@ -61,8 +61,8 @@ function dashboardRoutes(o: { me?: unknown; appts?: unknown[]; incoming?: unknow
   return {
     "GET /auth/me": () => json(o.me ?? ME(["clinician"])),
     "GET /appointments": () => page(o.appts ?? []),
-    "GET /referrals?direction=incoming": () => page(o.incoming ?? []),
-    "GET /referrals?direction=outgoing": () => page(o.outgoing ?? []),
+    "GET /referrals/?direction=incoming": () => page(o.incoming ?? []),
+    "GET /referrals/?direction=outgoing": () => page(o.outgoing ?? []),
     "GET /patients/pa1": () => json(patient("pa1", "Karim", "করিম উদ্দিন")),
     "GET /patients/pi1": () => json(patient("pi1", "Nasima")),
     "GET /patients/pi2": () => json(patient("pi2", "Rahim")),
@@ -162,8 +162,8 @@ describe("/referrals index", () => {
   beforeEach(() => { nav.pathname = "/en/referrals"; });
   const routes = (inc: unknown[] = [], out: unknown[] = []) => ({
     "GET /auth/me": () => json(ME(["clinician"])),
-    "GET /referrals?direction=incoming": () => page(inc),
-    "GET /referrals?direction=outgoing": () => page(out),
+    "GET /referrals/?direction=incoming": () => page(inc),
+    "GET /referrals/?direction=outgoing": () => page(out),
   });
 
   it("lists open referrals by default with state words, hides finished ones, and the chips switch the view", async () => {
@@ -208,7 +208,7 @@ describe("/referrals index", () => {
     const { unmount } = mount(<ReferralsPage />, routes([]));
     expect(await screen.findByText("No referrals here yet.")).toBeTruthy();
     unmount();
-    mount(<ReferralsPage />, { ...routes(), "GET /referrals?direction=incoming": () => err("provider_unavailable", 503) });
+    mount(<ReferralsPage />, { ...routes(), "GET /referrals/?direction=incoming": () => err("provider_unavailable", 503) });
     expect(await screen.findByText("We could not load referrals.", {}, { timeout: 4000 })).toBeTruthy();
   });
 });
@@ -238,7 +238,7 @@ describe("/referrals/new", () => {
   });
 
   it("search, pick a patient and a visit, choose a destination with dated capacity, and create the draft", async () => {
-    const { calls } = mount(<NewReferralPage />, routes({ "POST /referrals": () => json(referral("new1", "DRAFT"), 201) }));
+    const { calls } = mount(<NewReferralPage />, routes({ "POST /referrals/": () => json(referral("new1", "DRAFT"), 201) }));
     fireEvent.change(await screen.findByLabelText("Search by name, phone or ID"), { target: { value: "Kar" } });
     await act(async () => { fireEvent.click(await screen.findByRole("button", { name: /Karim Uddin/ })); });
     expect(await screen.findByText(/Selected: Karim Uddin/)).toBeTruthy();
@@ -248,7 +248,7 @@ describe("/referrals/new", () => {
     fireEvent.change(screen.getByRole("combobox", { name: /Destination/ }), { target: { value: "fx" } });
     fireEvent.change(screen.getByLabelText(/Reason for referral/), { target: { value: "Needs cardiology review" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Create draft" })); });
-    const post = await waitFor(() => { const c = calls.find((x) => x.key === "POST /referrals"); expect(c).toBeTruthy(); return c!; });
+    const post = await waitFor(() => { const c = calls.find((x) => x.key === "POST /referrals/"); expect(c).toBeTruthy(); return c!; });
     expect(JSON.parse(post.body)).toEqual({ patient_id: "p1", receiver_facility_id: "fx", urgency: "routine", reason: "Needs cardiology review", encounter_id: "e1" });
     expect(post.headers.get("Idempotency-Key")).toBeTruthy();
   });
@@ -263,7 +263,7 @@ describe("/referrals/new", () => {
 
   it("binds server field errors to their fields", async () => {
     nav.search = "?patient=p1";
-    mount(<NewReferralPage />, routes({ "POST /referrals": () => json({ error: { code: "validation_error", message: "x", field_errors: { reason: ["Reason is too short."] }, request_id: "r" } }, 400) }));
+    mount(<NewReferralPage />, routes({ "POST /referrals/": () => json({ error: { code: "validation_error", message: "x", field_errors: { reason: ["Reason is too short."] }, request_id: "r" } }, 400) }));
     await screen.findByText(/Selected: Karim Uddin/);
     fireEvent.change(await screen.findByRole("combobox", { name: /Destination/ }), { target: { value: "" } });
     await screen.findByRole("option", { name: /Dhaka Medical/ });
@@ -373,8 +373,8 @@ describe("/patients/[id] chart", () => {
     "GET /patients/p1": () => json(patient("p1", "Karim", "করিম")),
     "GET /patients/p1/chart": () => json({ patient_id: "p1", encounters: [{ id: "e1", patient_id: "p1", facility_id: "f1", facility_name: "Tangail", period_start: "2026-11-01T04:00:00Z", encounter_type: "outpatient", reason: "Fever", observations: [{ id: "o1", code: "temp", display_name: "Temperature", value_string: "38.5", unit: "C" }] }] }),
     "GET /patients/p1/duplicate-candidates": () => json([]),
-    "GET /referrals?direction=incoming": () => page([]),
-    "GET /referrals?direction=outgoing": () => page([referral("r1", "SENT", { patient_id: "p1" }), referral("r2", "SENT", { patient_id: "other" })]),
+    "GET /referrals/?direction=incoming": () => page([]),
+    "GET /referrals/?direction=outgoing": () => page([referral("r1", "SENT", { patient_id: "p1" }), referral("r2", "SENT", { patient_id: "other" })]),
     ...extra,
   });
 
@@ -462,6 +462,11 @@ describe("/patients/[id]/reports/[docId]/verify", () => {
     expect(JSON.parse(post.body).fields[0]).toMatchObject({ name: "Hemoglobin", value: "10.4" });
     expect(await screen.findByText("Sending…")).toBeTruthy();
     expect(screen.queryByText("These values are verified.")).toBeNull();
+  });
+
+  it("copes with the backend's empty-object bbox default instead of crashing", async () => {
+    mount(<VerifyReportPage />, routes("EXTRACTED_UNVERIFIED", { "GET /documents/d1/extraction": () => json({ document_id: "d1", state: "EXTRACTED_UNVERIFIED", fields: [{ ...field, bbox: {} }] }) }));
+    expect(await screen.findByDisplayValue("10.2")).toBeTruthy();
   });
 
   it("a verified, rejected or blocked document says so and offers nothing to change", async () => {

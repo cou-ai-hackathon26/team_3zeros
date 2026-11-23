@@ -15,7 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Alert, ErrorState, Skeleton } from "@/components/ui/states";
 import { PageHeader } from "@/components/ui/surfaces";
 
-const toViewer = (f: ApiExtractedField): ExtractedCandidateField => ({ id: f.id, name: f.name, value: f.value, unit: f.unit, observedDate: f.observed_date, lab: f.lab, confidence: f.confidence, page: f.page, bbox: f.bbox });
+/** The backend column defaults to `{}`; only a four-number array can be drawn as a highlight. */
+const asBox = (b: unknown): [number, number, number, number] => (Array.isArray(b) && b.length === 4 && b.every((n) => typeof n === "number") ? (b as [number, number, number, number]) : [0, 0, 0, 0]);
+const toViewer = (f: ApiExtractedField): ExtractedCandidateField => ({ id: f.id, name: f.name, value: f.value, unit: f.unit, observedDate: f.observed_date, lab: f.lab, confidence: f.confidence, page: f.page, bbox: asBox(f.bbox) });
 
 /**
  * `/patients/[id]/reports/[docId]/verify`: confirm OCR values against the original. Verification is

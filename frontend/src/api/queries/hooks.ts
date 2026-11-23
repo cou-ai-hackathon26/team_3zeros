@@ -91,13 +91,14 @@ export const useAppointments = (filters?: QueryFilters) =>
 export const useAppointment = (id: string) => useGet<Appointment>(queryKeys.appointment(id), `/appointments/${id}`);
 
 export const useReferrals = (direction?: "incoming" | "outgoing", state?: string) =>
-  useGet<Page<Referral>>(queryKeys.referrals(direction, state), withQuery("/referrals", { direction, state, limit: "100" }));
+  useGet<Page<Referral>>(queryKeys.referrals(direction, state), withQuery("/referrals/", { direction, state, limit: "100" }));
 export const useReferral = (id: string) => useGet<Referral>(queryKeys.referral(id), `/referrals/${id}`);
 
-// The backend serves this list at `/consents/` with the trailing slash (audit A-21); next.config keeps the slash.
+// Collection roots (`/consents/`, `/referrals/`, `/patients/`, `/documents/`, `/notifications/`) are served with a trailing
+// slash (audit A-21). Django cannot redirect a POST, so the slash must be in the request; next.config keeps it.
 export const useConsents = () => useGet<ConsentsResponse>(queryKeys.consents, "/consents/?patient=me");
 export const useConsentRequest = (id: string) => useGet<ConsentRequest>(queryKeys.consentRequest(id), `/consent-requests/${id}`);
-export const useNotifications = () => useGet<Page<NotificationItem>>(queryKeys.notifications, "/notifications");
+export const useNotifications = () => useGet<Page<NotificationItem>>(queryKeys.notifications, "/notifications/");
 
 export interface TransitionVariables {
   id: string;
@@ -232,7 +233,7 @@ export function useCreateReferral() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { body: NewReferral; idempotencyKey: string }) => (await api.post<Referral>("/referrals", { body: v.body, idempotencyKey: v.idempotencyKey })).data,
+    mutationFn: async (v: { body: NewReferral; idempotencyKey: string }) => (await api.post<Referral>("/referrals/", { body: v.body, idempotencyKey: v.idempotencyKey })).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["referrals"] }),
   });
 }
@@ -305,7 +306,7 @@ export function useUploadDocument() {
       form.set("patient_id", v.patientId);
       form.set("file", v.file);
       if (v.encounterId) form.set("encounter_id", v.encounterId);
-      return (await api.post<DocumentMeta>("/documents", { body: form, idempotencyKey: v.idempotencyKey })).data;
+      return (await api.post<DocumentMeta>("/documents/", { body: form, idempotencyKey: v.idempotencyKey })).data;
     },
   });
 }
