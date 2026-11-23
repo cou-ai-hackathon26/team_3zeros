@@ -18,6 +18,8 @@ export interface ProviderCredentials {
   provider?: string;
   token: string;
   expiresAt?: string;
+  /** Vapi assistant to call (D-22). */
+  assistantId?: string;
 }
 
 export type VoiceSessionState =
@@ -25,6 +27,8 @@ export type VoiceSessionState =
   | "permission_denied"
   | "unsupported_browser"
   | "connecting"
+  | "ringing"
+  | "connected"
   | "listening"
   | "paused"
   | "thinking"
@@ -39,6 +43,8 @@ export interface TriageCaptionEvent {
   text: string;
   lang: Locale;
   at: string;
+  /** Machine translation of `text` into the other language (D-22). Absent when unavailable. */
+  translation?: { text: string; lang: Locale; machine: true };
 }
 
 export interface TriageDraftSummary {
@@ -76,6 +82,8 @@ export interface VoiceClient {
     cb: (payload: VoiceClientEventMap[K]) => void
   ): Unsubscribe;
   setLanguage(lang: Locale): void;
+  /** Mute or unmute the patient microphone during a call (optional per adapter). */
+  setMuted?(muted: boolean): void;
   pause(): void;
   resume(): void;
   end(): Promise<void>;

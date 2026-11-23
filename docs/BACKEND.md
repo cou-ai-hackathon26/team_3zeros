@@ -490,6 +490,19 @@ Only `session_ref` (random) is sent; no name, phone or record ID (SECURITY §8).
 Until a vendor is wired (Q-05, e.g. Vapi), `apps/triage/providers/placeholder.py`
 provides `PlaceholderVoiceProvider` implementing `VoiceProvider`.
 
+**Vapi (D-22).** `VOICE_PROVIDER=vapi` selects `apps/triage/providers/vapi.py`
+(`VAPI_PUBLIC_KEY`, `VAPI_PRIVATE_KEY`, `VAPI_ASSISTANT_ID`, `VAPI_WEBHOOK_SECRET`):
+- `create_session` returns the public key and assistant ID (no private key, no personal data).
+- `POST /triage/provider-events` verifies the `x-vapi-secret` header, then passes each
+  *final patient* transcript through `process_patient_turn` (same red-flag rules as text,
+  INV-8), speaks the reply through the call's control URL, and on an emergency also ends
+  the call (INV-16). Partial and assistant transcripts are ignored; the payload is not stored.
+- The browser starts the call with `metadata.session_ref`, which is how the webhook finds the session.
+- `POST /triage/sessions/{id}/translate` returns a machine translation of one caption
+  (`apps/ai/translate.py`, Gemini when `LLM_PROVIDER=gemini`; otherwise `text: null`).
+- Vapi dashboard setup: server URL = the provider-events endpoint with the same secret,
+  `monitorPlan.controlEnabled = true`, and no model-generated replies.
+
 ---
 
 ## 9. Documents and OCR

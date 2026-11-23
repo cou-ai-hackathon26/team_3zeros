@@ -103,6 +103,8 @@ def seed():
             )
 
     # 7. Demo Patient user
+    # An older seed created this user by phone only; adopt it instead of colliding on the phone.
+    User.objects.filter(phone="+8801700000001", email__isnull=True).update(email="patient@demo.com")
     patient_user, p_created = User.objects.get_or_create(
         email="patient@demo.com",
         defaults={
@@ -184,10 +186,62 @@ def seed():
         admin_user.set_password("Password123!")
         admin_user.save()
 
+    # 9. More demo accounts (staff of every role, a private chamber, a second patient)
+    from apps.accounts.security import new_totp_secret
+
+    def make_user(email, name, phone=None, mfa=False):
+        u, made = User.objects.get_or_create(
+            email=email,
+            defaults={"display_name": name, "phone": phone, "preferred_language": "en", "is_active": True},
+        )
+        if made or not u.has_usable_password():
+            u.set_password("Password123!")
+        if mfa and not u.mfa_secret:
+            u.mfa_enabled = True
+            u.mfa_secret = new_totp_secret()
+        u.save()
+        return u
+
+    def make_clinician(user, facility, reg_no, name, name_bn):
+        Membership.objects.get_or_create(
+            user=user, facility=facility, role="clinician",
+            defaults={"permissions": ["referral.create", "referral.acknowledge", "schedule.manage", "emergency.create"]},
+        )
+        Practitioner.objects.get_or_create(registration_number=reg_no, defaults={"name": name, "name_bn": name_bn, "user": user})
+
+    receiving = make_user("receiving.doctor@demo.com", "Dr. Farhana Islam", "+8801711223355")
+    make_clinician(receiving, fac_dmch, "BMDC-A-51377", "Dr. Farhana Islam", "ডাঃ ফারহানা ইসলাম")
+
+    staff = make_user("staff@demo.com", "Rina Akter (Front desk)", "+8801711223366")
+    Membership.objects.get_or_create(user=staff, facility=fac_savar, role="facility_staff", defaults={"permissions": ["schedule.manage"]})
+
+    fac_admin = make_user("facility.admin@demo.com", "Hasan Mahmud (Facility admin)", "+8801711223377", mfa=True)
+    Membership.objects.get_or_create(user=fac_admin, facility=fac_savar, role="facility_admin")
+
+    chamber, _ = Facility.objects.get_or_create(
+        name="Dr. Nusrat Chamber",
+        defaults={"name_bn": "ডাঃ নুসরাত চেম্বার", "type": "private_chamber", "area": dhaka_dist, "address": "Dhanmondi, Dhaka", "phone": "+8801711000003"},
+    )
+    chamber_doc = make_user("chamber.doctor@demo.com", "Dr. Nusrat Jahan", "+8801711223388", mfa=True)
+    make_clinician(chamber_doc, chamber, "BMDC-A-60214", "Dr. Nusrat Jahan", "ডাঃ নুসরাত জাহান")
+    Membership.objects.get_or_create(user=chamber_doc, facility=chamber, role="facility_admin")
+
+    patient2 = make_user("patient2@demo.com", "Rahima Begum", "+8801700000002")
+    patient2_record, _ = Patient.objects.get_or_create(
+        phone="+8801700000002",
+        defaults={"given_name": "Rahima", "family_name": "Begum", "name_bn": "রহিমা বেগম", "sex": "female", "estimated_age": 52, "area": savar_upazila},
+    )
+    PatientAccount.objects.get_or_create(user=patient2, defaults={"patient": patient2_record})
+
     print("Demo data seeded successfully:")
     print("  Clinician: doctor@demo.com / Password123!")
     print("  Patient: patient@demo.com / Password123!")
     print("  Admin: admin@demo.com / Password123!")
+    print("  Receiving doctor (DMCH): receiving.doctor@demo.com / Password123!")
+    print("  Front desk staff: staff@demo.com / Password123!")
+    print("  Facility admin (admin entrance, MFA code 123456 in local dev): facility.admin@demo.com / Password123!")
+    print("  Private chamber doctor + admin (MFA 123456 in local dev): chamber.doctor@demo.com / Password123!")
+    print("  Second patient: patient2@demo.com / Password123!")
 
 if __name__ == "__main__":
     seed()

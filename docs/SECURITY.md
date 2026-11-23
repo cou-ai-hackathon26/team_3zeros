@@ -60,7 +60,7 @@ practitioner registration number; no self-service clinician sign-up.
 - CSRF token required on all unsafe methods.
 - Session rotated on login, MFA completion and facility switch.
 - CSP: `default-src 'self'`; `script-src 'self' 'nonce-…'`; `connect-src
-  'self'` plus the approved voice provider origin; `frame-ancestors 'none'`;
+  'self'` plus the approved voice provider origins (Vapi: `api.vapi.ai`, `*.daily.co`, `wss://*.daily.co`); `frame-ancestors 'none'`;
   `object-src 'none'`. Next.js nonce support via middleware.
 - Headers: HSTS (preload after pilot), `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: same-origin`, `Permissions-Policy: microphone=(self)`,

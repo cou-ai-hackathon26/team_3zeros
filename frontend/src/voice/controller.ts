@@ -7,6 +7,7 @@ import type { TriageSessionDetail, TriageTurn, VoiceCredentialsResponse } from "
 import type { Locale } from "../i18n/config";
 import type {
   TriageCaptionEvent,
+  VoiceClient,
   VoiceProviderConfig,
   VoiceSessionState,
 } from "./types";
@@ -61,7 +62,9 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
   });
 
   const streamRef = useRef<MediaStream | null>(null);
-  const voiceClientRef = useRef<PlaceholderVoiceClient | null>(null);
+  const voiceClientRef = useRef<VoiceClient | null>(null);
+  const unbindRef = useRef<() => void>(() => undefined);
+  const endingRef = useRef(false);
   const languageRef = useRef<Locale>(initialLocale);
   const sessionIdRef = useRef<string | null>(resumeSessionId ?? null);
   const versionRef = useRef<number | undefined>(undefined);
@@ -77,31 +80,6 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
   if (!voiceClientRef.current) {
     voiceClientRef.current = new PlaceholderVoiceClient(initialLocale);
   }
-
-  // Subscribe to voice client events inside an effect and unsubscribe BEFORE stopping tracks on unmount,
-  // so React StrictMode's simulated unmount never leaks `"ended"` into `phase`.
-  useEffect(() => {
-    const client = voiceClientRef.current;
-    if (!client) return;
-    const unsubState = client.on("state", (s) => setPhase(s));
-    const unsubLevel = client.on("level", (lvl) => setMicLevel(lvl));
-    return () => {
-      unsubState();
-      unsubLevel();
-      stopTracks();
-      void client.end();
-    };
-  }, [stopTracks]);
-
-  useEffect(() => {
-    languageRef.current = language;
-    voiceClientRef.current?.setLanguage(language);
-  }, [language]);
-
-  useEffect(() => {
-    setLanguageState(initialLocale);
-    languageRef.current = initialLocale;
-  }, [initialLocale]);
 
   /** POST through `useApi()` with one-time CSRF recovery (audit A-09, A-22). */
   const postWithCsrf = useCallback(
@@ -119,6 +97,76 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
     },
     [api],
   );
+
+  /** Shows the emergency screen when the session is in the emergency pathway (INV-16). Returns whether it did. */
+  const showEmergencyIfAny = useCallback((data: TriageSessionDetail): boolean => {
+    if (data.state !== "EMERGENCY_PATHWAY") return false;
+    const emTurn = [...(data.turns ?? [])].reverse().find((t) => t.response_policy === "emergency");
+    setEmergencyInstruction(
+      emTurn?.text ?? "PLACEHOLDER — NOT CLINICALLY APPROVED: Go to the nearest emergency hospital immediately.",
+    );
+    setPhase("emergency");
+    storeActiveSessionId(null);
+    return true;
+  }, []);
+
+  /** The provider ended the call; if the server ended it for an emergency, show that screen. */
+  const resyncAfterRemoteEnd = useCallback(async () => {
+    const id = sessionIdRef.current;
+    if (!id) return;
+    try {
+      const { data } = await api.get<TriageSessionDetail>(`/triage/sessions/${id}`);
+      setSessionState(data.state);
+      showEmergencyIfAny(data);
+    } catch {
+      // keep the ended state; the patient can restart
+    }
+  }, [api, showEmergencyIfAny]);
+
+  /** Subscribes the controller to one client and returns the unsubscribe. */
+  const bindClient = useCallback(
+    (client: VoiceClient) => {
+      const unsubState = client.on("state", (s) => {
+        if (s === "ended" && !endingRef.current) {
+          void resyncAfterRemoteEnd();
+        }
+        setPhase(s);
+      });
+      const unsubLevel = client.on("level", (lvl) => setMicLevel(lvl));
+      return () => {
+        unsubState();
+        unsubLevel();
+      };
+    },
+    [resyncAfterRemoteEnd],
+  );
+
+  if (!voiceClientRef.current) {
+    voiceClientRef.current = new PlaceholderVoiceClient(initialLocale);
+  }
+
+  // Unsubscribe BEFORE stopping tracks on unmount, so React StrictMode's simulated unmount
+  // never leaks `"ended"` into `phase`.
+  useEffect(() => {
+    const client = voiceClientRef.current;
+    if (!client) return;
+    unbindRef.current = bindClient(client);
+    return () => {
+      unbindRef.current();
+      stopTracks();
+      void voiceClientRef.current?.end();
+    };
+  }, [bindClient, stopTracks]);
+
+  useEffect(() => {
+    languageRef.current = language;
+    voiceClientRef.current?.setLanguage(language);
+  }, [language]);
+
+  useEffect(() => {
+    setLanguageState(initialLocale);
+    languageRef.current = initialLocale;
+  }, [initialLocale]);
 
   // Hydrate an existing session when `/triage/session/[id]` mounts
   useEffect(() => {
@@ -146,14 +194,8 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
         const hydrated = toCaptionTurns(data.turns, lang);
         setTurns(hydrated);
 
-        if (data.state === "EMERGENCY_PATHWAY") {
-          const emTurn = [...(data.turns ?? [])].reverse().find((t) => t.response_policy === "emergency");
-          setEmergencyInstruction(
-            emTurn?.text ??
-              "PLACEHOLDER — NOT CLINICALLY APPROVED: Go to the nearest emergency hospital immediately.",
-          );
-          setPhase("emergency");
-          storeActiveSessionId(null);
+        if (showEmergencyIfAny(data)) {
+          // emergency screen shown
         } else if (data.state === "PAUSED") {
           setPhase("paused");
         } else if (data.state === "ENDED_BY_PATIENT" || data.state === "ABANDONED") {
@@ -180,7 +222,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
     return () => {
       cancelled = true;
     };
-  }, [api, resumeSessionId]);
+  }, [api, resumeSessionId, showEmergencyIfAny]);
 
   // Call duration timer while session is active in voice mode
   useEffect(() => {
@@ -282,12 +324,31 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
         {},
       );
       setVoicePlaceholderActive(creds.status === "placeholder" || creds.provider === "vapi_placeholder");
+      endingRef.current = false;
+      const isVapi = creds.provider === "vapi";
+      if (isVapi) {
+        // Loaded on demand so the call code stays out of the first-load bundle.
+        const { createVapiCall } = await import("./callSetup");
+        unbindRef.current();
+          const call = createVapiCall({
+          language: languageRef.current,
+          bindBase: bindClient,
+          getSessionId: () => sessionIdRef.current,
+          post: postWithCsrf,
+          setTurns,
+        });
+        voiceClientRef.current = call.client;
+        unbindRef.current = call.unbind;
+        setPhase("ringing");
+        streamRef.current = null; // the Vapi client releases the permission-probe stream itself
+      }
       await voiceClientRef.current?.connect(
         {
           sessionRef: creds.session_ref,
           provider: creds.provider,
           token: creds.token,
           expiresAt: creds.expires_at,
+          assistantId: creds.assistant_id,
         },
         stream,
       );
@@ -300,12 +361,20 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
         setPhase("permission_denied");
       }
     }
-  }, [createBackendSession, postWithCsrf, providerConfig.selectedDeviceId, refreshAudioDevices, stopTracks]);
+  }, [bindClient, createBackendSession, postWithCsrf, providerConfig.selectedDeviceId, refreshAudioDevices, stopTracks]);
+
+  const callPhases: VoiceSessionState[] = ["ringing", "connected", "listening", "speaking", "thinking", "reconnecting", "connection_lost"];
+  const callActive = !voicePlaceholderActive && !textMode && callPhases.includes(phase);
 
   const startTextSession = useCallback(async () => {
     setErrorMessage(null);
     stopTracks();
-    voiceClientRef.current?.pause();
+    if (callActive) {
+      endingRef.current = true; // hang up the call only; the triage session continues in text
+      void voiceClientRef.current?.end();
+    } else {
+      voiceClientRef.current?.pause();
+    }
     setTextMode(true);
     setVoicePlaceholderActive(false);
     try {
@@ -317,7 +386,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
       setErrorMessage(e instanceof ApiError ? e.message : "Could not start session.");
       setPhase("permission_prompt");
     }
-  }, [createBackendSession, stopTracks]);
+  }, [callActive, createBackendSession, stopTracks]);
 
   const sendTextTurn = useCallback(
     async (rawText: string) => {
@@ -346,6 +415,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
       try {
         const reply = await postWithCsrf<TriageTurn>(`/triage/sessions/${activeId}/turns`, { text });
         if (reply.response_policy === "emergency") {
+          endingRef.current = true;
           stopTracks();
           await voiceClientRef.current?.end();
           storeActiveSessionId(null);
@@ -418,6 +488,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
   }, [postWithCsrf, sessionState]);
 
   const finish = useCallback(async (): Promise<string | null> => {
+    endingRef.current = true;
     stopTracks();
     await voiceClientRef.current?.end();
     const activeId = sessionIdRef.current;
@@ -452,6 +523,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
   }, [postWithCsrf, sessionState, stopTracks]);
 
   const end = useCallback(async () => {
+    endingRef.current = true;
     stopTracks();
     await voiceClientRef.current?.end();
     const activeId = sessionIdRef.current;
@@ -503,6 +575,8 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
     updateProvider: (patch: Partial<VoiceProviderConfig>) => {
       setProviderConfig((prev) => ({ ...prev, ...patch }));
     },
+    callActive,
+    setMuted: (m: boolean) => voiceClientRef.current?.setMuted?.(m),
     allowMicrophone,
     startTextSession,
     switchToText: startTextSession,

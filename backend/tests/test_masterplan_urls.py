@@ -41,6 +41,7 @@ CANONICAL_PATHS = [
     "/api/v1/triage/sessions",
     f"/api/v1/triage/sessions/{SAMPLE_UUID}",
     f"/api/v1/triage/sessions/{SAMPLE_UUID}/voice-credentials",
+    f"/api/v1/triage/sessions/{SAMPLE_UUID}/translate",
     f"/api/v1/triage/sessions/{SAMPLE_UUID}/turns",
     f"/api/v1/triage/sessions/{SAMPLE_UUID}/pause",
     f"/api/v1/triage/sessions/{SAMPLE_UUID}/resume",

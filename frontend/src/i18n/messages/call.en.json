@@ -1,0 +1,16 @@
+{
+  "ringing": "Calling…",
+  "connected": "Connected",
+  "mute": "Mute",
+  "unmute": "Unmute",
+  "end": "End call",
+  "toText": "Type instead",
+  "translated": "Machine translation",
+  "lost": "Call lost. Tap to type instead.",
+  "captions": "Live captions",
+  "listening": "Listening",
+  "speaking": "Speaking…",
+  "thinking": "Thinking…",
+  "reconnecting": "Reconnecting…",
+  "voiceCall": "Voice session"
+}

@@ -50,6 +50,12 @@ class PlaceholderVoiceProvider:
         return None
 
 
-def get_voice_provider() -> PlaceholderVoiceProvider:
-    """Factory returning the configured VoiceProvider (defaults to Vapi placeholder)."""
+def get_voice_provider():
+    """Factory returning the configured VoiceProvider (settings.VOICE_PROVIDER, Q-05)."""
+    from django.conf import settings
+
+    if getattr(settings, "VOICE_PROVIDER", "placeholder").lower() == "vapi":
+        from .vapi import VapiVoiceProvider
+
+        return VapiVoiceProvider()
     return PlaceholderVoiceProvider()

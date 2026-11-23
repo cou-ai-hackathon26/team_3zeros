@@ -211,3 +211,10 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 LLM_MODEL = env("LLM_MODEL", default="")
 
 
+
+# Voice provider (MASTERPLAN Q-05, D-22). "placeholder" until Vapi is approved.
+VOICE_PROVIDER = env("VOICE_PROVIDER", default="placeholder")
+VAPI_PUBLIC_KEY = env("VAPI_PUBLIC_KEY", default="")
+VAPI_PRIVATE_KEY = env("VAPI_PRIVATE_KEY", default="")
+VAPI_ASSISTANT_ID = env("VAPI_ASSISTANT_ID", default="")
+VAPI_WEBHOOK_SECRET = env("VAPI_WEBHOOK_SECRET", default="")

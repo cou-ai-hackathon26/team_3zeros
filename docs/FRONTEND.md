@@ -249,6 +249,16 @@ interface VoiceClient {
   `EmergencyScreen` (UIUX §6.3). This handler has priority over every other
   UI state.
 
+**Phone-call experience (D-22).** With `VOICE_PROVIDER=vapi` the client is
+`src/voice/vapiClient.ts` (SDK loaded lazily). States: `ringing` (tap until the call starts,
+with a generated double-beep ringtone) → `connected` → `listening` ⇄ `speaking`.
+`components/VoiceCall/CallScreen` is the full-height mobile view: status line, timer,
+`CallBlob` (glows with the real audio level; a still ring and level bar under reduced
+motion), `CallCaptions` (spoken language large, machine translation small and labelled,
+fetched from `POST /triage/sessions/{id}/translate`; one language if it fails), and
+mute / end / type-instead buttons. If the server ends the call (emergency), the
+controller reloads the session and shows `EmergencyScreen`.
+
 ### 8.3 Failure handling
 
 | Condition | Behavior |

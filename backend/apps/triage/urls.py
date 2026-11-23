@@ -10,6 +10,7 @@ from .views import (
     TriageEndView,
     TriageFinishView,
     TriageProviderEventsView,
+    TriageCaptionTranslateView,
 )
 
 urlpatterns = [
@@ -22,5 +23,6 @@ urlpatterns = [
     path("sessions/<uuid:public_id>/summary/confirm", TriageSummaryConfirmView.as_view(), name="triage-summary-confirm"),
     path("sessions/<uuid:public_id>/finish", TriageFinishView.as_view(), name="triage-finish"),
     path("sessions/<uuid:public_id>/end", TriageEndView.as_view(), name="triage-end"),
+    path("sessions/<uuid:public_id>/translate", TriageCaptionTranslateView.as_view(), name="triage-caption-translate"),
     path("provider-events", TriageProviderEventsView.as_view(), name="triage-provider-events"),
 ]

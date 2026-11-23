@@ -3,7 +3,8 @@ from rest_framework.response import Response
 from django.utils import timezone
 from apps.common.exceptions import NotAuthenticatedError, ValidationError
 from apps.common.pagination import CursorPagination
-from .models import TriageSummary
+from apps.ai.translate import translate_text
+from .models import TriageSession, TriageSummary
 from .providers.placeholder import get_voice_provider
 from .serializers import (
     TriageSessionSerializer,
@@ -205,7 +206,32 @@ class TriageVoiceCredentialsView(views.APIView):
 class TriageProviderEventsView(views.APIView):
     """Server-to-server signed webhook from voice provider (MASTERPLAN §6.3, SECURITY §8.1, Q-05)."""
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
-        event = get_voice_provider().verify_webhook(request)
+        provider = get_voice_provider()
+        event = provider.verify_webhook(request)
+        if event.event_type == "transcript" and event.transcript and event.session_ref:
+            # Voice turns go through the same orchestrator as text turns (D-08, INV-8).
+            session = TriageSession.objects.filter(provider_session_ref=event.session_ref).first()
+            if session and session.state in ("ACTIVE", "PAUSED"):
+                reply = process_patient_turn(session, event.transcript, request_id=getattr(request, "request_id", ""))
+                provider.speak(event.session_ref, reply.text, session.language)
+                if reply.response_policy == "emergency":
+                    provider.end_session(event.session_ref)  # INV-16
         return Response({"received": True, "type": event.event_type})
+
+
+class TriageCaptionTranslateView(views.APIView):
+    """Machine translation of one caption line for the call screen (MASTERPLAN D-22). Never stored."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, public_id):
+        get_triage_session_for_patient_mutation(request.user, public_id)
+        text = str(request.data.get("text", "")).strip()[:1000]
+        source = request.data.get("source")
+        if not text or source not in ("bn", "en"):
+            raise ValidationError("text and source (bn|en) are required.")
+        target = "en" if source == "bn" else "bn"
+        translated = translate_text(text, source, target)
+        return Response({"text": translated, "lang": target, "machine": True} if translated else {"text": None, "lang": target, "machine": True})

@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, lazy, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEmergencyFacilities } from "../../api/queries/hooks";
 import { useMe } from "../../auth/me";
 import { useTriageSessionController } from "../../voice/controller";
+
+// The call screen (and its animation code) loads only when a real call starts, keeping the patient first load small.
+const CallScreen = lazy(() => import("../../voice/callSetup").then((m) => ({ default: m.CallScreen })));
 import { VoicePanel } from "../../components/VoicePanel/VoicePanel";
 import { EmergencyScreen } from "../../components/EmergencyScreen/EmergencyScreen";
 import { t } from "../../i18n/format";
@@ -140,6 +143,20 @@ export function TriageView({ params, resumeSessionId }: TriageViewProps) {
     <div className="flex flex-col gap-6">
       <PageHeader serif title={T("pageTitle")} context={T("pageContext")} />
 
+      {ctrl.callActive ? (
+        <Suspense fallback={null}>
+        <CallScreen
+          phase={ctrl.phase}
+          language={ctrl.language}
+          turns={ctrl.turns}
+          level={ctrl.micLevel}
+          seconds={ctrl.callSeconds}
+          onMute={ctrl.setMuted}
+          onEnd={ctrl.end}
+          onSwitchToText={ctrl.switchToText}
+        />
+        </Suspense>
+      ) : (
       <VoicePanel
         phase={ctrl.phase}
         language={ctrl.language}
@@ -161,6 +178,7 @@ export function TriageView({ params, resumeSessionId }: TriageViewProps) {
         onEnd={() => void handleEndSession()}
         onSendTextTurn={(txt) => void ctrl.sendTextTurn(txt)}
       />
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
         {ctrl.sessionId && ctrl.patientTurnCount > 0 ? (

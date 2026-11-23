@@ -266,11 +266,19 @@ export interface TriageSessionDetail {
   ended_at?: string | null;
 }
 
+/** `POST /triage/sessions/{id}/translate` (D-22). `text` is null when translation is unavailable. */
+export interface CaptionTranslation {
+  text: string | null;
+  lang: "bn" | "en";
+  machine: true;
+}
+
 export interface VoiceCredentialsResponse {
   session_ref: string;
   provider: string;
   token: string;
   expires_at: string;
+  assistant_id?: string;
   status?: "placeholder" | "ready" | string;
 }
 
