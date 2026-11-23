@@ -28,7 +28,7 @@ export const PERMISSIONS = {
 const AREA_HOME: Record<Area, string> = { patient: "/home", clinical: "/dashboard", admin: "/facility" };
 
 const AREA_PREFIXES: Record<Area, readonly string[]> = {
-  patient: ["home", "triage", "doctors", "appointments", "consents", "reports"],
+  patient: ["home", "triage", "doctors", "appointments", "consents", "reports", "notifications"],
   clinical: ["dashboard", "patients", "referrals", "emergency"],
   admin: ["facility", "schedules", "capacity", "staff"],
 };
