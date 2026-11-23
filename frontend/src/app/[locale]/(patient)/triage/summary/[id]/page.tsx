@@ -1,204 +1,265 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import type { TriageDraftSummary } from "../../../../../../voice/types";
+import { useParams, useRouter } from "next/navigation";
+import { ApiError, createIntentIdempotencyKey } from "../../../../../../api/client";
+import {
+  useConfirmTriageSummary,
+  useFinishTriageSession,
+  useTriageSession,
+  useTriageSessionControl,
+} from "../../../../../../api/queries/hooks";
+import type { TriageSessionDetail } from "../../../../../../api/queries/types";
+import { t } from "../../../../../../i18n/format";
 import { type LocalePageProps } from "../../../../../resolveLocale";
 import { usePageLocale } from "../../../../../usePageLocale";
+import { Column, QueryBoundary } from "../../../../../../components/QueryBoundary";
 import { PageHeader, Panel } from "../../../../../../components/ui/surfaces";
-import { buttonVariants, Button } from "../../../../../../components/ui/button";
+import { Alert } from "../../../../../../components/ui/states";
+import { Button, buttonVariants } from "../../../../../../components/ui/button";
 
-export default function TriageSummaryReviewPage({ params }: LocalePageProps) {
-  const locale = usePageLocale(params, "bn");
-  let sessionId = "sess-1";
-  try {
-    const routeParams = useParams();
-    if (routeParams && typeof routeParams.id === "string") {
-      sessionId = routeParams.id;
-    }
-  } catch {
-    sessionId = "sess-1";
-  }
+interface EditableFields {
+  chief_complaint: string;
+  duration: string;
+  severity: string;
+  additional_notes: string;
+  suggested_specialty: string;
+}
 
-  const [patientWords, setPatientWords] = useState(
+function extractInitialFields(session: TriageSessionDetail, locale: "bn" | "en"): EditableFields {
+  const sf = session.summary?.structured_fields ?? {};
+  const edits = session.summary?.patient_edits ?? {};
+  const defaultSpec =
     locale === "bn"
-      ? "গত ৩ দিন ধরে জ্বর এবং মাথাব্যথা, বুকে কোনো ব্যথা নেই।"
-      : "Fever and headache for the past 3 days, no chest pain."
-  );
-  const [symptoms, setSymptoms] = useState("জ্বর ও মাথাব্যথা / Fever & headache");
-  const [duration, setDuration] = useState("৩ দিন / 3 days");
-  const [severity, setSeverity] = useState("মাঝারি / Moderate");
-  const [specialty, setSpecialty] = useState("মেডিসিন (Internal Medicine)");
-  const [confirmed, setConfirmed] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+      ? sf.suggested_specialty_bn || sf.suggested_specialty_en || ""
+      : sf.suggested_specialty_en || sf.suggested_specialty_bn || "";
+
+  return {
+    chief_complaint: String(edits.chief_complaint ?? sf.chief_complaint ?? ""),
+    duration: String(edits.duration ?? sf.duration ?? ""),
+    severity: String(edits.severity ?? sf.severity ?? ""),
+    additional_notes: String(edits.additional_notes ?? sf.additional_notes ?? ""),
+    suggested_specialty: String(edits.suggested_specialty ?? defaultSpec),
+  };
+}
+
+function SummaryEditor({ session, locale }: { session: TriageSessionDetail; locale: "bn" | "en" }) {
+  const router = useRouter();
+  const finish = useFinishTriageSession();
+  const confirm = useConfirmTriageSummary();
+  const control = useTriageSessionControl();
+  const T = (k: string) => t(locale, `triage.${k}`);
+
+  const [initial, setInitial] = useState<EditableFields>(() => extractInitialFields(session, locale));
+  const [fields, setFields] = useState<EditableFields>(() => extractInitialFields(session, locale));
+  const [confirmed, setConfirmed] = useState(session.state === "CONFIRMED_BY_PATIENT");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [restarting, setRestarting] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    const next = extractInitialFields(session, locale);
+    setInitial(next);
+    setFields(next);
+    if (session.state === "CONFIRMED_BY_PATIENT") setConfirmed(true);
+  }, [session.id, locale]);
+
+  const sf = session.summary?.structured_fields ?? {};
+  const specialtyCode = typeof sf.suggested_specialty_code === "string" ? sf.suggested_specialty_code : "";
+  const sources = Array.isArray(sf.guidance_sources) ? sf.guidance_sources : [];
+  const guidanceText =
+    typeof session.summary?.guidance_given === "string"
+      ? session.summary.guidance_given
+      : Array.isArray(session.summary?.guidance_given)
+        ? session.summary.guidance_given.map(String).join(" ")
+        : "";
+
+  const isChanged = (key: keyof EditableFields) => fields[key].trim() !== initial[key].trim();
+
+  async function handleConfirm() {
+    setErrorMessage(null);
     try {
-      const savedRaw = window.sessionStorage.getItem("mw_triage_draft");
-      if (savedRaw) {
-        const draft = JSON.parse(savedRaw) as TriageDraftSummary;
-        if (draft.patientWords) setPatientWords(draft.patientWords);
-        if (draft.chiefComplaint) setSymptoms(draft.chiefComplaint);
-        if (draft.duration) setDuration(draft.duration);
-        if (draft.severity) setSeverity(draft.severity);
-        if (draft.suggestedSpecialtyBn || draft.suggestedSpecialtyEn) {
-          setSpecialty(
-            locale === "bn"
-              ? draft.suggestedSpecialtyBn
-              : draft.suggestedSpecialtyEn
-          );
+      let currentVersion = session.version;
+      if (session.state === "ACTIVE") {
+        const finished = await finish.mutateAsync({
+          sessionId: session.id,
+          version: currentVersion,
+          idempotencyKey: createIntentIdempotencyKey(),
+        });
+        currentVersion = finished.version;
+      }
+
+      const edits: Record<string, string> = {};
+      (Object.keys(fields) as Array<keyof EditableFields>).forEach((k) => {
+        if (isChanged(k) || fields[k]) {
+          edits[k] = fields[k];
         }
-      }
-    } catch {
-      // Ignore parse error
-    }
+      });
 
-    if (sessionId && sessionId !== "sess-1" && typeof fetch === "function") {
-      fetch(`/api/v1/triage/sessions/${sessionId}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data?.summary) {
-            if (data.summary.patient_words) {
-              setPatientWords(data.summary.patient_words);
-            }
-            const sf = data.summary.structured_fields || {};
-            if (sf.chief_complaint) setSymptoms(sf.chief_complaint);
-            if (sf.duration) setDuration(sf.duration);
-            if (sf.severity) setSeverity(sf.severity);
-            if (sf.suggested_specialty_bn || sf.suggested_specialty_en) {
-              setSpecialty(
-                locale === "bn"
-                  ? sf.suggested_specialty_bn || sf.suggested_specialty_en
-                  : sf.suggested_specialty_en || sf.suggested_specialty_bn
-              );
-            }
-          }
-        })
-        .catch(() => {});
+      await confirm.mutateAsync({
+        sessionId: session.id,
+        edits,
+        version: currentVersion,
+        idempotencyKey: createIntentIdempotencyKey(),
+      });
+      setConfirmed(true);
+    } catch (e) {
+      setErrorMessage(e instanceof ApiError ? e.message : T("confirmError"));
     }
-  }, [locale, sessionId]);
-
-  async function handleConfirmSummary() {
-    setSubmitting(true);
-    if (
-      sessionId &&
-      sessionId !== "sess-1" &&
-      typeof window !== "undefined" &&
-      typeof fetch === "function"
-    ) {
-      try {
-        await fetch(`/api/v1/triage/sessions/${sessionId}/finish`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-        await fetch(`/api/v1/triage/sessions/${sessionId}/summary/confirm`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            edits: {
-              chief_complaint: symptoms,
-              duration,
-              severity,
-              suggested_specialty: specialty,
-            },
-          }),
-        });
-      } catch {
-        // Proceed cleanly
-      }
-    }
-    setSubmitting(false);
-    setConfirmed(true);
   }
 
+  async function handleStartAgain() {
+    setRestarting(true);
+    setErrorMessage(null);
+    const openStates = ["CREATED", "ACTIVE", "PAUSED", "SUMMARY_PENDING_REVIEW"];
+    if (openStates.includes(session.state)) {
+      try {
+        await control.mutateAsync({
+          sessionId: session.id,
+          action: "end",
+          version: session.version,
+          idempotencyKey: createIntentIdempotencyKey(),
+        });
+      } catch {
+        // Proceed to fresh triage even if session already ended
+      }
+    }
+    setRestarting(false);
+    router.push(`/${locale}/triage`);
+  }
+
+  const doctorsParams = new URLSearchParams();
+  if (specialtyCode) doctorsParams.set("specialty", specialtyCode);
+  doctorsParams.set("triage_session_id", session.id);
+  const doctorsHref = `/${locale}/doctors?${doctorsParams.toString()}`;
+
+  const fieldDefs: Array<{ key: keyof EditableFields; label: string }> = [
+    { key: "chief_complaint", label: T("chiefComplaint") },
+    { key: "duration", label: T("duration") },
+    { key: "severity", label: T("severity") },
+    { key: "additional_notes", label: T("additionalNotes") },
+    { key: "suggested_specialty", label: T("suggestedSpecialty") },
+  ];
+
+  const submitting = finish.isPending || confirm.isPending;
+
   return (
-    <main className="flex flex-col gap-6">
-      <PageHeader
-        serif
-        title={locale === "bn" ? "সারাংশ যাচাই করুন" : "Review your intake summary"}
-        context={
-          locale === "bn"
-            ? "ডাক্তারকে দেখানোর আগে আপনার উপসর্গ এবং সমস্যা যাচাই করে নিন"
-            : "Review and edit the summary of your symptoms before requesting a consultation"
-        }
-      />
+    <>
+      <PageHeader serif title={T("summaryTitle")} context={T("summaryContext")} />
 
-      <Panel title={locale === "bn" ? "আপনার নিজের কথায়" : "In your own words"}>
-        <blockquote className="m-0 border-l-2 border-indigo pl-4 text-body italic text-ink">
-          “{patientWords}”
-        </blockquote>
-      </Panel>
+      {session.summary?.patient_words && (
+        <Panel title={T("inYourWords")}>
+          <blockquote className="m-0 border-l-2 border-indigo pl-4 text-body italic text-ink">
+            “{session.summary.patient_words}”
+          </blockquote>
+        </Panel>
+      )}
 
-      <Panel title={locale === "bn" ? "সংক্ষিপ্ত বিবরণ (প্রয়োজনে সংশোধন করুন)" : "Extracted summary (Edit if needed)"}>
+      <Panel title={T("extractedFields")}>
         <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 text-dense font-medium text-ink">
-            <span>{locale === "bn" ? "প্রধান উপসর্গ" : "Chief Symptoms"}</span>
-            <input
-              type="text"
-              value={symptoms}
-              onChange={(e) => setSymptoms(e.target.value)}
-              className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-dense font-medium text-ink">
-            <span>{locale === "bn" ? "সময়কাল" : "Duration"}</span>
-            <input
-              type="text"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-dense font-medium text-ink">
-            <span>{locale === "bn" ? "তীব্রতা" : "Severity"}</span>
-            <input
-              type="text"
-              value={severity}
-              onChange={(e) => setSeverity(e.target.value)}
-              className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-dense font-medium text-ink">
-            <span>{locale === "bn" ? "প্রস্তাবিত বিভাগ" : "Suggested Specialty"}</span>
-            <input
-              type="text"
-              value={specialty}
-              onChange={(e) => setSpecialty(e.target.value)}
-              className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body"
-            />
-          </label>
+          {fieldDefs.map(({ key, label }) => {
+            const inputId = `triage-field-${key}`;
+            return (
+              <div key={key} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor={inputId} className="text-dense font-medium text-ink">
+                    {label}
+                  </label>
+                  {isChanged(key) && (
+                    <span className="rounded-pill bg-indigo-wash px-2 py-0.5 text-caption font-semibold text-indigo">
+                      {t(locale, "patient.changedByYou")}
+                    </span>
+                  )}
+                </div>
+                <input
+                  id={inputId}
+                  type="text"
+                  disabled={confirmed}
+                  value={fields[key]}
+                  onChange={(e) => setFields((prev) => ({ ...prev, [key]: e.target.value }))}
+                  className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body disabled:bg-sunken"
+                />
+              </div>
+            );
+          })}
         </div>
       </Panel>
 
+      {(guidanceText || sources.length > 0) && (
+        <Panel title={T("guidanceTitle")}>
+          <div className="flex flex-col gap-3">
+            {guidanceText && <p className="m-0 text-body text-ink">{guidanceText}</p>}
+            {sources.length > 0 && (
+              <div className="flex flex-col gap-1 border-t border-line pt-3">
+                <span className="text-caption font-semibold text-ink-muted">{T("sourcesTitle")}</span>
+                <ul className="m-0 list-disc ps-5 text-dense text-ink-muted">
+                  {sources.map((src, idx) => (
+                    <li key={idx}>
+                      {src.title}
+                      {src.publisher ? ` — ${src.publisher}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      {errorMessage && <Alert tone="attention" title={errorMessage} />}
+
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
         {!confirmed ? (
-          <Button
-            size="lg"
-            disabled={submitting}
-            onClick={() => void handleConfirmSummary()}
-          >
-            {locale === "bn"
-              ? "সারাংশ নিশ্চিত করুন ও ডাক্তার খুঁজুন"
-              : "Confirm summary & find a doctor"}
-          </Button>
+          <>
+            <Button
+              size="lg"
+              loading={submitting}
+              loadingLabel={T("confirming")}
+              onClick={() => void handleConfirm()}
+            >
+              {T("confirmAndFindDoctor")}
+            </Button>
+            <Button
+              variant="quiet"
+              disabled={restarting}
+              onClick={() => void handleStartAgain()}
+            >
+              {T("startAgain")}
+            </Button>
+          </>
         ) : (
           <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p role="status" className="m-0 text-dense font-semibold text-pine">
-              {locale === "bn"
-                ? "✓ সারাংশ নিশ্চিত হয়েছে। এখন ডাক্তার নির্বাচন করে অ্যাপয়েন্টমেন্টের সাথে যুক্ত করতে পারেন।"
-                : "✓ Summary confirmed. Ready to attach to an appointment request."}
+            <p role="status" className="m-0 text-dense font-semibold text-positive">
+              {`✓ ${T("confirmedNotice")}`}
             </p>
-            <Link
-              href={`/${locale}/doctors`}
-              className={buttonVariants({ variant: "primary", size: "lg" })}
-            >
-              {locale === "bn" ? "ডাক্তার ও হাসপাতাল খুঁজুন →" : "Browse doctors & clinics →"}
+            <Link href={doctorsHref} className={buttonVariants({ variant: "primary", size: "lg" })}>
+              {`${T("browseDoctors")} →`}
             </Link>
           </div>
         )}
       </div>
-    </main>
+    </>
+  );
+}
+
+export default function TriageSummaryReviewPage({ params }: LocalePageProps) {
+  const locale = usePageLocale(params, "bn");
+  const routeParams = useParams<{ id?: string }>();
+  const sessionId = typeof routeParams?.id === "string" ? routeParams.id : "";
+  const query = useTriageSession(sessionId);
+  const T = (k: string) => t(locale, `triage.${k}`);
+
+  return (
+    <Column>
+      <QueryBoundary
+        query={query}
+        locale={locale}
+        loadingLabel={T("loadingSession")}
+        errorMessage={T("confirmError")}
+        notFoundMessage={T("sessionNotFound")}
+      >
+        {(session) => <SummaryEditor session={session} locale={locale} />}
+      </QueryBoundary>
+    </Column>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { usePageLocale } from "../../../usePageLocale";
 import { ApiError, createIntentIdempotencyKey } from "../../../../api/client";
@@ -36,7 +37,17 @@ function CapacityLine({ facility, locale }: { facility?: DirectoryFacilityEntry;
 }
 
 /** One doctor. Tap to see open times, choose one, then ask for it. No tracker here: no case exists yet. */
-function DoctorRow({ doctor, facilities, locale }: { doctor: DirectoryPractitioner; facilities: Map<string, DirectoryFacilityEntry>; locale: "bn" | "en" }) {
+function DoctorRow({
+  doctor,
+  facilities,
+  locale,
+  triageSessionId,
+}: {
+  doctor: DirectoryPractitioner;
+  facilities: Map<string, DirectoryFacilityEntry>;
+  locale: "bn" | "en";
+  triageSessionId?: string;
+}) {
   const L = (k: string) => t(locale, `doctors.${k}`);
   const { me } = useMe();
   const [open, setOpen] = useState(false);
@@ -53,7 +64,11 @@ function DoctorRow({ doctor, facilities, locale }: { doctor: DirectoryPractition
     if (!slotId || request.isPending) return;
     setMessage(null);
     try {
-      const appt = await request.mutateAsync({ slotId, idempotencyKey: createIntentIdempotencyKey() });
+      const appt = await request.mutateAsync({
+        slotId,
+        ...(triageSessionId ? { triageSessionId } : {}),
+        idempotencyKey: createIntentIdempotencyKey(),
+      });
       setSentId(appt.id);
     } catch (e) {
       if (e instanceof ApiError && e.code === "slot_unavailable") {
@@ -112,7 +127,10 @@ function DoctorRow({ doctor, facilities, locale }: { doctor: DirectoryPractition
               </div>
               {message && <Alert tone="attention" title={message} />}
               {me === null ? (
-                <Link href={`/${locale}/login?next=${encodeURIComponent(`/${locale}/doctors`)}`} className={buttonVariants({ size: "lg", className: "w-full sm:w-fit" })}>
+                <Link
+                  href={`/${locale}/login?next=${encodeURIComponent(`/${locale}/doctors${triageSessionId ? `?triage_session_id=${triageSessionId}` : ""}`)}`}
+                  className={buttonVariants({ size: "lg", className: "w-full sm:w-fit" })}
+                >
                   {t(locale, "shell.signIn")}
                 </Link>
               ) : (
@@ -132,8 +150,18 @@ function DoctorRow({ doctor, facilities, locale }: { doctor: DirectoryPractition
 export default function DoctorDiscoveryPage() {
   const locale = usePageLocale(undefined, "bn");
   const L = (k: string) => t(locale, `doctors.${k}`);
+  let initialSpecialty = "";
+  let triageSessionId: string | undefined;
+  try {
+    const sp = useSearchParams();
+    initialSpecialty = sp?.get("specialty") ?? "";
+    triageSessionId = sp?.get("triage_session_id") ?? undefined;
+  } catch {
+    initialSpecialty = "";
+    triageSessionId = undefined;
+  }
   const [area, setArea] = useState<string | null>(null);
-  const [specialty, setSpecialty] = useState("");
+  const [specialty, setSpecialty] = useState(initialSpecialty);
   const [pickerKey, setPickerKey] = useState(0);
   const filters = useMemo(() => ({ ...(area ? { area } : {}), ...(specialty ? { specialty } : {}) }), [area, specialty]);
   const list = usePractitioners(filters);
@@ -146,6 +174,7 @@ export default function DoctorDiscoveryPage() {
   return (
     <Column>
       <PageHeader serif title={L("title")} />
+      {triageSessionId && <Alert tone="info" title={t(locale, "triage.triageAttached")} />}
       <details className="rounded-panel border border-line bg-surface p-4" open={filtered || undefined}>
         <summary className="cursor-pointer text-dense font-semibold">{L("filters")}</summary>
         <div className="mt-4 flex flex-col gap-4">
@@ -174,7 +203,7 @@ export default function DoctorDiscoveryPage() {
       ) : (
         <>
           <ul className="m-0 p-0">
-            {doctors.map((d) => <DoctorRow key={d.id} doctor={d} facilities={facilityMap} locale={locale} />)}
+            {doctors.map((d) => <DoctorRow key={d.id} doctor={d} facilities={facilityMap} locale={locale} triageSessionId={triageSessionId} />)}
           </ul>
           {list.hasNextPage && (
             <Button variant="secondary" loading={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>{L("more")}</Button>

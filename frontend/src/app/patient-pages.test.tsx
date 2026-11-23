@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axe from "axe-core";
 
-const nav = { pathname: "/en/home", params: {} as Record<string, string> };
+const nav = { pathname: "/en/home", search: "", params: {} as Record<string, string> };
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(""),
+  useSearchParams: () => new URLSearchParams(nav.search),
   usePathname: () => nav.pathname,
   useParams: () => ({ locale: nav.pathname.split("/")[1], ...nav.params }),
 }));
@@ -51,7 +51,7 @@ const appt = (o: Record<string, unknown> = {}) => ({
 const page = (results: unknown[]) => json({ results, next_cursor: null });
 const pendingReq = { id: "c1", state: "PENDING", patient_id: "p", recipient_facility_id: "f2", recipient_facility_name: "Dhaka Medical College", recipient_practitioner_name: "Dr. Anwar", purpose: "Specialist review", categories: ["Visit summary", "Lab reports"], content_hash: "h", created_at: "2026-11-23T08:00:00Z", expires_at: "2026-12-30T00:00:00Z" };
 
-beforeEach(() => { nav.pathname = "/en/home"; nav.params = {}; });
+beforeEach(() => { nav.pathname = "/en/home"; nav.search = ""; nav.params = {}; });
 
 describe("/home (APPLICATION_DESIGN §4.2)", () => {
   const consents = (pending: unknown[] = [], active: unknown[] = []) => () => json({ consents: active, pending_requests: pending });
@@ -348,6 +348,28 @@ describe("/doctors", () => {
     mount(<DoctorsPage />, base());
     expect(await screen.findByText("ডা. রহিমা খাতুন")).toBeTruthy();
     expect(await screen.findByText(/৩ ঘণ্টা আগে/)).toBeTruthy();
+  });
+
+  it("pre-selects specialty from query params and attaches triage_session_id when requesting a slot", async () => {
+    nav.pathname = "/en/doctors";
+    nav.search = "specialty=medicine&triage_session_id=sess-999";
+    const { calls } = mount(<DoctorsPage />, {
+      ...base({
+        "GET /practitioners/d1/slots": () => slots(),
+        "POST /appointments": () => json(appt({ id: "a-triage", triage_session_id: "sess-999" }), 201),
+      }),
+    });
+
+    expect(await screen.findByText(/Your confirmed triage summary will be attached/i)).toBeTruthy();
+    await waitFor(() => expect(calls.some((c) => c.key.includes("/directory/practitioners") && c.key.includes("specialty=medicine"))).toBe(true));
+
+    fireEvent.click(await screen.findByRole("button", { name: /Dr\. Rahima Khatun/ }));
+    fireEvent.click(await screen.findByRole("radio"));
+    fireEvent.click(screen.getByRole("button", { name: "Request this time" }));
+
+    await waitFor(() => expect(calls.some((c) => c.key === "POST /appointments")).toBe(true));
+    const post = calls.find((c) => c.key === "POST /appointments")!;
+    expect(JSON.parse(post.body).triage_session_id).toBe("sess-999");
   });
 });
 

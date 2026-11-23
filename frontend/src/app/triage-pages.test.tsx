@@ -22,6 +22,7 @@ import { AppProviders, makeQueryClient } from "../api/queries/provider";
 import { PatientShell } from "../components/shell/PatientShell";
 import TriagePage from "./[locale]/(patient)/triage/page";
 import TriageSessionResumePage from "./[locale]/(patient)/triage/session/[id]/page";
+import TriageSummaryReviewPage from "./[locale]/(patient)/triage/summary/[id]/page";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -262,5 +263,91 @@ describe("Task 6 — Triage focus shell, disclosure gate, Vapi placeholder, emer
     await waitFor(() => expect(screen.getByText("Triage body")).toBeTruthy());
     expect(screen.queryByRole("navigation", { name: /main navigation/i })).toBeNull();
     expect(screen.getByRole("link", { name: /exit|back/i })).toBeTruthy();
+  });
+});
+
+describe("Task 7 — /triage/summary/[id] API review, Changed by you, guidance/sources, restart & doctor handoff", () => {
+  const sampleSession = {
+    id: "sess-sum-1",
+    state: "SUMMARY_PENDING_REVIEW",
+    allowed_actions: ["confirm_summary", "end"],
+    version: 4,
+    language: "en",
+    mode: "text",
+    turns: [],
+    summary: {
+      patient_words: "Fever and headache for 3 days",
+      structured_fields: {
+        chief_complaint: "Fever and headache",
+        duration: "3 days",
+        severity: "Moderate",
+        additional_notes: "No chronic illness",
+        suggested_specialty_code: "general_medicine",
+        suggested_specialty_en: "General Medicine",
+        suggested_specialty_bn: "সাধারণ মেডিসিন",
+        guidance_sources: [
+          {
+            title: "PLACEHOLDER — NOT CLINICALLY APPROVED: Outpatient Wayfinding Guide",
+            publisher: "Medi Waypoint Pilot Review Board",
+            version: "0.1-placeholder",
+          },
+        ],
+      },
+      guidance_given: "Recommended outpatient consultation in General Medicine.",
+      patient_edits: {},
+    },
+  };
+
+  it("loads summary from API, marks edited fields 'Changed by you', confirms via api client, and links to /doctors with specialty and triage_session_id", async () => {
+    nav.pathname = "/en/triage/summary/sess-sum-1";
+    nav.params = { locale: "en", id: "sess-sum-1" };
+
+    const { calls } = mount(<TriageSummaryReviewPage params={Promise.resolve({ locale: "en" })} />, (url, method) => {
+      if (url.endsWith("/triage/sessions/sess-sum-1") && method === "GET") return json(sampleSession);
+      if (url.endsWith("/triage/sessions/sess-sum-1/summary/confirm") && method === "POST") {
+        return json({ ...sampleSession, state: "CONFIRMED_BY_PATIENT", version: 5 });
+      }
+      return json({});
+    });
+
+    await waitFor(() => expect(screen.getByText(/Fever and headache for 3 days/)).toBeTruthy());
+    expect(screen.getByText(/Recommended outpatient consultation in General Medicine/)).toBeTruthy();
+    expect(screen.getByText(/Outpatient Wayfinding Guide/)).toBeTruthy();
+
+    // Edit chief symptoms -> "Changed by you" marker appears
+    const chiefInput = screen.getByLabelText(/Chief symptoms/i);
+    expect(screen.queryByText("Changed by you")).toBeNull();
+    fireEvent.change(chiefInput, { target: { value: "High fever and body ache" } });
+    expect(screen.getByText("Changed by you")).toBeTruthy();
+
+    // Confirm summary via API client
+    fireEvent.click(screen.getByRole("button", { name: /Confirm and find a doctor/i }));
+    await waitFor(() => expect(screen.getByRole("link", { name: /Browse doctors & clinics/i })).toBeTruthy());
+
+    const confirmCall = calls.find((c) => c.url.endsWith("/summary/confirm") && c.method === "POST");
+    expect(confirmCall).toBeTruthy();
+    expect((confirmCall?.body as { edits?: Record<string, string> })?.edits?.chief_complaint).toBe("High fever and body ache");
+
+    const doctorsHref = screen.getByRole("link", { name: /Browse doctors & clinics/i }).getAttribute("href");
+    expect(doctorsHref).toBe("/en/doctors?specialty=general_medicine&triage_session_id=sess-sum-1");
+  });
+
+  it("clicking 'This is wrong, start again' ends the session and routes back to /triage", async () => {
+    nav.pathname = "/en/triage/summary/sess-sum-1";
+    nav.params = { locale: "en", id: "sess-sum-1" };
+
+    const { calls } = mount(<TriageSummaryReviewPage params={Promise.resolve({ locale: "en" })} />, (url, method) => {
+      if (url.endsWith("/triage/sessions/sess-sum-1") && method === "GET") return json(sampleSession);
+      if (url.endsWith("/triage/sessions/sess-sum-1/end") && method === "POST") {
+        return json({ ...sampleSession, state: "ENDED_BY_PATIENT", version: 5 });
+      }
+      return json({});
+    });
+
+    await waitFor(() => expect(screen.getByText(/Fever and headache for 3 days/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /This is wrong, start again/i }));
+
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/en/triage"));
+    expect(calls.some((c) => c.url.endsWith("/triage/sessions/sess-sum-1/end") && c.method === "POST")).toBe(true);
   });
 });
