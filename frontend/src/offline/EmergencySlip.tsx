@@ -1,8 +1,9 @@
+"use client";
+
 import React from "react";
 import type { Locale } from "../i18n/config";
 import { formatDhakaDateTime } from "../i18n/format";
 import type { EmergencyVitalItem } from "./queue";
-import styles from "./EmergencySlip.module.css";
 
 export interface EmergencySlipProps {
   referenceCode: string;
@@ -41,11 +42,11 @@ export function EmergencySlip({
   locale,
 }: EmergencySlipProps) {
   return (
-    <article className={styles.slip} aria-label="Emergency referral transfer slip">
-      <header className={styles.header}>
-        <div className={styles.titleBlock}>
-          <span className={styles.platformTitle}>Medi Waypoint — Emergency Transfer Slip</span>
-          <span className={styles.codeType}>
+    <article className="max-w-[520px] border-2 border-ink bg-paper p-6 text-ink" aria-label="Emergency referral transfer slip">
+      <header className="flex flex-col gap-2 border-b-2 border-ink pb-4">
+        <div className="flex items-baseline justify-between text-dense">
+          <span className="font-semibold text-ink">Medi Waypoint — Emergency Transfer Slip</span>
+          <span className="text-ink-muted">
             {isProvisional
               ? locale === "bn"
                 ? "সাময়িক অফলাইন কোড (Q-09)"
@@ -55,45 +56,45 @@ export function EmergencySlip({
                 : "Reference code"}
           </span>
         </div>
-        <div className={styles.referenceCode}>{referenceCode}</div>
+        <div className="font-mono text-2xl font-bold tracking-wider tabular-nums text-ink">{referenceCode}</div>
       </header>
 
-      <dl className={styles.grid}>
-        <div className={styles.field}>
-          <dt>{locale === "bn" ? "রোগীর পরিচয়" : "Patient identity"}</dt>
-          <dd>{identityText}</dd>
+      <dl className="m-0 mt-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-caption font-semibold uppercase tracking-wider text-ink-muted">{locale === "bn" ? "রোগীর পরিচয়" : "Patient identity"}</dt>
+          <dd className="m-0 text-body font-medium text-ink">{identityText}</dd>
         </div>
-        <div className={styles.field}>
-          <dt>{locale === "bn" ? "জরুরি মাত্রা" : "Urgency"}</dt>
-          <dd className={styles.urgencyValue}>{urgency.toUpperCase()}</dd>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-caption font-semibold uppercase tracking-wider text-ink-muted">{locale === "bn" ? "জরুরি মাত্রা" : "Urgency"}</dt>
+          <dd className="m-0 text-body font-bold uppercase text-ink">{urgency.toUpperCase()}</dd>
         </div>
-        <div className={styles.field}>
-          <dt>{locale === "bn" ? "রেফারেলের কারণ" : "Reason for transfer"}</dt>
-          <dd>{reason}</dd>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-caption font-semibold uppercase tracking-wider text-ink-muted">{locale === "bn" ? "রেফারেলের কারণ" : "Reason for transfer"}</dt>
+          <dd className="m-0 text-body font-medium text-ink">{reason}</dd>
         </div>
-        <div className={styles.field}>
-          <dt>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-caption font-semibold uppercase tracking-wider text-ink-muted">
             {locale === "bn" ? "ভাইটালস" : "Vitals"} ({formatDhakaDateTime(vitalsRecordedAt, locale, { forceLatin: true })})
           </dt>
-          <dd>
+          <dd className="m-0 text-body font-medium text-ink">
             {vitals.length === 0
               ? "—"
               : vitals.map((v) => `${v.code}: ${v.value} ${v.unit}`).join(", ")}
           </dd>
         </div>
-        <div className={styles.field}>
-          <dt>{locale === "bn" ? "প্রদত্ত চিকিৎসা" : "Treatment given"}</dt>
-          <dd>{treatmentGiven || "—"}</dd>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-caption font-semibold uppercase tracking-wider text-ink-muted">{locale === "bn" ? "প্রদত্ত চিকিৎসা" : "Treatment given"}</dt>
+          <dd className="m-0 text-body font-medium text-ink">{treatmentGiven || "—"}</dd>
         </div>
-        <div className={styles.field}>
-          <dt>{locale === "bn" ? "প্রেরক হাসপাতাল ও সময়" : "Sending facility & time"}</dt>
-          <dd>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-caption font-semibold uppercase tracking-wider text-ink-muted">{locale === "bn" ? "প্রেরক হাসপাতাল ও সময়" : "Sending facility & time"}</dt>
+          <dd className="m-0 text-body font-medium text-ink">
             {sendingFacility} — {formatDhakaDateTime(createdAt, locale, { forceLatin: true })}
           </dd>
         </div>
-        <div className={styles.field}>
-          <dt>{locale === "bn" ? "গ্রহণকারী হাসপাতাল" : "Receiving facility"}</dt>
-          <dd>{receivingFacility}</dd>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-caption font-semibold uppercase tracking-wider text-ink-muted">{locale === "bn" ? "গ্রহণকারী হাসপাতাল" : "Receiving facility"}</dt>
+          <dd className="m-0 text-body font-medium text-ink">{receivingFacility}</dd>
         </div>
       </dl>
     </article>

@@ -92,29 +92,4 @@ w(
   "",
 );
 
-// Removed in Phase 9 together with the CSS Modules that still read these names.
-w(
-  "/* TEMPORARY COMPATIBILITY ALIASES (REDESIGN_IMPLEMENTATION_PLAN Phase 1, deleted in Phase 9).",
-  "   Old CSS Modules still read these names; they now resolve to the new palette.",
-  "   --color-paper is the warm page colour here, so old white panels render warm. */",
-  ":root {",
-  "  --color-mist: var(--color-paper);",
-  "  --color-forest: var(--color-indigo);",
-  "  --color-turmeric: var(--color-indigo);",
-  "  --color-river: var(--color-indigo);",
-  "  --color-draft: var(--color-ochre);",
-  "  --font-numeral: var(--font-sans);",
-);
-for (const k of ["4", "8", "12", "16", "24", "32", "48"]) w(`  --space-${k}: ${primitive.space[k]};`);
-w(
-  "  --space-72: 72px;",
-  "  --radius-sm: var(--radius-control);",
-  "  --radius-md: var(--radius-panel);",
-  "  --elevation-float: var(--shadow-float);",
-  "  --motion-route-duration: var(--motion-handover-duration);",
-  "  --motion-route-easing: var(--motion-handover-easing);",
-  "}",
-  "",
-);
-
 fs.writeFileSync(outPath, out.join("\n"), "utf8");

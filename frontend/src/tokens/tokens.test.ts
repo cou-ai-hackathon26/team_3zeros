@@ -74,18 +74,17 @@ describe("Design system tokens (DESIGN_SYSTEM §2, §5)", () => {
     expect(css).toMatch(/prefers-reduced-motion: reduce[\s\S]*--motion-handover-duration: 0ms;/);
   });
 
-  it("marks the old variable names as temporary compatibility aliases", () => {
-    expect(css).toContain("TEMPORARY COMPATIBILITY ALIASES");
-    expect(css).toContain("--color-forest: var(--color-indigo);");
-    expect(css).toContain("--color-mist: var(--color-paper);");
-    expect(css).toContain("--space-12: 12px;");
+  it("does not contain temporary compatibility aliases", () => {
+    expect(css).not.toContain("TEMPORARY COMPATIBILITY ALIASES");
+    expect(css).not.toContain("--color-forest");
+    expect(css).not.toContain("--color-mist");
+    expect(css).not.toContain("--space-12");
   });
 
   it("keeps base rules in the base layer so utilities win", () => {
     const base = css.slice(css.indexOf("@layer base {"));
     expect(base).toContain(":focus-visible {");
     expect(base.indexOf("button, input, select, textarea")).toBeGreaterThan(0);
-    expect(css.indexOf("@layer base {")).toBeLessThan(css.indexOf("TEMPORARY COMPATIBILITY ALIASES"));
   });
 
   it("makes form controls inherit the page font and colour", () => {

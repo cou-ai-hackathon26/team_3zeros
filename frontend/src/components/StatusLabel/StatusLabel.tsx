@@ -1,8 +1,10 @@
+"use client";
+
 import React from "react";
 import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";
 import type { StopStatus } from "../../state/routes";
-import styles from "./StatusLabel.module.css";
+import { cn } from "../../lib/cn";
 
 export interface StatusLabelProps {
   entity: "appointment" | "referral" | "triage_session" | "document" | "consent_request" | "consent";
@@ -31,11 +33,17 @@ export function StatusLabel({
           : "○";
 
   return (
-    <span className={`${styles.badge} ${styles[stopStatus]}`}>
-      <span className={styles.shape} aria-hidden="true">
-        {shape}
-      </span>
-      <span className={styles.text}>{t(locale, `state.${entity}.${state}`)}</span>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium",
+        stopStatus === "completed" && "border-paddy bg-paddy-wash/30 text-paddy",
+        stopStatus === "current" && "border-indigo bg-indigo-wash text-indigo",
+        (stopStatus === "exception" || stopStatus === "emergency") && "border-signal bg-signal-wash/30 text-signal",
+        stopStatus === "upcoming" && "border-line bg-surface text-ink-muted"
+      )}
+    >
+      <span aria-hidden="true">{shape}</span>
+      <span>{t(locale, `state.${entity}.${state}`)}</span>
     </span>
   );
 }

@@ -180,28 +180,3 @@ button, input, select, textarea { font: inherit; color: inherit; }
   outline-offset: 2px;
 }
 }
-
-/* TEMPORARY COMPATIBILITY ALIASES (REDESIGN_IMPLEMENTATION_PLAN Phase 1, deleted in Phase 9).
-   Old CSS Modules still read these names; they now resolve to the new palette.
-   --color-paper is the warm page colour here, so old white panels render warm. */
-:root {
-  --color-mist: var(--color-paper);
-  --color-forest: var(--color-indigo);
-  --color-turmeric: var(--color-indigo);
-  --color-river: var(--color-indigo);
-  --color-draft: var(--color-ochre);
-  --font-numeral: var(--font-sans);
-  --space-4: 4px;
-  --space-8: 8px;
-  --space-12: 12px;
-  --space-16: 16px;
-  --space-24: 24px;
-  --space-32: 32px;
-  --space-48: 48px;
-  --space-72: 72px;
-  --radius-sm: var(--radius-control);
-  --radius-md: var(--radius-panel);
-  --elevation-float: var(--shadow-float);
-  --motion-route-duration: var(--motion-handover-duration);
-  --motion-route-easing: var(--motion-handover-easing);
-}
