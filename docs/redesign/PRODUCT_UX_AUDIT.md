@@ -170,6 +170,7 @@ audit.
 | A-12 | `VoicePanel` should offer language, captions, End and "Type instead" (`UIUX_DESIGN.md` §5) | `VoicePanel` also exposes provider configuration (`providerConfig`, `onUpdateProvider`) | Low. Developer control in a patient screen |
 | A-13 | `SECURITY.md` §3.3: idle and absolute session timeouts per role | No idle-timeout middleware or session-age setting exists in `backend/config/settings` or `backend/apps` | Medium. The frontend countdown would be cosmetic until the server enforces it |
 | A-14 | `SECURITY.md` §6.4: minimise stored triage data; `MASTERPLAN.md` §6.1: no credentials in browser storage | `voice/controller.ts` writes the triage draft (symptom text) to `sessionStorage` (`mw_triage_draft`) and the voice provider configuration, which can include an ElevenLabs API key, to `sessionStorage` (`mw_voice_provider_cfg`) | Medium. Health text and a credential persist in tab storage on shared devices |
+| A-15 | `MASTERPLAN.md` §6.1: list responses are `{results, next_cursor}`; §6.3: `GET /directory/areas?...` | `directory/views.py` `AreaListView` and `SpecialtyListView` return a bare JSON array, and the area parent filter is the query parameter `parent` | Low. The frontend accepts both shapes (`asList`). Decide which side changes; the contract and the code must agree |
 
 A-01, A-02, A-04 and A-05 are defects outside the scope of a visual redesign.
 They are listed because the redesigned auth and admin screens cannot work
