@@ -30,6 +30,18 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS",
+    default=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3100",
+        "http://127.0.0.1:3100",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+)
+
 # Feature Flags (MASTERPLAN §8.2 / BACKEND §3)
 FEATURE_VOICE_TRIAGE = env("FEATURE_VOICE_TRIAGE")
 FEATURE_BREAK_GLASS = env("FEATURE_BREAK_GLASS")

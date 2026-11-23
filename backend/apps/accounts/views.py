@@ -1,4 +1,6 @@
 from django.contrib.auth import logout
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from rest_framework import views, status, permissions
 from rest_framework.response import Response
 from .serializers import (
@@ -18,7 +20,9 @@ from .services import (
 from .selectors import get_user_roles, get_user_permissions
 from apps.common.exceptions import ValidationError, NotFoundError
 
+@method_decorator(csrf_exempt, name="dispatch")
 class LoginView(views.APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -34,7 +38,9 @@ class LoginView(views.APIView):
         return Response({"message": "Login successful.", "user_id": str(user.public_id)})
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class MfaVerifyView(views.APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -44,7 +50,9 @@ class MfaVerifyView(views.APIView):
         return Response({"message": "MFA verification successful.", "user_id": str(user.public_id)})
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class OtpRequestView(views.APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -54,7 +62,9 @@ class OtpRequestView(views.APIView):
         return Response({"message": msg})
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class OtpVerifyView(views.APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -68,14 +78,17 @@ class OtpVerifyView(views.APIView):
         return Response({"message": "OTP verification successful.", "user_id": str(user.public_id)})
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class LogoutView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         logout(request)
         return Response({"message": "Logged out successfully."})
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")
 class MeView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 

@@ -31,6 +31,7 @@ export default async function LocaleRootLayout({
   return (
     <html
       lang={locale}
+      data-scroll-behavior="smooth"
       className={`${hindSiliguri.variable} ${tiroBangla.variable}`}
     >
       <body>
