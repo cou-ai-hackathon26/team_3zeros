@@ -78,7 +78,7 @@ frontend/
         facility/            # directory, departments, services
         schedules/
         capacity/
-        staff/
+        staff/               # staff accounts, access control (D-16), access requests (D-19)
       layout.tsx             # html lang, fonts, providers
   src/
     api/

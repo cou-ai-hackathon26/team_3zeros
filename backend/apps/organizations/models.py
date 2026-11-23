@@ -14,6 +14,7 @@ class Facility(TimeStamped):
         ("medical_college_hospital", "Medical College Hospital"),
         ("specialized_hospital", "Specialized Hospital"),
         ("private_clinic", "Private Clinic"),
+        ("private_chamber", "Private Chamber"),
         ("diagnostic_center", "Diagnostic Center"),
     ]
 
@@ -86,4 +87,45 @@ class PractitionerRole(TimeStamped):
 
     def __str__(self):
         return f"{self.practitioner.name} @ {self.facility.name} ({self.specialty.name_en})"
+
+
+class AccessRequest(TimeStamped):
+    """
+    Clinician and private chamber access requests (MASTERPLAN D-19, answers Q-16).
+    """
+    STATUS_CHOICES = [
+        ("PENDING", "Pending"),
+        ("APPROVED", "Approved"),
+        ("REJECTED", "Rejected"),
+    ]
+
+    name = models.CharField(max_length=255)
+    bmdc_registration_number = models.CharField(max_length=100)
+    contact = models.CharField(max_length=100)
+    facility = models.ForeignKey(
+        Facility,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="access_requests",
+    )
+    chamber_name = models.CharField(max_length=255, blank=True)
+    chamber_name_bn = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING", db_index=True)
+    rejection_reason = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_access_requests",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        target = self.chamber_name or (self.facility.name if self.facility else "Unspecified")
+        return f"AccessRequest({self.name}, BMDC {self.bmdc_registration_number} -> {target}: {self.status})"
 

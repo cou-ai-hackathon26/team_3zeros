@@ -32,8 +32,10 @@ export interface PatientProfileAdapter {
 export interface AccessRequest {
   name: string;
   bmdc_registration_number: string;
-  facility_id: string;
   contact: string;
+  facility_id?: string;
+  chamber_name?: string;
+  chamber_name_bn?: string;
 }
 
 export interface AccessRequestAdapter {
@@ -51,13 +53,35 @@ export interface Adapters {
   emailVerification: EmailVerificationAdapter;
 }
 
+export const defaultAccessRequestAdapter: AccessRequestAdapter = {
+  submit: async (req: AccessRequest) => {
+    const res = await fetch("/api/v1/access-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) {
+      let errBody: unknown = null;
+      try { errBody = await res.json(); } catch { /* ignore */ }
+      const errObj = (errBody && typeof errBody === "object" && "error" in errBody) ? (errBody as { error: Record<string, unknown> }).error : null;
+      throw new ApiError({
+        status: res.status,
+        code: typeof errObj?.code === "string" ? errObj.code : "generic",
+        message: typeof errObj?.message === "string" ? errObj.message : `Failed to submit access request (${res.status})`,
+        fieldErrors: (errObj?.field_errors && typeof errObj.field_errors === "object") ? (errObj.field_errors as Record<string, string[]>) : {},
+      });
+    }
+    return (await res.json()) as { reference?: string };
+  },
+};
+
 const unavailable = (): Promise<never> =>
   Promise.reject(new ApiError({ status: 501, code: "provider_unavailable", message: "No backend contract for this flow yet." }));
 
 export const unavailableAdapters: Adapters = {
   passwordReset: { request: unavailable, complete: unavailable },
   patientProfile: { submit: unavailable },
-  accessRequest: { submit: unavailable },
+  accessRequest: defaultAccessRequestAdapter,
   emailVerification: { confirm: unavailable },
 };
 

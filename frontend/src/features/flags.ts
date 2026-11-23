@@ -8,8 +8,8 @@ export const FEATURES = {
   passwordReset: process.env.NEXT_PUBLIC_FEATURE_PASSWORD_RESET === "true",
   /** Q-15 */
   patientProfile: process.env.NEXT_PUBLIC_FEATURE_PATIENT_PROFILE === "true",
-  /** Q-16 */
-  accessRequest: process.env.NEXT_PUBLIC_FEATURE_ACCESS_REQUEST === "true",
+  /** Q-16 / D-19 (Phase B) active */
+  accessRequest: process.env.NEXT_PUBLIC_FEATURE_ACCESS_REQUEST !== "false",
   /** Q-17 */
   emailVerification: process.env.NEXT_PUBLIC_FEATURE_EMAIL_VERIFICATION === "true",
 } as const;

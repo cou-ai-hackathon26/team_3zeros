@@ -4,7 +4,8 @@ import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, ty
 import type { RequestOptions } from "../client";
 import { queryKeys } from "./index";
 import { useApi } from "./provider";
-import type { ApiExtractedField, Appointment, Chart, DocumentMeta, ExtractionResponse, Patient, TriageSessionDetail, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot } from "./types";
+import type { AccessRequestItem, ApiExtractedField, Appointment, Chart, DocumentMeta, ExtractionResponse, Patient, TriageSessionDetail, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot } from "./types";
+export type { AccessRequestItem } from "./types";
 
 /** Builds `?a=1&b=2`, skipping undefined and empty values. */
 export function withQuery(path: string, params?: QueryFilters): string {
@@ -382,6 +383,39 @@ export const useAdminCapacityReports = () =>
 
 export const useAdminStaff = () =>
   useGet<Page<AdminStaffMember> | AdminStaffMember[]>(queryKeys.adminStaff, "/admin/staff");
+
+export const useAdminAccessRequests = (status?: string) =>
+  useGet<Page<AccessRequestItem> | AccessRequestItem[]>(
+    queryKeys.adminAccessRequests(status),
+    status ? `/admin/access-requests?status=${status}` : "/admin/access-requests"
+  );
+
+export function useAccessRequestActions() {
+  const api = useApi();
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin", "accessRequests"] });
+    qc.invalidateQueries({ queryKey: queryKeys.adminStaff });
+    qc.invalidateQueries({ queryKey: queryKeys.adminFacilities });
+  };
+  const approve = useMutation({
+    mutationFn: async (id: string) =>
+      (await api.post<{ status: string; facility_id: string; reference: string; details?: { temporary_password?: string; totp_uri?: string } }>(
+        `/admin/access-requests/${id}/approve`,
+        { body: {} }
+      )).data,
+    onSuccess: invalidate,
+  });
+  const reject = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
+      (await api.post<{ status: string; reference: string; reason: string }>(
+        `/admin/access-requests/${id}/reject`,
+        { body: { reason } }
+      )).data,
+    onSuccess: invalidate,
+  });
+  return { approve, reject };
+}
 
 
 // ---- Admin access control (MASTERPLAN D-16) ----

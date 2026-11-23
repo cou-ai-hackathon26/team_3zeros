@@ -124,6 +124,65 @@ export function EditStaffDialog({ locale, member, catalogue, canGrantAdmin, busy
 }
 
 /** Shows the one-time secrets from create, reset-password and reset-mfa. Closing it discards them for good. */
+export function DeclineRequestDialog({
+  locale,
+  targetName,
+  busy,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  locale: Locale;
+  targetName: string;
+  busy: boolean;
+  error?: string | null;
+  onClose: () => void;
+  onSubmit: (reason: string) => void;
+}) {
+  const L = (k: string) => t(locale, `admin.staff.${k}`);
+  const [reason, setReason] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) {
+      setValidationError(L("declineReasonRequired"));
+      return;
+    }
+    onSubmit(reason.trim());
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent title={fill(L("confirmDeclineTitle"), { name: targetName })} closeLabel={L("cancel")}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <Field label={L("confirmDeclinePrompt")} locale={locale} error={validationError || error || undefined} required>
+            {(props) => (
+              <Input
+                {...props}
+                value={reason}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  setValidationError(null);
+                }}
+                autoFocus
+              />
+            )}
+          </Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+              {L("cancel")}
+            </Button>
+            <Button type="submit" variant="danger" loading={busy}>
+              {L("reject")}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function SecretsDialog({ locale, secrets, onClose }: { locale: Locale; secrets: OneTimeSecrets; onClose: () => void }) {
   const L = (k: string) => t(locale, `admin.staff.${k}`);
   return (

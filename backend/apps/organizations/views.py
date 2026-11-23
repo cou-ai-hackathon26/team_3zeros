@@ -4,10 +4,15 @@ from django.utils import timezone
 from rest_framework import views, permissions, status
 from rest_framework.response import Response
 from django.db.models import Q
-from .models import Facility, Practitioner
+from .models import Facility, Practitioner, AccessRequest
+from .serializers import (
+    AccessRequestCreateSerializer,
+    AccessRequestSerializer,
+    AccessRequestRejectSerializer,
+)
 from apps.directory.models import CapacityReport
 from apps.directory.serializers import FacilityDirectorySerializer, PractitionerDirectorySerializer, CapacityReportSerializer
-from apps.common.exceptions import PermissionDeniedError
+from apps.common.exceptions import PermissionDeniedError, NotFoundError, ValidationError
 
 
 def _require_admin_role(user):
@@ -195,3 +200,154 @@ class FhirIntegrationBoundaryView(views.APIView):
     def get(self, request, resource_path=""):
         _require_admin_role(request.user)
         return Response({"resourceType": "OperationOutcome", "path": resource_path, "status": "controlled_boundary"})
+
+
+class AccessRequestCreateView(views.APIView):
+    """Public access request submission (MASTERPLAN D-19, Q-16)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        s = AccessRequestCreateSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        ar = s.save()
+        return Response({
+            "reference": str(ar.public_id),
+            "status": ar.status,
+            "message": "Access request submitted successfully.",
+        }, status=status.HTTP_201_CREATED)
+
+
+class AdminAccessRequestListView(views.APIView):
+    """List access requests for platform or facility admin (MASTERPLAN D-19)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        scoped_facility = _require_admin_role(request.user)
+        qs = AccessRequest.objects.select_related("facility").all()
+        if scoped_facility:
+            qs = qs.filter(facility=scoped_facility)
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter.upper())
+        return Response({"results": AccessRequestSerializer(qs[:100], many=True).data, "next_cursor": None})
+
+
+class AdminAccessRequestApproveView(views.APIView):
+    """Approve clinician or private chamber access request (MASTERPLAN D-19)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, public_id):
+        from apps.accounts import admin_services as svc
+        from django.db import transaction
+
+        scoped_facility = _require_admin_role(request.user)
+        ar = AccessRequest.objects.filter(public_id=public_id).first()
+        if not ar:
+            raise NotFoundError("Access request not found.")
+        if ar.status != "PENDING":
+            raise ValidationError(f"Access request is already {ar.status.lower()}.")
+
+        with transaction.atomic():
+            if ar.chamber_name:
+                # Private chamber setup requires platform admin
+                if scoped_facility:
+                    raise PermissionDeniedError("Only platform administrators can approve private chamber registrations.")
+                fac = Facility.objects.create(
+                    name=ar.chamber_name,
+                    name_bn=ar.chamber_name_bn or ar.chamber_name,
+                    type="private_chamber",
+                )
+                target_facility = fac
+                email = ar.contact if "@" in ar.contact else None
+                phone = ar.contact if "@" not in ar.contact else None
+                # Create facility_admin membership
+                admin_out = svc.create_staff(
+                    actor=request.user,
+                    data={
+                        "facility_id": str(target_facility.public_id),
+                        "role": "facility_admin",
+                        "email": email,
+                        "phone": phone,
+                        "display_name": ar.name,
+                        "permissions": ["schedule.manage", "referral.acknowledge", "referral.create", "emergency.create"],
+                    },
+                    request=request,
+                )
+                # Create clinician membership + Practitioner with BMDC number
+                svc.create_staff(
+                    actor=request.user,
+                    data={
+                        "facility_id": str(target_facility.public_id),
+                        "role": "clinician",
+                        "email": email,
+                        "phone": phone,
+                        "display_name": ar.name,
+                        "registration_number": ar.bmdc_registration_number,
+                        "permissions": ["schedule.manage", "referral.acknowledge", "referral.create", "emergency.create"],
+                    },
+                    request=request,
+                )
+                out_details = admin_out
+            else:
+                if not ar.facility:
+                    raise ValidationError("Request has neither a target facility nor a chamber name.")
+                if scoped_facility and scoped_facility != ar.facility:
+                    raise PermissionDeniedError("Cannot approve access requests for other facilities.")
+                target_facility = ar.facility
+                email = ar.contact if "@" in ar.contact else None
+                phone = ar.contact if "@" not in ar.contact else None
+                out_details = svc.create_staff(
+                    actor=request.user,
+                    data={
+                        "facility_id": str(target_facility.public_id),
+                        "role": "clinician",
+                        "email": email,
+                        "phone": phone,
+                        "display_name": ar.name,
+                        "registration_number": ar.bmdc_registration_number,
+                        "permissions": ["schedule.manage", "referral.acknowledge", "referral.create", "emergency.create"],
+                    },
+                    request=request,
+                )
+
+            ar.status = "APPROVED"
+            ar.reviewed_by = request.user
+            ar.reviewed_at = timezone.now()
+            ar.save(update_fields=["status", "reviewed_by", "reviewed_at"])
+
+        return Response({
+            "status": "APPROVED",
+            "facility_id": str(target_facility.public_id),
+            "reference": str(ar.public_id),
+            "details": {k: v for k, v in out_details.items() if k != "membership"},
+        })
+
+
+class AdminAccessRequestRejectView(views.APIView):
+    """Decline an access request with reason (MASTERPLAN D-19)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, public_id):
+        scoped_facility = _require_admin_role(request.user)
+        ar = AccessRequest.objects.filter(public_id=public_id).first()
+        if not ar:
+            raise NotFoundError("Access request not found.")
+        if ar.status != "PENDING":
+            raise ValidationError(f"Access request is already {ar.status.lower()}.")
+        if ar.facility and scoped_facility and scoped_facility != ar.facility:
+            raise PermissionDeniedError("Cannot reject access requests for other facilities.")
+
+        s = AccessRequestRejectSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+
+        ar.status = "REJECTED"
+        ar.rejection_reason = s.validated_data["reason"]
+        ar.reviewed_by = request.user
+        ar.reviewed_at = timezone.now()
+        ar.save(update_fields=["status", "rejection_reason", "reviewed_by", "reviewed_at"])
+
+        return Response({
+            "status": "REJECTED",
+            "reference": str(ar.public_id),
+            "reason": ar.rejection_reason,
+        })

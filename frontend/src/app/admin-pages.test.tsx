@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({
 import { createApiClient } from "../api/client";
 import { AppProviders, makeQueryClient } from "../api/queries/provider";
 import { Toaster } from "../components/Toast/Toast";
+import type { AccessRequestItem } from "../api/queries/types";
 import AdminFacilityPage from "./[locale]/(admin)/facility/page";
 import AdminSchedulesPage from "./[locale]/(admin)/schedules/page";
 import AdminCapacityPage from "./[locale]/(admin)/capacity/page";
@@ -176,9 +177,11 @@ describe("Phase 7 — Admin screens (G-5)", () => {
       "GET /admin/staff": () => page(rows),
       "GET /admin/permissions": () => page(CAT),
       "GET /admin/facilities": () => page([{ id: "fac-1", name: "Tangail" }]),
+      "GET /admin/access-requests": () => page([]),
       ...extra,
     });
     const click = async (name: string | RegExp) => { await act(async () => { fireEvent.click(await screen.findByRole("button", { name })); }); };
+    const clickTab = async (name: string | RegExp) => { await act(async () => { fireEvent.click(await screen.findByRole("tab", { name })); }); };
 
     it("lists staff with readable permission names, role and status, and offers no actions on your own row", async () => {
       mount(<AdminStaffPage />, routes([row(), row({ id: "mem-me", user_id: "me-1", name: "Admin Self", role: "facility_admin", permissions: [] })]));
@@ -263,6 +266,80 @@ describe("Phase 7 — Admin screens (G-5)", () => {
       unmount();
       mount(<AdminStaffPage />, { ...routes([]), "GET /admin/staff": () => err("not_found", 404) });
       expect(await screen.findByText("Failed to load staff accounts.")).toBeTruthy();
+    });
+
+    it("switches to access requests tab, displays pending requests, and approves with secrets", async () => {
+      const reqItem: AccessRequestItem = {
+        id: "req-1",
+        name: "Dr. Rafiqul Islam",
+        contact: "+8801711000000",
+        facility_id: null,
+        facility_name: null,
+        facility_name_bn: null,
+        chamber_name: "Rafiq Care",
+        chamber_name_bn: "রফিক কেয়ার",
+        bmdc_registration_number: "A-54321",
+        status: "PENDING",
+        rejection_reason: null,
+        created_at: "2026-11-23T10:00:00Z",
+        reviewed_at: null,
+      };
+      const { calls } = mount(
+        <AdminStaffPage />,
+        routes([], ["platform_admin"], {
+          "GET /admin/access-requests": () => page([reqItem]),
+          "POST /admin/access-requests/req-1/approve": () =>
+            json({ status: "APPROVED", facility_id: "fac-new-1", reference: "AR-2026-0001", details: { temporary_password: "Chamber-temp-123" } }),
+        })
+      );
+      await clickTab(/Access requests/);
+      expect(await screen.findByText("Dr. Rafiqul Islam")).toBeTruthy();
+      expect(screen.getByText("A-54321")).toBeTruthy();
+      expect(screen.getByText("Rafiq Care")).toBeTruthy();
+      expect(screen.getByText("Private chamber")).toBeTruthy();
+      expect(screen.getByText("Pending")).toBeTruthy();
+
+      await click("Approve");
+      expect(await screen.findByText("Chamber-temp-123")).toBeTruthy();
+      expect(calls.some((c) => c.key === "POST /admin/access-requests/req-1/approve")).toBe(true);
+      await click("Done");
+    });
+
+    it("allows declining an access request with a reason", async () => {
+      const reqItem: AccessRequestItem = {
+        id: "req-2",
+        name: "Dr. Hasan",
+        contact: "+8801711000001",
+        facility_id: "fac-1",
+        facility_name: "Tangail",
+        facility_name_bn: "টাঙ্গাইল",
+        chamber_name: null,
+        chamber_name_bn: null,
+        bmdc_registration_number: "A-99999",
+        status: "PENDING",
+        rejection_reason: null,
+        created_at: "2026-11-23T10:00:00Z",
+        reviewed_at: null,
+      };
+      const { calls } = mount(
+        <AdminStaffPage />,
+        routes([], ["facility_admin"], {
+          "GET /admin/access-requests": () => page([reqItem]),
+          "POST /admin/access-requests/req-2/reject": () =>
+            json({ status: "REJECTED", reference: "AR-2026-0002", reason: "Invalid BMDC" }),
+        })
+      );
+      await clickTab(/Access requests/);
+      expect(await screen.findByText("Dr. Hasan")).toBeTruthy();
+      await click("Decline");
+
+      expect(await screen.findByRole("heading", { name: "Decline request from Dr. Hasan?" })).toBeTruthy();
+      fireEvent.change(screen.getByLabelText(/Reason for declining/), { target: { value: "Invalid BMDC" } });
+      await click("Decline");
+
+      await waitFor(() => expect(calls.some((c) => c.key === "POST /admin/access-requests/req-2/reject")).toBe(true));
+      const post = calls.find((c) => c.key === "POST /admin/access-requests/req-2/reject")!;
+      expect(JSON.parse(post.body)).toEqual({ reason: "Invalid BMDC" });
     });
   });
 });

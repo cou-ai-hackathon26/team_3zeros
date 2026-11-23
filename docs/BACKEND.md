@@ -124,10 +124,17 @@ Only the fields that drive behavior are listed. All models extend
 ### 4.3 organizations and directory
 
 - `Facility`: `name`, `name_bn`, `type` (upazila health complex, district
-  hospital, private clinic …), `area`, `address`, `phone`, `fhir_id`.
+  hospital, private clinic, private chamber …), `area`, `address`, `phone`, `fhir_id`.
 - `Department`, `Practitioner` (`registration_number`, `name`, `name_bn`,
   `user` nullable), `PractitionerRole` (`practitioner`, `facility`,
   `specialty`, `active`).
+- `AccessRequest` (MASTERPLAN D-19): `name`, `bmdc_registration_number`, `contact`,
+  `facility` (optional), `chamber_name`, `chamber_name_bn`, `status` (`PENDING`, `APPROVED`, `REJECTED`),
+  `rejection_reason`, `reviewed_at`, `reviewed_by`.
+  - `POST /access-requests`: Public clinician access / chamber onboarding request.
+  - `GET /admin/access-requests`: Admin list with optional `?status=`.
+  - `POST /admin/access-requests/{id}/approve`: Approves request, auto-creates private chamber facility & practitioner account if chamber.
+  - `POST /admin/access-requests/{id}/reject`: Declines request with required reason.
 - `Area`: hierarchical (`division` → `district` → `upazila`) with Bangla and
   English names. Discovery filters by area, never by exact GPS.
 - `Specialty`, `Service` (`facility`, `code`, `name`, `name_bn`).

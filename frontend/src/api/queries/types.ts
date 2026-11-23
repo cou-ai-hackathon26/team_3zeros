@@ -239,4 +239,20 @@ export interface NotificationItem {
   [field: string]: unknown;
 }
 
+export interface AccessRequestItem {
+  id: string;
+  name: string;
+  bmdc_registration_number: string;
+  contact: string;
+  facility_id?: string | null;
+  facility_name?: string | null;
+  facility_name_bn?: string | null;
+  chamber_name?: string | null;
+  chamber_name_bn?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  rejection_reason?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+}
+
 export type QueryFilters = Record<string, string | undefined>;

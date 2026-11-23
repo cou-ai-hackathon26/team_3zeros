@@ -21,4 +21,5 @@ export const queryKeys = {
   adminSchedules: ["admin", "schedules"] as const,
   adminCapacityReports: ["admin", "capacity-reports"] as const,
   adminStaff: ["admin", "staff"] as const,
+  adminAccessRequests: (status?: string) => ["admin", "accessRequests", status ?? "all"] as const,
 };

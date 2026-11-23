@@ -77,7 +77,16 @@ function DoctorRow({ doctor, facilities, locale }: { doctor: DirectoryPractition
       >
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-body font-semibold">{pickName(locale, doctor.name, doctor.name_bn)}</span>
-          <span className="text-caption text-ink-muted">{[specialty, facility && pickName(locale, facility.name, facility.name_bn)].filter(Boolean).join(", ")}</span>
+          <span className="text-caption text-ink-muted">
+            {[
+              specialty,
+              facility && (
+                facility.type === "private_chamber"
+                  ? `${pickName(locale, facility.name, facility.name_bn)} (${t(locale, "doctors.privateChamber")})`
+                  : pickName(locale, facility.name, facility.name_bn)
+              ),
+            ].filter(Boolean).join(", ")}
+          </span>
           <CapacityLine facility={facility && facilities.get(facility.id)} locale={locale} />
         </span>
         <ChevronDown aria-hidden className={cn("size-5 shrink-0 transition-transform", open && "rotate-180")} />
