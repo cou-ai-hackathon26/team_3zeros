@@ -6,8 +6,8 @@ from apps.common.models import TimeStamped
 
 class UserManager(BaseUserManager):
     def create_user(self, phone=None, email=None, password=None, display_name="", **extra_fields):
-        if not phone and not email:
-            raise ValueError("Either phone number or email must be provided.")
+        if not phone and not email and not extra_fields.get("username"):
+            raise ValueError("An email, username or phone number must be provided.")
         if email:
             email = self.normalize_email(email)
         user = self.model(
@@ -40,12 +40,16 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStamped):
         ("en", "English"),
     ]
 
+    # Sign-in identifiers: email or username, with a password (no one-time codes). Phone is a contact detail only.
+    username = models.CharField(max_length=150, unique=True, null=True, blank=True, db_index=True)
     phone = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
     email = models.EmailField(unique=True, null=True, blank=True, db_index=True)
     display_name = models.CharField(max_length=255, blank=True)
     preferred_language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default="bn")
     is_active = models.BooleanField(default=True)
     mfa_enabled = models.BooleanField(default=False)
+    # Base32 TOTP secret (D-17). Required for admin accounts; empty until enrolled.
+    mfa_secret = models.CharField(max_length=64, blank=True, default="")
     is_staff = models.BooleanField(default=False)
 
     objects = UserManager()

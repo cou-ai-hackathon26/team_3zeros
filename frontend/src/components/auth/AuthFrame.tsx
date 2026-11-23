@@ -30,7 +30,7 @@ function BrandTracker({ labels }: { labels: string[] }) {
 export function AuthFrame({ children }: { children: React.ReactNode }) {
   const locale = usePageLocale(undefined, "bn");
   const pathname = usePathname() ?? "";
-  const staff = /\/(login\/staff|access|not-authorised)/.test(pathname);
+  const staff = /\/(login\/staff|admin\/login|access|not-authorised)/.test(pathname);
 
   return (
     <div className="min-h-dvh bg-paper lg:grid lg:grid-cols-[5fr_7fr]">

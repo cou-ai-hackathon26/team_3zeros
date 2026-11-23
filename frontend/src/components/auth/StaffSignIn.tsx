@@ -15,10 +15,11 @@ import { CodeInput, Field, Input, PasswordInput } from "../ui/field";
 import { FormAlert, StepHeading } from "./FormParts";
 
 /** Staff sign-in: identifier and password, then MFA on the same route (AUTH_RBAC §4.2). */
-export function StaffSignIn() {
+/** `admin` uses the separate admin entrance (MASTERPLAN D-17). It is not linked from anywhere in the UI. */
+export function StaffSignIn({ admin = false }: { admin?: boolean }) {
   const locale = usePageLocale(undefined, "en");
   const router = useRouter();
-  const { loginStaff, verifyMfa } = useAuth();
+  const { signIn, verifyMfa } = useAuth();
   const redirect = useSignInRedirect();
   const [step, setStep] = useState<"password" | "mfa">("password");
   const [identifier, setIdentifier] = useState("");
@@ -39,7 +40,7 @@ export function StaffSignIn() {
     setFieldError(null);
     setBusy(true);
     try {
-      const result = await loginStaff(identifier, password);
+      const result = await signIn(identifier, password, { admin });
       if (result.status === "mfa_required") setStep("mfa");
       else finish(result.me);
     } catch (err) {
@@ -79,7 +80,7 @@ export function StaffSignIn() {
           <p className="m-0 text-dense text-ink-muted">{t(locale, "auth.staff.mfaHelp")}</p>
         </div>
         <FormAlert message={formError} />
-        <Field label={t(locale, "auth.patient.code")} required error={fieldError ?? undefined} locale={locale}>
+        <Field label={t(locale, "auth.staff.code")} required error={fieldError ?? undefined} locale={locale}>
           {(p) => <CodeInput {...p} maxLength={6} value={code} readOnly={busy} onChange={(e) => setCode(e.target.value)} />}
         </Field>
         <Button type="submit" size="lg" loading={busy} loadingLabel={t(locale, "auth.staff.verifying")}>
@@ -95,7 +96,7 @@ export function StaffSignIn() {
   return (
     <>
       <form onSubmit={submitPassword} className="flex flex-col gap-6" noValidate>
-        <StepHeading>{t(locale, "auth.staff.title")}</StepHeading>
+        <StepHeading>{admin ? t(locale, "auth.admin.title") : t(locale, "auth.staff.title")}</StepHeading>
         <FormAlert message={formError} />
         <Field label={t(locale, "auth.staff.identifier")} required locale={locale}>
           {(p) => <Input {...p} type="text" autoComplete="username" value={identifier} readOnly={busy} onChange={(e) => setIdentifier(e.target.value)} />}
@@ -116,24 +117,30 @@ export function StaffSignIn() {
         <Button type="submit" size="lg" loading={busy} loadingLabel={t(locale, "auth.staff.signingIn")}>
           {t(locale, "auth.staff.signIn")}
         </Button>
-        {FEATURES.passwordReset ? (
+        {!admin && (FEATURES.passwordReset ? (
           <Link href={`/${locale}/login/staff/reset`} className="text-dense text-indigo underline underline-offset-2">
             {t(locale, "auth.staff.forgotLink")}
           </Link>
         ) : (
           <p className="m-0 text-dense text-ink-muted">{t(locale, "auth.staff.forgotAsk")}</p>
+        ))}
+        {!admin && (
+          <Link href={`/${locale}/access`} className="text-dense text-indigo underline underline-offset-2">
+            {t(locale, "auth.staff.howAccess")}
+          </Link>
         )}
-        <Link href={`/${locale}/access`} className="text-dense text-indigo underline underline-offset-2">
-          {t(locale, "auth.staff.howAccess")}
-        </Link>
       </form>
-      <hr className="m-0 border-0 border-t border-line" />
-      <p className="m-0 flex flex-col gap-2 text-dense text-ink-muted">
-        {t(locale, "auth.staff.orPatient")}
-        <Link href={`/${locale}/login`} className="text-indigo underline underline-offset-2">
-          {t(locale, "auth.staff.patientLink")}
-        </Link>
-      </p>
+      {!admin && (
+        <>
+          <hr className="m-0 border-0 border-t border-line" />
+          <p className="m-0 flex flex-col gap-2 text-dense text-ink-muted">
+            {t(locale, "auth.staff.orPatient")}
+            <Link href={`/${locale}/login`} className="text-indigo underline underline-offset-2">
+              {t(locale, "auth.staff.patientLink")}
+            </Link>
+          </p>
+        </>
+      )}
     </>
   );
 }

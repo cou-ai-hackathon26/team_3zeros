@@ -120,32 +120,72 @@ class AdminCapacityReportsView(views.APIView):
         return Response({"results": CapacityReportSerializer(qs.order_by("-reported_at")[:50], many=True).data, "next_cursor": None})
 
 
+class AdminPermissionsView(views.APIView):
+    """The permission catalogue (MASTERPLAN D-16)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.accounts.admin_services import require_admin
+        from apps.accounts.catalogue import PERMISSIONS
+        require_admin(request.user)
+        return Response({"results": PERMISSIONS, "next_cursor": None})
+
+
 class AdminStaffView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        scoped_facility = _require_admin_role(request.user)
+        from apps.accounts.admin_services import membership_row, require_admin
         from apps.accounts.models import Membership
-        qs = Membership.objects.select_related("user", "facility").all()
+        scoped_facility = require_admin(request.user)
+        qs = Membership.objects.select_related("user", "facility").order_by("facility__name", "user__display_name")
         if scoped_facility:
             qs = qs.filter(facility=scoped_facility)
-        results = [
-            {
-                "id": str(m.public_id),
-                "user_id": str(m.user.public_id),
-                "name": m.user.display_name or m.user.phone or m.user.email,
-                "email": m.user.email,
-                "phone": m.user.phone,
-                "facility_id": str(m.facility.public_id),
-                "facility_name": m.facility.name,
-                "role": m.role,
-                "permissions": m.permissions,
-                "active_from": m.active_from.isoformat() if m.active_from else None,
-                "active_to": m.active_to.isoformat() if m.active_to else None,
-            }
-            for m in qs
-        ]
-        return Response({"results": results, "next_cursor": None})
+        return Response({"results": [membership_row(m) for m in qs], "next_cursor": None})
+
+    def post(self, request):
+        from apps.accounts.admin_services import create_staff, membership_row
+        from apps.accounts.admin_services import require_admin
+        from apps.accounts.serializers import StaffCreateSerializer
+        require_admin(request.user)  # role first, so a non-admin learns nothing from validation errors
+        s = StaffCreateSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        out = create_staff(request.user, s.validated_data, request)
+        body = {**membership_row(out.pop("membership")), **out}  # one-time secrets are returned here and never again
+        return Response(body, status=status.HTTP_201_CREATED)
+
+
+class AdminStaffDetailView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, public_id):
+        from apps.accounts.admin_services import get_membership, membership_row, update_staff
+        from apps.accounts.serializers import StaffUpdateSerializer
+        s = StaffUpdateSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        m = update_staff(request.user, get_membership(request.user, public_id), s.validated_data, request)
+        return Response(membership_row(m))
+
+
+class AdminStaffActionView(views.APIView):
+    """deactivate, reactivate, reset-password, reset-mfa, revoke-sessions."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, public_id, action):
+        from apps.accounts import admin_services as svc
+        from apps.common.exceptions import NotFoundError
+        m = svc.get_membership(request.user, public_id)
+        if action == "deactivate":
+            return Response(svc.membership_row(svc.deactivate_staff(request.user, m, request)))
+        if action == "reactivate":
+            return Response(svc.membership_row(svc.reactivate_staff(request.user, m, request)))
+        if action == "reset-password":
+            return Response({"temporary_password": svc.reset_password(request.user, m, request)})
+        if action == "reset-mfa":
+            return Response({"totp_uri": svc.reset_mfa(request.user, m, request)})
+        if action == "revoke-sessions":
+            return Response({"revoked": svc.revoke_sessions(request.user, m, request)})
+        raise NotFoundError("Unknown action.")
 
 
 class FhirIntegrationBoundaryView(views.APIView):

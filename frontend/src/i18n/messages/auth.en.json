@@ -1,18 +1,14 @@
 {
   "patient": {
-    "title": "Sign in with your mobile number",
-    "help": "We will send a 6-digit code by SMS.",
-    "phone": "Mobile number",
-    "sendCode": "Send code",
-    "sending": "Sending…",
-    "codeTitle": "Enter the code",
-    "codeSent": "Sent to {phone}.",
-    "changeNumber": "Change number",
-    "code": "Code",
+    "title": "Sign in",
+    "help": "Use the email or username you registered with.",
+    "identifier": "Email or username",
+    "password": "Password",
+    "show": "Show password",
+    "hide": "Hide password",
     "signIn": "Sign in",
     "signingIn": "Signing in…",
-    "resend": "Send a new code",
-    "resendIn": "Send a new code in {s} seconds",
+    "createLink": "Create an account",
     "notSetUp": "Your account is not set up yet. Please ask the facility desk.",
     "staffLink": "Staff sign in",
     "orStaff": "Are you a doctor or facility staff?",
@@ -20,7 +16,7 @@
   },
   "staff": {
     "title": "Staff sign in",
-    "identifier": "Email or phone",
+    "identifier": "Email or username",
     "password": "Password",
     "show": "Show password",
     "hide": "Hide password",
@@ -37,17 +33,18 @@
     "patientLink": "Patient sign in",
     "orPatient": "Are you a patient?",
     "privacy": "Every record access is logged.",
-    "noAccess": "Your account has no facility access yet."
+    "noAccess": "Your account has no facility access yet.",
+    "code": "Code"
   },
   "error": {
-    "badCredentials": "Email, phone or password is not right.",
+    "badCredentials": "Email, username or password is not right.",
     "inactive": "This account is not active. Contact your facility admin.",
-    "badCode": "That code is not right or has expired.",
     "badMfa": "That code is not right.",
     "mfaLost": "Please sign in again.",
     "rateLimited": "Too many attempts. Try again in a few minutes.",
     "offline": "No connection. Check your internet and try again.",
-    "required": "This field is required."
+    "required": "This field is required.",
+    "registerFailed": "We could not create an account with those details. Check them and try again."
   },
   "brand": {
     "patientLine": "Find the right doctor and keep your care in one place.",
@@ -108,8 +105,8 @@
   },
   "reset": {
     "title": "Reset your password",
-    "help": "Enter your email or phone. If an account matches, we will send instructions.",
-    "identifier": "Email or phone",
+    "help": "Enter your email or username. If an account matches, we will send instructions.",
+    "identifier": "Email or username",
     "send": "Send reset instructions",
     "neutral": "If an account matches, we have sent instructions.",
     "newTitle": "Set a new password",
@@ -124,5 +121,21 @@
     "expired": "This link has expired.",
     "used": "This link was already used.",
     "signIn": "Sign in"
+  },
+  "register": {
+    "title": "Create your account",
+    "help": "Use an email or choose a username. You will sign in with it and your password.",
+    "name": "Your name",
+    "identifier": "Email or username",
+    "password": "Password",
+    "rules": "Use at least 12 characters. Avoid common passwords.",
+    "create": "Create account",
+    "creating": "Creating…",
+    "haveAccount": "Already have an account?",
+    "signInLink": "Sign in"
+  },
+  "admin": {
+    "title": "Administrator sign in",
+    "help": "Enter your email or username and password, then your verification code."
   }
 }

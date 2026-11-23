@@ -48,24 +48,13 @@ def test_login_and_me_endpoint(api_client, auth_setup):
     assert logout_resp.status_code == 200
 
 @pytest.mark.django_db
-def test_otp_auth_flow(api_client):
-    # 1. Request OTP
-    req_resp = api_client.post("/api/v1/auth/otp/request", {"phone": "+8801999999999"})
-    assert req_resp.status_code == 200
-
-    # 2. Verify OTP -> logs in patient
-    ver_resp = api_client.post("/api/v1/auth/otp/verify", {
-        "phone": "+8801999999999",
-        "code": "123456",
-    })
-    assert ver_resp.status_code == 200
-    assert "user_id" in ver_resp.data
-
-    # 3. Call /auth/me -> verify 'patient' role is assigned (A-04 fix)
-    me_resp = api_client.get("/api/v1/auth/me")
-    assert me_resp.status_code == 200
-    assert "patient" in me_resp.data["roles"]
-
+def test_patient_registers_with_email_and_password_and_gets_the_patient_role(api_client):
+    r = api_client.post("/api/v1/auth/register", {"email": "karim@example.org", "display_name": "Karim", "password": "a-long-passphrase-9"}, format="json")
+    assert r.status_code == 201
+    me = api_client.get("/api/v1/auth/me").data
+    assert me["roles"] == ["patient"] and me["email"] == "karim@example.org"
+    # and can sign in again with email or username
+    assert APIClient().post("/api/v1/auth/login", {"email": "karim@example.org", "password": "a-long-passphrase-9"}, format="json").status_code == 200
 
 @pytest.mark.django_db
 def test_admin_role_access_and_views(api_client):
@@ -77,10 +66,15 @@ def test_admin_role_access_and_views(api_client):
     facility = Facility.objects.create(name="Upazila Health Complex Savar", name_bn="সাভার উপজেলা স্বাস্থ্য কমপ্লেক্স")
     Membership.objects.create(user=admin_user, facility=facility, role="facility_admin")
 
-    api_client.post("/api/v1/auth/login", {
-        "email": "admin@medidemo.com",
-        "password": "secretpassword123",
-    })
+    # Admins use the separate entrance, with MFA (MASTERPLAN D-17); the staff entrance refuses them.
+    from apps.accounts.security import new_totp_secret, totp_code
+    admin_user.mfa_enabled = True
+    admin_user.mfa_secret = new_totp_secret()
+    admin_user.save()
+    refused = api_client.post("/api/v1/auth/login", {"email": "admin@medidemo.com", "password": "secretpassword123"})
+    assert refused.status_code == 401
+    api_client.post("/api/v1/auth/admin/login", {"email": "admin@medidemo.com", "password": "secretpassword123"})
+    api_client.post("/api/v1/auth/mfa/verify", {"code": totp_code(admin_user.mfa_secret)})
 
     # A-23: active_facility defaulted automatically
     me_resp = api_client.get("/api/v1/auth/me")

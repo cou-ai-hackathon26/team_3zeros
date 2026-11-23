@@ -87,7 +87,7 @@ returns the referral outcome to the doctor who referred them.
 | INV-3 | Bangla and English are both supported, including switching mid-session. |
 | INV-4 | Doctors approve appointment requests and outgoing referrals only in the authenticated dashboard. |
 | INV-5 | Receiving facilities acknowledge or decline referrals only in their dashboard. |
-| INV-6 | SMS is only for OTP, notifications, reminders and status. An SMS cannot perform or approve any action. |
+| INV-6 | SMS is only for notifications, reminders and status. An SMS cannot perform or approve any action. |
 | INV-7 | AI does not diagnose, prescribe, give doses, approve, or send. AI output is a draft until a clinician accepts it. |
 | INV-8 | Deterministic clinician-authored red-flag rules run before any generated triage text. |
 | INV-9 | Every access to patient data and every state transition is permission-checked on the server and audited. |
@@ -396,9 +396,9 @@ backend must match it. Paths are relative to `/api/v1`.
 
 | Group | Method + path | Purpose |
 |---|---|---|
-| auth | `POST /auth/login` | Password login (clinician/staff/admin); may return `mfa_required` |
+| auth | `POST /auth/login` | Password login with email or username (every non-admin role); may return `mfa_required`. Admin accounts are refused here |
 | auth | `POST /auth/mfa/verify` | Complete MFA |
-| auth | `POST /auth/otp/request`, `POST /auth/otp/verify` | Patient phone OTP sign-in / verification |
+| auth | `POST /auth/register` | Patient self-registration with email or username and a password; signs the patient in |
 | auth | `POST /auth/logout` | End session |
 | auth | `GET /auth/me` | Current user, roles, active facility, permissions |
 | auth | `POST /auth/active-facility` | Switch facility scope |
@@ -447,6 +447,11 @@ backend must match it. Paths are relative to `/api/v1`.
 | consents | `POST /consents/{id}/revoke` | Revoke |
 | notifications | `GET /notifications`, `POST /notifications/{id}/read` | In-app notifications |
 | admin | `/admin/facilities/*`, `/admin/practitioners/*`, `/admin/schedules/*`, `/admin/capacity-reports/*`, `/admin/staff/*` | Facility administration |
+| admin | `GET /admin/permissions` | The permission catalogue (D-16) |
+| admin | `POST /admin/staff` | Create a staff account and membership. Returns a one-time temporary password and TOTP setup URI |
+| admin | `PATCH /admin/staff/{id}` | Change role or permissions of a membership |
+| admin | `POST /admin/staff/{id}/deactivate`, `…/reactivate`, `…/reset-password`, `…/reset-mfa`, `…/revoke-sessions` | Access control actions. Secrets are returned once |
+| auth | `POST /auth/admin/login` | Admin password login, then `POST /auth/mfa/verify`. Non-admin accounts get the same error as bad credentials |
 | audit | `GET /audit/events?patient=&actor=` | Scoped audit metadata |
 | fhir | `/integrations/fhir/*` | Controlled FHIR boundary for approved external systems |
 
@@ -539,6 +544,9 @@ Status labels shown to users come from i18n keys `state.<entity>.<STATE>`
 | D-13 | The receiving facility of an emergency referral can always read its five-field minimum dataset, without consent. Rationale: the same data travels with the patient on the printed slip, and INV-16 forbids blocking transfer. Full-record access still needs consent or the Q-07 exception. **To be confirmed by clinical/legal review under Q-07.** | Architecture §5.6, §7.2 |
 | D-14 | Styling is Tailwind CSS v4 with shadcn/ui components, both generated from `tokens.json`; the default Tailwind palette is removed so classes cannot bypass tokens. Supersedes the CSS Modules choice in FRONTEND §2 | docs/redesign/UI_COMPONENT_LIBRARY_STRATEGY.md |
 | D-15 | Visual identity is "Handover" (handover tracker, Bengal indigo on warm paper, Tiro Bangla + Hind Siliguri). Supersedes the "route" identity in UIUX_DESIGN §3–§5 | docs/redesign/DESIGN_SYSTEM.md |
+| D-16 | Permission catalogue and grant rules. Membership permissions are drawn only from `schedule.manage`, `referral.acknowledge`, `referral.create`, `emergency.create` (served by `GET /admin/permissions`). A `facility_admin` may create and change `clinician` and `facility_staff` memberships in their own facility only. Only a `platform_admin` may create or change a `facility_admin`, and may act in any facility. A `platform_admin` is created only by the `create_platform_admin` management command. Nobody may change or deactivate their own account here, or deactivate the last platform admin. Every change is audited | docs/redesign/AUTH_RBAC_ARCHITECTURE.md §2 |
+| D-17 | Admin accounts sign in only at a separate, unlinked URL (`/{locale}/admin/login`, backed by `POST /auth/admin/login`), with TOTP MFA mandatory. `POST /auth/login` refuses any account that holds an admin role, with the same neutral error as a wrong password. Sessions for staff and admins expire after 15 idle minutes. Answers Q-13 for admin accounts only; the MFA method for clinicians stays open. A hidden URL is not a security control: the server-side role check, MFA and rate limits are | docs/SECURITY.md §3 |
+| D-18 | No one-time codes anywhere. Every user signs in with an email or username and a password (minimum 12 characters, common-password check). Patients register themselves at `POST /auth/register`; staff accounts are created by admins (D-16). Phone is a contact detail, not a sign-in identifier. Supersedes the patient phone-OTP design in SECURITY §3.1 | Product owner, 2026-11-23 |
 
 ### 8.2 Open questions — do not assume answers
 
@@ -558,7 +566,7 @@ Status labels shown to users come from i18n keys `state.<entity>.<STATE>`
 | Q-12 | LLM model choice and hosting for drafting and triage responses | AI adapter | Researcher |
 | Q-13 | MFA method for clinicians (TOTP app vs SMS OTP) | Auth | Security + facilities |
 | Q-14 | Staff password reset: self-service, or only by a facility admin? (proposed) | `/login/staff/reset` (flag `PASSWORD_RESET`) | Security + facilities |
-| Q-15 | Patient profile fields, and when the `PatientAccount` is created after first OTP sign-in (proposed) | `/welcome` (flag `PATIENT_PROFILE`) | Product + lead dev |
+| Q-15 | Patient profile fields beyond name, email or username and password (proposed) | `/welcome` (flag `PATIENT_PROFILE`) | Product + lead dev |
 | Q-16 | Clinician access request and approval workflow, and whether a requester can see status without an account (proposed) | `/access` request, admin "Requests" tab (flag `ACCESS_REQUEST`) | Product + facilities |
 | Q-17 | Whether and how email is verified, and who triggers it (proposed) | `/verify-email` (flag `EMAIL_VERIFICATION`) | Product + security |
 
@@ -614,6 +622,7 @@ Record every change to §4–§7 here so both ends see it. Newest first.
 
 | Date | Change | Backend updated | Frontend updated | By |
 |---|---|---|---|---|
+| 2026-11-23 | Admin access control: D-16, D-17; `GET /admin/permissions`, `POST /admin/staff`, `PATCH /admin/staff/{id}` and five action endpoints; `POST /auth/admin/login`; `POST /auth/register` replaces `POST /auth/otp/request` and `/auth/otp/verify` (D-18); error code `rate_limited` now returned for sign-in attempts; `me` roles ignore expired memberships | yes | yes | Planning |
 | 2026-11-23 | UI redesign governance: D-14, D-15, Q-14–Q-17, §8.3 known gaps; frontend route map additions (`/home`, `/consents`, `/notifications`, `/patients`, `/referrals`, auth routes). No change to §4–§7 contracts | n/a | n/a (docs only, FRONTEND §2–§4, §10–§11) | Planning |
 | 2026-11-22 | Added `POST /triage/sessions/{id}/finish` so `finish_questions` is reachable by the patient; backend implements §5.3, §5.4 and §5.8 (FHIR-gated completion, `FHIR_SYNC_MODE`); system-only actions can no longer be called by users | yes | n/a (not built) | Backend |
 | 2026-11-21 | Review fixes: PATIENT_ACCEPTED appointment state; referral `reopen_draft`, `consent_refused`, `consent_revoked`, `use_existing_consent`; FHIR-gated transitions (§5.8) with `pending_action`; triage/document action tables; ConsentRequest states; `content_hash`, `emergency_mode`, `provisional_code`, triage consent; device endpoints (Q-09); D-13 | n/a (not built) | n/a (not built) | Planning |

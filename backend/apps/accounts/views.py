@@ -7,15 +7,13 @@ from .serializers import (
     UserMeSerializer,
     LoginSerializer,
     MfaVerifySerializer,
-    OtpRequestSerializer,
-    OtpVerifySerializer,
     ActiveFacilitySerializer,
+    RegisterSerializer,
 )
 from .services import (
     authenticate_and_login,
+    register_patient,
     verify_mfa_code,
-    request_phone_otp,
-    verify_phone_otp_and_login,
 )
 from .selectors import get_user_roles, get_user_permissions
 from apps.common.exceptions import ValidationError, NotFoundError
@@ -39,6 +37,26 @@ class LoginView(views.APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
+class AdminLoginView(views.APIView):
+    """Separate admin entrance (MASTERPLAN D-17). Not linked from the UI; MFA is mandatory."""
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = authenticate_and_login(
+            request,
+            username=serializer.validated_data.get("username"),
+            email=serializer.validated_data.get("email"),
+            phone=serializer.validated_data.get("phone"),
+            password=serializer.validated_data["password"],
+            admin=True,
+        )
+        return Response({"message": "Login successful.", "user_id": str(user.public_id)})
+
+
+@method_decorator(csrf_exempt, name="dispatch")
 class MfaVerifyView(views.APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
@@ -51,31 +69,16 @@ class MfaVerifyView(views.APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class OtpRequestView(views.APIView):
+class RegisterView(views.APIView):
+    """Patient self-registration with email or username and a password."""
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        serializer = OtpRequestSerializer(data=request.data)
+        serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        msg = request_phone_otp(serializer.validated_data["phone"])
-        return Response({"message": msg})
-
-
-@method_decorator(csrf_exempt, name="dispatch")
-class OtpVerifyView(views.APIView):
-    authentication_classes = []
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        serializer = OtpVerifySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = verify_phone_otp_and_login(
-            request,
-            serializer.validated_data["phone"],
-            serializer.validated_data["code"],
-        )
-        return Response({"message": "OTP verification successful.", "user_id": str(user.public_id)})
+        user = register_patient(request, **serializer.validated_data)
+        return Response({"message": "Account created.", "user_id": str(user.public_id)}, status=status.HTTP_201_CREATED)
 
 
 @method_decorator(csrf_exempt, name="dispatch")

@@ -27,3 +27,6 @@ CHANNEL_LAYERS = {
 }
 
 FHIR_SYNC_MODE = "stub"
+
+# Fixed OTP and MFA code for local development only (audit A-02).
+DEV_FIXED_CODES = True

@@ -120,3 +120,18 @@ their `backend/db.sqlite3`:
    - Clinical review for landing `how` and `safety` sections.
    - Bengali font check on low-end mobile devices (DESIGN_SYSTEM §3.1).
 3. Production hardening: rate limiting on phone OTP, real SMS gateway integration for OTP delivery.
+
+
+## Update: admin access control and password-only sign-in (2026-11-23)
+
+Decisions (MASTERPLAN D-16, D-17, D-18; contract rows in §6.3 and the §10 ledger):
+
+- **No one-time codes anywhere.** Everyone signs in with email or username and a password. Patients register at `/register` (`POST /auth/register`); staff accounts are created by admins. `POST /auth/otp/*` and `apps/accounts/sms.py` are gone. Phone is a contact field only; `User.username` is new (migration 0004).
+- **Admins sign in only at `/{locale}/admin/login`** (`POST /auth/admin/login`, then `/auth/mfa/verify` with TOTP). The page is unlinked, `noindex`, and `POST /auth/login` refuses admin accounts with the same error as a wrong password. An admin without enrolled MFA cannot sign in. This is obscurity on top of real controls, not a substitute.
+- **First platform admin:** `python manage.py create_platform_admin --email … --name …` prints the temporary password and TOTP setup URI once.
+- **Permission catalogue** is `apps/accounts/catalogue.py` (four codes), served by `GET /admin/permissions`. A facility admin manages clinician and facility-staff memberships in their own facility only; only a platform admin creates or changes a facility admin; nobody changes their own access; the last platform admin cannot be deactivated. Every change is audited (`membership` events).
+- **Admin actions:** create, edit role and permissions, deactivate, reactivate, reset password, reset MFA, revoke sessions. Secrets are returned once. Deactivation ends sessions at once; expired memberships grant no role.
+- **Sign-in hardening (A-02):** 5 failures per identifier or client address then a 15-minute lock (cache-backed: **production needs a shared cache such as Redis**), staff and admin sessions last 15 idle minutes, `DEV_FIXED_CODES` (local only) keeps `123456` for MFA in development.
+- Frontend: `/register`, `/admin/login`, a rebuilt `/staff` page with dialogs, and `useAuth().signIn / registerPatient`. Seed users: `patient@demo.com`, `doctor@demo.com`, `admin@demo.com` (all `Password123!`; the seeded `admin@demo.com` has no membership role, create a platform admin with the command).
+
+Still open: facility/schedule/capacity writes (G-5), an audit-log view (Q-07), password self-service reset (Q-14), TOTP for clinicians (Q-13), real SMS for notifications, and a shared cache in production. Not verified in a browser (the browser tool was unavailable): the new pages were checked by tests, a production build and route smoke tests only.

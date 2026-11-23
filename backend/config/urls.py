@@ -27,6 +27,9 @@ from apps.organizations.views import (
     AdminSchedulesView,
     AdminCapacityReportsView,
     AdminStaffView,
+    AdminStaffDetailView,
+    AdminStaffActionView,
+    AdminPermissionsView,
     FhirIntegrationBoundaryView,
 )
 
@@ -56,7 +59,10 @@ urlpatterns = [
     path("api/v1/admin/practitioners", AdminPractitionersView.as_view(), name="admin-practitioners"),
     path("api/v1/admin/schedules", AdminSchedulesView.as_view(), name="admin-schedules"),
     path("api/v1/admin/capacity-reports", AdminCapacityReportsView.as_view(), name="admin-capacity-reports"),
+    path("api/v1/admin/permissions", AdminPermissionsView.as_view(), name="admin-permissions"),
     path("api/v1/admin/staff", AdminStaffView.as_view(), name="admin-staff"),
+    path("api/v1/admin/staff/<uuid:public_id>", AdminStaffDetailView.as_view(), name="admin-staff-detail"),
+    path("api/v1/admin/staff/<uuid:public_id>/<str:action>", AdminStaffActionView.as_view(), name="admin-staff-action"),
     path("api/v1/integrations/fhir/<path:resource_path>", FhirIntegrationBoundaryView.as_view(), name="fhir-boundary"),
     # App-prefixed API endpoints v1
     path("api/v1/auth/", include("apps.accounts.urls")),

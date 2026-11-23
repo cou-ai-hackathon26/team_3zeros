@@ -1,6 +1,6 @@
 # Medi Waypoint — Authentication & RBAC Architecture
 
-> **BLUF:** The backend supports two sign-in methods (patient phone OTP;
+> **BLUF (updated 2026-11-23):** Every user signs in with email or username and a password; admins use a separate unlinked entrance with TOTP (MASTERPLAN D-17). The text below describes the earlier two-method design where it still mentions OTP. (patient phone OTP;
 > staff password with optional MFA), five roles, and permission strings per
 > facility membership. It has no registration, password reset, email
 > verification or approval workflow. This document designs (1) the real flows
@@ -72,7 +72,7 @@ patient).
 
 | Role | Area (shell) | Home after sign-in | Sign-in method |
 |---|---|---|---|
-| `patient` | Patient | `/home` | Phone OTP |
+| `patient` | Patient | `/home` | Email or username and password |
 | `clinician` | Clinical workspace | `/dashboard` | Password + MFA |
 | `facility_staff` | Clinical workspace, reduced by permissions | `/dashboard` | Password + MFA |
 | `facility_admin` | Administration | `/facility` | Password + MFA |
@@ -155,43 +155,30 @@ existing staff-management route.
 
 ## 4. Flows that exist
 
-### 4.1 Patient sign-in (phone OTP)
+### 4.1 Patient sign-in and registration (email or username and password)
 
-First sign-in and returning sign-in are the same flow: the backend creates
-the user on first successful verification. There is no separate
-"registration" for patients, and the UI must not present one.
+Decision by the product owner (2026-11-23): there are no one-time codes. Every user signs in with an
+email or username and a password; patients create their own account.
 
 ```text
-/login
-  Step 1  Title: "Sign in with your mobile number"
-          Help:  "We will send a 6-digit code by SMS."
-          Field: Mobile number (tel; accepts Bangla or Latin digits,
-                 normalised with the existing normalizeDigits())
-          Primary: "Send code"
-            → POST /auth/otp/request {phone}
-  Step 2  Title: "Enter the code"
-          Help:  "Sent to 01•••••1234."  [Change number]
-          Field: one input, inputmode="numeric",
-                 autocomplete="one-time-code", maxlength 6, large tabular digits
-          Primary: "Sign in"
-            → POST /auth/otp/verify {phone, code}
-          Secondary: "Send a new code" (disabled with a visible countdown
-                     after each request)
-  Success → GET /auth/me → redirect (§4.4)
+/login      Title: "Sign in"        Fields: Email or username; Password (show/hide)
+            Primary: "Sign in"  → POST /auth/login {email|username, password}
+            Link: "Create an account" → /register
+/register   Title: "Create your account"
+            Fields: Name; Email or username; Password (rules listed as text)
+            Primary: "Create account" → POST /auth/register, which signs the patient in
+Success → GET /auth/me → /home
 ```
 
-| Condition | What the user sees | Recovery |
-|---|---|---|
-| Request pending | Button shows a spinner and "Sending…"; field read-only | — |
-| `400 validation_error` on verify | Inline under the code field: "That code is not right or has expired." | Field cleared and focused; "Send a new code" |
-| `429 rate_limited` | Inline: "Too many attempts. Try again in a few minutes." | Buttons disabled; exact duration shown only if the API returns one |
-| Network failure | Alert above the form: "No connection. Check your internet and try again." | Primary becomes "Try again"; input kept |
-| `403 csrf_failed` | Silent single refetch of `/auth/me` to refresh the CSRF cookie, then retry once | If it fails again: generic error with request ID |
-| Signed in but `roles` lacks `patient` (audit A-04) | If the profile flag is on: `/welcome`. If off: "Your account is not set up yet. Please ask the facility desk." plus Sign out | Never drop the user on an empty home |
+| Condition | What the user sees |
+|---|---|
+| `401 not_authenticated` | One message above the form: "Email, username or password is not right." Never says which. Password cleared |
+| `400 validation_error` on register | Field errors from `field_errors` (password strength). A clash with an existing account shows one neutral message |
+| `429 rate_limited` | "Too many attempts. Try again in a few minutes." |
+| Network failure | "No connection. Check your internet and try again." Input kept |
+| Signed in but no `patient` role | "Your account is not set up yet. Please ask the facility desk." plus Sign out |
 
-A single code field is used instead of six boxes: it works with SMS
-autofill, screen readers and Bangla digit entry, and needs no extra
-dependency.
+A patient who forgets a password has no self-service reset until Q-14 is decided.
 
 ### 4.2 Staff sign-in (password, then MFA)
 
@@ -409,7 +396,7 @@ screen is designed until Q-17 states who triggers verification.
 
 | Requested item | Why it is absent |
 |---|---|
-| Patient "registration" form with password | Patients have no password; OTP sign-in creates the account. A password form would contradict `SECURITY.md` §3.1 |
+| Phone number sign-in | Removed with one-time codes. Phone stays a contact detail only |
 | Account activation screen | Covered by first staff sign-in plus MFA; no separate activation concept exists in the backend |
 | Social sign-in, "remember this device" | Not in any project document |
 

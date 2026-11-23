@@ -9,8 +9,9 @@ SAMPLE_UUID_2 = str(uuid.uuid4())
 CANONICAL_PATHS = [
     "/api/v1/auth/login",
     "/api/v1/auth/mfa/verify",
-    "/api/v1/auth/otp/request",
-    "/api/v1/auth/otp/verify",
+    "/api/v1/auth/register",
+    "/api/v1/auth/admin/login",
+    "/api/v1/admin/permissions",
     "/api/v1/auth/logout",
     "/api/v1/auth/me",
     "/api/v1/auth/active-facility",

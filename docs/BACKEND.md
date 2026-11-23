@@ -34,7 +34,7 @@ backend/
     celery.py
   apps/
     common/              # base models, UUID ids, idempotency, errors, pagination
-    accounts/            # User, roles, memberships, sessions, MFA, OTP
+    accounts/            # User, roles, memberships, sessions, MFA (TOTP)
     identity/            # Patient, identifiers, duplicate candidates
     organizations/       # Facility, Department, Practitioner, PractitionerRole
     directory/           # Area, Specialty, Service, CapacityReport, discovery queries
@@ -530,7 +530,7 @@ validator rejects placeholder text such as "N/A" invented by the model.
 - `IdempotencyMiddleware` enforces the `Idempotency-Key` header on the routes
   listed in MASTERPLAN §6.1.
 - Cursor pagination class as specified.
-- Throttles: login, OTP request/verify, triage session create, public
+- Throttles: login, registration, MFA verify, triage session create, public
   directory (values in SECURITY §3.4).
 - WebSocket via Django Channels at `/ws/events`; consumer authenticates by
   session, subscribes the user to groups derived from memberships and own

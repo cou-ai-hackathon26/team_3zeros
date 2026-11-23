@@ -56,6 +56,12 @@ FHIR_TIMEOUT_SECONDS = env("FHIR_TIMEOUT_SECONDS")
 # it would violate INV-12 in production, so production/staging must stay "live".
 FHIR_SYNC_MODE = env("FHIR_SYNC_MODE")
 
+# Local development and tests accept the fixed code 123456 for OTP and MFA. Must stay False everywhere else (audit A-02).
+DEV_FIXED_CODES = False
+# Staff and admin sessions end after 15 idle minutes (SECURITY §3.3); the expiry slides on every request.
+SESSION_SAVE_EVERY_REQUEST = True
+STAFF_SESSION_SECONDS = 15 * 60
+
 # Application definition
 DJANGO_APPS = [
     "django.contrib.admin",

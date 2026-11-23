@@ -112,7 +112,7 @@ refetch on events.
 
 - The reverse proxy serves both Next.js and `/api/*` on one origin
   (DEPLOYMENT §2), so cookies are first-party and no CORS is needed.
-- Login, MFA and OTP pages post to `/api/v1/auth/*`. Django sets the session
+- Login, registration and MFA pages post to `/api/v1/auth/*`. Django sets the session
   cookie (`HttpOnly`). JavaScript never sees a token.
 - CSRF: on app load, `GET /api/v1/auth/me` returns and sets the CSRF cookie;
   `api/client.ts` sends it as `X-CSRFToken` on every unsafe method.
@@ -375,7 +375,7 @@ recorded Bangla and English sample files (synthetic speakers only).
 | Phase | Frontend deliverables | Exit proof |
 |---|---|---|
 | 1 | App shell, locales, fonts, tokens, API client + type generation, sign-in, `me` | Authenticated call to `/auth/me` from staging |
-| 2 | Patient sign-in (OTP), discovery, admin directory screens | Discovery E2E by area and specialty |
+| 2 | Patient sign-in and registration, discovery, admin directory screens | Discovery E2E by area and specialty |
 | 3 | Appointment request, patient status route, clinician queue + decision | Concurrent request shows `slot_unavailable` message |
 | 4 | Chart, report upload, verification split view | Guessed document URL shows not found |
 | 5 | Referral workspace, consent sheet, incoming queue, outcome | Full lifecycle E2E, two browsers (sender, receiver) |

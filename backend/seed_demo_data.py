@@ -104,8 +104,9 @@ def seed():
 
     # 7. Demo Patient user
     patient_user, p_created = User.objects.get_or_create(
-        phone="+8801700000001",
+        email="patient@demo.com",
         defaults={
+            "phone": "+8801700000001",
             "display_name": "Karim Ahmed",
             "preferred_language": "bn",
             "is_active": True,
@@ -122,6 +123,9 @@ def seed():
             "area": savar_upazila,
         }
     )
+    if p_created or not patient_user.has_usable_password():
+        patient_user.set_password("Password123!")
+        patient_user.save()
     PatientAccount.objects.get_or_create(user=patient_user, defaults={"patient": patient_record})
 
     # 8. Admin user
@@ -140,7 +144,7 @@ def seed():
 
     print("Demo data seeded successfully:")
     print("  Clinician: doctor@demo.com / Password123!")
-    print("  Patient Phone: +8801700000001 (OTP: 123456)")
+    print("  Patient: patient@demo.com / Password123!")
     print("  Admin: admin@demo.com / Password123!")
 
 if __name__ == "__main__":

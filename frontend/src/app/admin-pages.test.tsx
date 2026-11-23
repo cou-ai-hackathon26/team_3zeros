@@ -1,6 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const nav = { pathname: "/en/facility", params: {} as Record<string, string> };
 vi.mock("next/navigation", () => ({
@@ -166,34 +166,99 @@ describe("Phase 7 — Admin screens (G-5)", () => {
     });
   });
 
-  describe("/staff", () => {
-    beforeEach(() => {
-      nav.pathname = "/en/staff";
+  describe("/staff (MASTERPLAN D-16, D-17)", () => {
+    beforeEach(() => { nav.pathname = "/en/staff"; });
+    const ME = (roles: string[]) => ({ id: "me-1", email: "fa@example.org", phone: null, display_name: "Admin", preferred_language: "en", roles, permissions: [], active_facility: { id: "fac-1", name: "Tangail" }, is_platform_admin: roles.includes("platform_admin") });
+    const row = (o: Record<string, unknown> = {}) => ({ id: "mem-1", user_id: "u-1", name: "Farhana Akter", email: "farhana@example.org", username: null, facility_id: "fac-1", facility_name: "Tangail", role: "facility_staff", permissions: ["emergency.create", "referral.acknowledge"], active: true, mfa_enabled: false, active_from: "2026-01-01T00:00:00Z", active_to: null, ...o });
+    const CAT = [{ code: "schedule.manage", description: "x" }, { code: "referral.acknowledge", description: "x" }, { code: "referral.create", description: "x" }, { code: "emergency.create", description: "x" }];
+    const routes = (rows: unknown[], roles = ["facility_admin"], extra: Record<string, Route> = {}) => ({
+      "GET /auth/me": () => json(ME(roles)),
+      "GET /admin/staff": () => page(rows),
+      "GET /admin/permissions": () => page(CAT),
+      "GET /admin/facilities": () => page([{ id: "fac-1", name: "Tangail" }]),
+      ...extra,
     });
+    const click = async (name: string | RegExp) => { await act(async () => { fireEvent.click(await screen.findByRole("button", { name })); }); };
 
-    it("renders staff members table with permissions and roles", async () => {
-      mount(<AdminStaffPage />, {
-        "GET /admin/staff": () =>
-          page([
-            {
-              id: "mem-1",
-              user_id: "u-1",
-              name: "Farhana Akter",
-              email: "farhana@tangail.gov.bd",
-              phone: "01711111111",
-              facility_id: "fac-1",
-              facility_name: "Tangail District Hospital",
-              role: "facility_staff",
-              permissions: ["emergency.create", "referral.acknowledge"],
-              active_from: "2026-01-01T00:00:00Z",
-              active_to: null,
-            },
-          ]),
-      });
+    it("lists staff with readable permission names, role and status, and offers no actions on your own row", async () => {
+      mount(<AdminStaffPage />, routes([row(), row({ id: "mem-me", user_id: "me-1", name: "Admin Self", role: "facility_admin", permissions: [] })]));
       expect(await screen.findByText("Farhana Akter")).toBeTruthy();
       expect(screen.getByText("Facility staff")).toBeTruthy();
-      expect(screen.getByText("01711111111")).toBeTruthy();
-      expect(screen.getByText("emergency.create, referral.acknowledge")).toBeTruthy();
+      expect(document.body.textContent).toContain("Acknowledge or decline incoming referrals");
+      expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
+      expect(screen.getByText("You cannot change your own access here.")).toBeTruthy();
+      expect(screen.getAllByRole("button", { name: "Edit access" })).toHaveLength(1);
+    });
+
+    it("creating an account posts once, shows the temporary password once, and never shows it again", async () => {
+      const { calls } = mount(<AdminStaffPage />, routes([], ["facility_admin"], { "POST /admin/staff": () => json(row({ id: "n1", name: "New Person", email: "new@example.org", temporary_password: "Xk3-temp-9pQ" }), 201) }));
+      await click("Add staff member");
+      fireEvent.change(await screen.findByLabelText(/^Name\(required/), { target: { value: "New Person" } });
+      fireEvent.change(screen.getByLabelText(/Email or username/), { target: { value: "new@example.org" } });
+      fireEvent.click(screen.getByRole("checkbox", { name: "Decide appointment requests and manage the schedule" }));
+      await click("Create account");
+      expect(await screen.findByText("Xk3-temp-9pQ")).toBeTruthy();
+      expect(screen.getByText("Save these now")).toBeTruthy();
+      const post = calls.find((c) => c.key === "POST /admin/staff")!;
+      expect(JSON.parse(post.body)).toEqual({ display_name: "New Person", email: "new@example.org", role: "facility_staff", facility_id: "fac-1", permissions: ["schedule.manage"] });
+      expect(post.headers.get("Idempotency-Key")).toBeTruthy();
+      await click("Done");
+      await waitFor(() => expect(document.body.textContent).not.toContain("Xk3-temp-9pQ"));
+    });
+
+    it("a clinician needs a registration number, and a facility admin cannot grant the admin role while a platform admin can", async () => {
+      const { unmount } = mount(<AdminStaffPage />, routes([], ["facility_admin"]));
+      await click("Add staff member");
+      await screen.findByLabelText(/Email or username/);
+      expect(screen.queryByRole("option", { name: "Facility admin" })).toBeNull();
+      fireEvent.change(screen.getByRole("combobox", { name: /Role/ }), { target: { value: "clinician" } });
+      expect(await screen.findByLabelText(/BMDC registration number/)).toBeTruthy();
+      unmount();
+      mount(<AdminStaffPage />, routes([], ["platform_admin"]));
+      await click("Add staff member");
+      expect(await screen.findByRole("option", { name: "Facility admin" })).toBeTruthy();
+    });
+
+    it("deactivating asks first, then posts; an inactive person can be reactivated", async () => {
+      const { calls } = mount(<AdminStaffPage />, routes([row(), row({ id: "mem-2", name: "Old Hand", active: false })], ["facility_admin"], {
+        "POST /admin/staff/mem-1/deactivate": () => json(row({ active: false })),
+        "POST /admin/staff/mem-2/reactivate": () => json(row({ id: "mem-2" })),
+      }));
+      await screen.findByText("Farhana Akter");
+      await click("Deactivate");
+      const dialog = await screen.findByRole("alertdialog", { name: "Deactivate Farhana Akter?" });
+      expect(calls.some((c) => c.key.endsWith("/deactivate"))).toBe(false);
+      await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Deactivate" })); });
+      await waitFor(() => expect(calls.some((c) => c.key === "POST /admin/staff/mem-1/deactivate")).toBe(true));
+      await click("Reactivate");
+      await waitFor(() => expect(calls.some((c) => c.key === "POST /admin/staff/mem-2/reactivate")).toBe(true));
+    });
+
+    it("resetting a password confirms, then shows the new one once", async () => {
+      mount(<AdminStaffPage />, routes([row()], ["facility_admin"], { "POST /admin/staff/mem-1/reset-password": () => json({ temporary_password: "New-temp-77aB" }) }));
+      await screen.findByText("Farhana Akter");
+      await click("Reset password");
+      await act(async () => { fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Reset password" })); });
+      expect(await screen.findByText("New-temp-77aB")).toBeTruthy();
+    });
+
+    it("editing sends the chosen permissions; a refusal from the server is shown, not hidden", async () => {
+      const { calls } = mount(<AdminStaffPage />, routes([row()], ["facility_admin"], { "PATCH /admin/staff/mem-1": () => json({ error: { code: "permission_denied", message: "Only a platform admin can change an admin.", request_id: "r" } }, 403) }));
+      await screen.findByText("Farhana Akter");
+      await click("Edit access");
+      fireEvent.click(await screen.findByRole("checkbox", { name: "Create outgoing referrals" }));
+      await click("Save");
+      await waitFor(() => expect(calls.some((c) => c.key === "PATCH /admin/staff/mem-1")).toBe(true));
+      expect(JSON.parse(calls.find((c) => c.key === "PATCH /admin/staff/mem-1")!.body).permissions).toContain("referral.create");
+      expect((await screen.findAllByText("Only a platform admin can change an admin.")).length).toBeGreaterThan(0);
+    });
+
+    it("empty and error states", async () => {
+      const { unmount } = mount(<AdminStaffPage />, routes([]));
+      expect(await screen.findByText("No staff memberships found.")).toBeTruthy();
+      unmount();
+      mount(<AdminStaffPage />, { ...routes([]), "GET /admin/staff": () => err("not_found", 404) });
+      expect(await screen.findByText("Failed to load staff accounts.")).toBeTruthy();
     });
   });
 });

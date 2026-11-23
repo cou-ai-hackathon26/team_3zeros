@@ -25,14 +25,28 @@ class MfaVerifySerializer(serializers.Serializer):
     code = serializers.CharField(max_length=10)
 
 
-class OtpRequestSerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=20)
-
-
-class OtpVerifySerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=20)
-    code = serializers.CharField(max_length=10)
+class RegisterSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    username = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=150)
+    display_name = serializers.CharField(max_length=255)
+    password = serializers.CharField(write_only=True, max_length=128)
 
 
 class ActiveFacilitySerializer(serializers.Serializer):
     facility_id = serializers.UUIDField()
+
+
+class StaffCreateSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
+    username = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=150)
+    phone = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=20)
+    display_name = serializers.CharField(max_length=255)
+    role = serializers.CharField()
+    facility_id = serializers.UUIDField()
+    permissions = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    registration_number = serializers.CharField(required=False, allow_blank=True, max_length=100)
+
+
+class StaffUpdateSerializer(serializers.Serializer):
+    role = serializers.CharField(required=False)
+    permissions = serializers.ListField(child=serializers.CharField(), required=False)

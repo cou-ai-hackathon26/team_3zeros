@@ -66,44 +66,45 @@ describe("useMe", () => {
   });
 });
 
-describe("sign-in flows", () => {
-  it("patient: requests an OTP with normalised digits, then verifies and returns me", async () => {
-    const { wrapper, calls } = setup((req) => (req.url.endsWith("/auth/me") ? json({ ...ME, roles: ["patient"] }) : json({ message: "ok" })));
+describe("sign-in flows (email or username and password, no one-time codes)", () => {
+  it("sends an email as email and anything else as username, to /auth/login", async () => {
+    const { wrapper, calls } = setup((req) => (req.url.endsWith("/auth/me") ? json(ME) : json({ message: "ok" })));
     const { result } = renderHook(() => useAuth(), { wrapper });
-    await act(async () => { await result.current.requestOtp("০১৭১২৩৪৫৬৭৮"); });
-    expect(JSON.parse(calls[0].body)).toEqual({ phone: "01712345678" });
-    expect(calls[0].path).toBe("/auth/otp/request");
-    let me: UserMe | null = null;
-    await act(async () => { me = await result.current.verifyOtp("01712345678", "১২৩৪৫৬"); });
-    expect(JSON.parse(calls[1].body)).toEqual({ phone: "01712345678", code: "123456" });
-    expect(calls[1].headers.get("X-CSRFToken")).toBe("csrf");
-    expect((me as unknown as UserMe).roles).toEqual(["patient"]);
+    let out: { status: string; me?: UserMe } | undefined;
+    await act(async () => { out = await result.current.signIn("dr@example.org", "pw"); });
+    expect(calls[0].path).toBe("/auth/login");
+    expect(JSON.parse(calls[0].body)).toEqual({ email: "dr@example.org", password: "pw" });
+    expect(calls[0].headers.get("X-CSRFToken")).toBe("csrf");
+    expect(out?.status).toBe("signed_in");
+    await act(async () => { await result.current.signIn("karim99", "pw"); });
+    expect(JSON.parse(calls[2].body)).toEqual({ username: "karim99", password: "pw" });
   });
 
-  it("staff: sends email or phone by its shape and reports mfa_required without throwing", async () => {
+  it("the admin entrance posts to /auth/admin/login and reports mfa_required without throwing", async () => {
     const { wrapper, calls } = setup(() => err("mfa_required", 401));
     const { result } = renderHook(() => useAuth(), { wrapper });
     let out: unknown;
-    await act(async () => { out = await result.current.loginStaff("dr@example.org", "pw"); });
-    expect(JSON.parse(calls[0].body)).toEqual({ email: "dr@example.org", password: "pw" });
+    await act(async () => { out = await result.current.signIn("root@example.org", "pw", { admin: true }); });
+    expect(calls[0].path).toBe("/auth/admin/login");
     expect(out).toEqual({ status: "mfa_required" });
-    await act(async () => { await result.current.loginStaff("01712345678", "pw"); });
-    expect(JSON.parse(calls[1].body)).toEqual({ phone: "01712345678", password: "pw" });
   });
 
-  it("staff: completes sign-in and returns me, and bad credentials surface as ApiError", async () => {
-    let step = 0;
-    const { wrapper } = setup((req) => {
-      if (req.url.endsWith("/auth/me")) return json(ME);
-      step++;
-      return step === 1 ? err("not_authenticated", 401) : json({ message: "ok" });
-    });
+  it("bad credentials surface as ApiError and never trigger the session-expired handler", async () => {
+    const onUnauthenticated = vi.fn();
+    const { wrapper } = setup(() => err("not_authenticated", 401), onUnauthenticated);
     const { result } = renderHook(() => useAuth(), { wrapper });
-    await act(async () => { await expect(result.current.loginStaff("a@b.co", "bad")).rejects.toMatchObject({ code: "not_authenticated" }); });
-    let out: { status: string; me?: UserMe } | undefined;
-    await act(async () => { out = await result.current.loginStaff("a@b.co", "good"); });
-    expect(out?.status).toBe("signed_in");
-    expect(out?.me?.roles).toEqual(["clinician"]);
+    await act(async () => { await expect(result.current.signIn("a@b.co", "bad")).rejects.toMatchObject({ code: "not_authenticated" }); });
+    expect(onUnauthenticated).not.toHaveBeenCalled();
+  });
+
+  it("registers a patient with display name, then loads the signed-in user", async () => {
+    const { wrapper, calls } = setup((req) => (req.url.endsWith("/auth/me") ? json({ ...ME, roles: ["patient"] }) : json({ message: "ok" }, 201)));
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    let me: UserMe | undefined;
+    await act(async () => { me = await result.current.registerPatient({ identifier: "karim@example.org", displayName: " Karim ", password: "a-long-passphrase-9" }); });
+    expect(calls[0].path).toBe("/auth/register");
+    expect(JSON.parse(calls[0].body)).toEqual({ email: "karim@example.org", display_name: "Karim", password: "a-long-passphrase-9" });
+    expect(me?.roles).toEqual(["patient"]);
   });
 
   it("a 403 not_authenticated outside /auth/ triggers the session-expired handler", async () => {
@@ -112,14 +113,6 @@ describe("sign-in flows", () => {
     const { result } = renderHook(() => useAppointments(), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(onUnauthenticated).toHaveBeenCalled();
-  });
-
-  it("bad credentials on /auth/* do not trigger the global session-expired handler", async () => {
-    const onUnauthenticated = vi.fn();
-    const { wrapper } = setup(() => err("not_authenticated", 401), onUnauthenticated);
-    const { result } = renderHook(() => useAuth(), { wrapper });
-    await act(async () => { await result.current.loginStaff("a@b.co", "bad").catch(() => {}); });
-    expect(onUnauthenticated).not.toHaveBeenCalled();
   });
 });
 
@@ -157,8 +150,8 @@ describe("csrf recovery", () => {
       return posts === 1 ? err("csrf_failed", 403) : json({ message: "sent" });
     });
     const { result } = renderHook(() => useAuth(), { wrapper });
-    await act(async () => { await result.current.requestOtp("01712345678"); });
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /auth/otp/request", "GET /auth/me", "POST /auth/otp/request"]);
+    await act(async () => { await result.current.signIn("a@b.co", "pw"); });
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /auth/login", "GET /auth/me", "POST /auth/login", "GET /auth/me"]);
   });
 
   it("recognises Django's wording: permission_denied with a CSRF Failed message", async () => {
@@ -169,14 +162,14 @@ describe("csrf recovery", () => {
       return posts === 1 ? json({ error: { code: "permission_denied", message: "CSRF Failed: Origin checking failed", request_id: "r" } }, 403) : json({ message: "sent" });
     });
     const { result } = renderHook(() => useAuth(), { wrapper });
-    await act(async () => { await result.current.requestOtp("01712345678"); });
+    await act(async () => { await result.current.signIn("a@b.co", "pw"); });
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(2);
   });
 
   it("does not retry a second time", async () => {
     const { wrapper, calls } = setup((req) => (req.url.endsWith("/auth/me") ? json(ME) : err("csrf_failed", 403)));
     const { result } = renderHook(() => useAuth(), { wrapper });
-    await act(async () => { await expect(result.current.requestOtp("01712345678")).rejects.toMatchObject({ code: "csrf_failed" }); });
+    await act(async () => { await expect(result.current.signIn("a@b.co", "pw")).rejects.toMatchObject({ code: "csrf_failed" }); });
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(2);
   });
 });

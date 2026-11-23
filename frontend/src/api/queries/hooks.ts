@@ -364,6 +364,9 @@ export interface AdminStaffMember {
   facility_name: string;
   role: string;
   permissions: string[];
+  username?: string | null;
+  active?: boolean;
+  mfa_enabled?: boolean;
   active_from: string | null;
   active_to: string | null;
 }
@@ -379,3 +382,43 @@ export const useAdminCapacityReports = () =>
 
 export const useAdminStaff = () =>
   useGet<Page<AdminStaffMember> | AdminStaffMember[]>(queryKeys.adminStaff, "/admin/staff");
+
+
+// ---- Admin access control (MASTERPLAN D-16) ----
+
+export interface PermissionEntry { code: string; description: string }
+export const usePermissionCatalogue = () => useGet<Page<PermissionEntry>>(["admin", "permissions"], "/admin/permissions");
+
+export interface NewStaff {
+  display_name: string;
+  email?: string;
+  username?: string;
+  role: "clinician" | "facility_staff" | "facility_admin";
+  facility_id: string;
+  permissions: string[];
+  registration_number?: string;
+}
+/** Returned once by create, reset-password and reset-mfa. They are never stored or fetched again. */
+export interface OneTimeSecrets { temporary_password?: string; totp_uri?: string }
+
+export function useStaffAccess() {
+  const api = useApi();
+  const qc = useQueryClient();
+  const done = () => qc.invalidateQueries({ queryKey: queryKeys.adminStaff });
+  const create = useMutation({
+    mutationFn: async (v: { body: NewStaff; idempotencyKey: string }) =>
+      (await api.post<AdminStaffMember & OneTimeSecrets>("/admin/staff", { body: v.body, idempotencyKey: v.idempotencyKey })).data,
+    onSuccess: done,
+  });
+  const update = useMutation({
+    mutationFn: async (v: { id: string; role?: string; permissions?: string[] }) =>
+      (await api.patch<AdminStaffMember>(`/admin/staff/${v.id}`, { body: { role: v.role, permissions: v.permissions } })).data,
+    onSuccess: done,
+  });
+  const action = useMutation({
+    mutationFn: async (v: { id: string; kind: "deactivate" | "reactivate" | "reset-password" | "reset-mfa" | "revoke-sessions"; idempotencyKey: string }) =>
+      (await api.post<OneTimeSecrets & Partial<AdminStaffMember>>(`/admin/staff/${v.id}/${v.kind}`, { body: {}, idempotencyKey: v.idempotencyKey })).data,
+    onSuccess: done,
+  });
+  return { create, update, action };
+}

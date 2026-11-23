@@ -40,7 +40,7 @@ export async function clearBrowserCaches(): Promise<void> {
   }
 }
 
-export type StaffSignInResult = { status: "mfa_required" } | { status: "signed_in"; me: UserMe };
+export type SignInResult = { status: "mfa_required" } | { status: "signed_in"; me: UserMe };
 
 /** Sign-in, sign-out and facility switching. All unsafe requests go through the API client (CSRF, idempotency key). */
 export function useAuth() {
@@ -71,32 +71,34 @@ export function useAuth() {
     [api],
   );
 
-  const requestOtp = useCallback(
-    async (phone: string) => {
-      await post("/auth/otp/request", { body: { phone: normalizeDigits(phone).trim() } });
-    },
-    [post],
-  );
+  /** Email or username, as typed. An "@" means email (MASTERPLAN D-18). */
+  const identity = (identifier: string) => {
+    const id = identifier.trim();
+    return id.includes("@") ? { email: id } : { username: id };
+  };
 
-  const verifyOtp = useCallback(
-    async (phone: string, code: string) => {
-      await post("/auth/otp/verify", { body: { phone: normalizeDigits(phone).trim(), code: normalizeDigits(code).trim() } });
-      return loadMe();
-    },
-    [post, loadMe],
-  );
-
-  const loginStaff = useCallback(
-    async (identifier: string, password: string): Promise<StaffSignInResult> => {
-      const id = normalizeDigits(identifier).trim();
-      const body = id.includes("@") ? { email: id, password } : { phone: id, password };
+  /**
+   * Password sign-in. `admin: true` uses the separate admin entrance (MASTERPLAN D-17), which is the only
+   * place an admin account is accepted; the ordinary entrance answers an admin exactly like a wrong password.
+   */
+  const signIn = useCallback(
+    async (identifier: string, password: string, opts?: { admin?: boolean }): Promise<SignInResult> => {
       try {
-        await post("/auth/login", { body });
+        await post(opts?.admin ? "/auth/admin/login" : "/auth/login", { body: { ...identity(identifier), password } });
       } catch (e) {
         if (e instanceof ApiError && e.code === "mfa_required") return { status: "mfa_required" };
         throw e;
       }
       return { status: "signed_in", me: await loadMe() };
+    },
+    [post, loadMe],
+  );
+
+  /** Patient self-registration. The server signs the new patient in. */
+  const registerPatient = useCallback(
+    async (v: { identifier: string; displayName: string; password: string }) => {
+      await post("/auth/register", { body: { ...identity(v.identifier), display_name: v.displayName.trim(), password: v.password } });
+      return loadMe();
     },
     [post, loadMe],
   );
@@ -131,5 +133,5 @@ export function useAuth() {
     [post, qc, loadMe],
   );
 
-  return { requestOtp, verifyOtp, loginStaff, verifyMfa, signOut, switchFacility, refreshMe: loadMe };
+  return { signIn, registerPatient, verifyMfa, signOut, switchFacility, refreshMe: loadMe };
 }

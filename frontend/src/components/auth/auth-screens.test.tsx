@@ -16,6 +16,7 @@ import { AppProviders, makeQueryClient } from "../../api/queries/provider";
 import { AdaptersProvider, type Adapters } from "../../features/adapters";
 import type { UserMe } from "../../auth/types";
 import { PatientSignIn } from "./PatientSignIn";
+import { RegisterForm } from "./RegisterForm";
 import { StaffSignIn } from "./StaffSignIn";
 import { SignedOut } from "./SignedOut";
 import { AccessInfo } from "./AccessInfo";
@@ -56,71 +57,72 @@ afterEach(() => vi.useRealTimers());
 const type = (label: RegExp | string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = async (name: RegExp | string) => { await act(async () => { fireEvent.click(screen.getByRole("button", { name })); }); };
 
-describe("patient sign-in (AUTH_RBAC §4.1)", () => {
-  it("phone → code → signed in, then goes to the patient home", async () => {
-    mount(<PatientSignIn />, {
-      "POST /auth/otp/request": () => json({ message: "sent" }),
-      "POST /auth/otp/verify": () => json({ message: "ok" }),
-      "GET /auth/me": () => json(user(["patient"])),
-    });
-    expect(screen.getByRole("heading", { name: "মোবাইল নম্বর দিয়ে সাইন ইন করুন" })).toBeTruthy();
-    type(/মোবাইল নম্বর/, "০১৭১২৩৪৫৬৭৮");
-    await click("কোড পাঠান");
-    expect(await screen.findByRole("heading", { name: "কোডটি লিখুন" })).toBeTruthy();
-    expect(screen.getByText(/০১•••••৫৬৭৮/)).toBeTruthy();
-    expect(document.activeElement?.tagName).toBe("H1"); // focus moves to the new step
-    const code = screen.getByLabelText(/কোড/) as HTMLInputElement;
-    expect(code.getAttribute("autocomplete")).toBe("one-time-code");
-    type(/কোড/, "123456");
+describe("patient sign-in and registration (MASTERPLAN D-18)", () => {
+  it("email or username and password, then the patient home; there is no phone or code step", async () => {
+    mount(<PatientSignIn />, { "POST /auth/login": () => json({ message: "ok" }), "GET /auth/me": () => json(user(["patient"])) });
+    expect(screen.getByRole("heading", { name: "সাইন ইন" })).toBeTruthy();
+    expect(screen.queryByLabelText(/মোবাইল|কোড/)).toBeNull();
+    type(/ইমেইল বা ইউজারনেম/, "karim@example.org");
+    type(/^পাসওয়ার্ড\(আবশ্যক/, "a-long-passphrase-9");
     await click("সাইন ইন");
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/bn/home"));
   });
 
-  it("shows a wrong code inline, clears the field, and keeps resend disabled with a countdown", async () => {
-    mount(<PatientSignIn />, {
-      "POST /auth/otp/request": () => json({}),
-      "POST /auth/otp/verify": () => err("validation_error", 400),
-    });
-    type(/Mobile|মোবাইল/, "01712345678");
-    await click(/কোড পাঠান|Send code/);
-    await screen.findByText(/01•••••5678/);
-    type(/কোড/, "000000");
+  it("a wrong password gives one message that does not say which field, and the password is cleared", async () => {
+    mount(<PatientSignIn />, { "POST /auth/login": () => err("not_authenticated", 401) });
+    type(/ইমেইল বা ইউজারনেম/, "karim"); type(/^পাসওয়ার্ড\(আবশ্যক/, "wrong");
     await click("সাইন ইন");
-    expect(await screen.findByText("কোডটি সঠিক নয় অথবা মেয়াদ শেষ হয়েছে।")).toBeTruthy();
-    expect((screen.getByLabelText(/কোড/) as HTMLInputElement).value).toBe("");
-    const resend = screen.getByRole("button", { name: /30 সেকেন্ড|৩০ সেকেন্ড|30/ }) as HTMLButtonElement;
-    expect(resend.disabled).toBe(true);
+    expect((await screen.findByRole("alert")).textContent).toContain("ইমেইল, ইউজারনেম বা পাসওয়ার্ড সঠিক নয়");
+    expect((screen.getByLabelText(/^পাসওয়ার্ড\(আবশ্যক/) as HTMLInputElement).value).toBe("");
   });
 
-  it("explains rate limiting and offline failures above the form", async () => {
-    mount(<PatientSignIn />, { "POST /auth/otp/request": () => err("rate_limited", 429) });
-    type(/মোবাইল/, "01712345678");
-    await click("কোড পাঠান");
+  it("explains rate limiting above the form", async () => {
+    mount(<PatientSignIn />, { "POST /auth/login": () => err("rate_limited", 429) });
+    type(/ইমেইল বা ইউজারনেম/, "karim"); type(/^পাসওয়ার্ড\(আবশ্যক/, "x");
+    await click("সাইন ইন");
     expect((await screen.findByRole("alert")).textContent).toContain("অনেকবার চেষ্টা");
   });
 
   it("A-04: a signed-in user with no patient role is never dropped on an empty home", async () => {
-    mount(<PatientSignIn />, {
-      "POST /auth/otp/request": () => json({}),
-      "POST /auth/otp/verify": () => json({}),
-      "GET /auth/me": () => json(user([])),
-      "POST /auth/logout": () => json({}),
-    });
-    type(/মোবাইল/, "01712345678");
-    await click("কোড পাঠান");
-    await screen.findByText(/01•••••5678/);
-    type(/কোড/, "123456");
+    mount(<PatientSignIn />, { "POST /auth/login": () => json({}), "GET /auth/me": () => json(user([])), "POST /auth/logout": () => json({}) });
+    type(/ইমেইল বা ইউজারনেম/, "karim"); type(/^পাসওয়ার্ড\(আবশ্যক/, "x");
     await click("সাইন ইন");
     expect(await screen.findByText(/অ্যাকাউন্ট এখনও প্রস্তুত নয়/)).toBeTruthy();
     expect(nav.replace).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "সাইন আউট" })).toBeTruthy();
   });
 
-  it("requires a phone number before sending", async () => {
+  it("requires both fields before sending, and links to registration", async () => {
     const { calls } = mount(<PatientSignIn />, {});
-    await click("কোড পাঠান");
-    expect(screen.getByText("এই ঘরটি পূরণ করতে হবে।")).toBeTruthy();
+    await click("সাইন ইন");
+    expect(screen.getAllByText("এই ঘরটি পূরণ করতে হবে।").length).toBeGreaterThan(0);
     expect(calls).toEqual([]);
+    expect(screen.getByRole("link", { name: "অ্যাকাউন্ট খুলুন" }).getAttribute("href")).toBe("/bn/register");
+  });
+
+  it("registering sends name, email or username and password, then goes to the patient home", async () => {
+    nav.pathname = "/en/register";
+    const { calls } = mount(<RegisterForm />, { "POST /auth/register": () => json({ message: "ok" }, 201), "GET /auth/me": () => json(user(["patient"])) });
+    fireEvent.change(screen.getByLabelText(/Your name/), { target: { value: "Karim" } });
+    fireEvent.change(screen.getByLabelText(/Email or username/), { target: { value: "karim@example.org" } });
+    fireEvent.change(screen.getByLabelText(/^Password\(required/), { target: { value: "a-long-passphrase-9" } });
+    await click("Create account");
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/en/home"));
+    expect(JSON.parse(calls.find((c) => c.includes("POST /auth/register")) ? "{}" : "{}")).toEqual({});
+  });
+
+  it("shows the server's password rule on the password field, and a neutral message for a clash", async () => {
+    nav.pathname = "/en/register";
+    const weak = json({ error: { code: "validation_error", message: "x", field_errors: { password: ["This password is too short."] }, request_id: "r" } }, 400);
+    const { unmount } = mount(<RegisterForm />, { "POST /auth/register": () => weak.clone() });
+    const fill = () => { fireEvent.change(screen.getByLabelText(/Your name/), { target: { value: "K" } }); fireEvent.change(screen.getByLabelText(/Email or username/), { target: { value: "k@example.org" } }); fireEvent.change(screen.getByLabelText(/^Password\(required/), { target: { value: "short" } }); };
+    fill();
+    await click("Create account");
+    expect(await screen.findByText("This password is too short.")).toBeTruthy();
+    unmount();
+    mount(<RegisterForm />, { "POST /auth/register": () => json({ error: { code: "validation_error", message: "An account could not be created with those details.", request_id: "r" } }, 400) });
+    fill();
+    await click("Create account");
+    expect((await screen.findByRole("alert")).textContent).toContain("We could not create an account with those details");
   });
 });
 
@@ -129,11 +131,11 @@ describe("staff sign-in (AUTH_RBAC §4.2)", () => {
 
   it("bad credentials: one alert that does not say which field, and the password is cleared", async () => {
     mount(<StaffSignIn />, { "POST /auth/login": () => err("not_authenticated", 401) });
-    type(/Email or phone/, "dr@example.org");
-    type(/^Password/, "wrong");
+    type(/Email or username/, "dr@example.org");
+    type(/^Password\(required/, "wrong");
     await click("Sign in");
-    expect((await screen.findByRole("alert")).textContent).toBe("Email, phone or password is not right.");
-    expect((screen.getByLabelText(/^Password/) as HTMLInputElement).value).toBe("");
+    expect((await screen.findByRole("alert")).textContent).toBe("Email, username or password is not right.");
+    expect((screen.getByLabelText(/^Password\(required/) as HTMLInputElement).value).toBe("");
   });
 
   it("mfa_required moves to the verification step on the same route, then signs in to the clinical home", async () => {
@@ -142,11 +144,11 @@ describe("staff sign-in (AUTH_RBAC §4.2)", () => {
       "POST /auth/mfa/verify": () => json({}),
       "GET /auth/me": () => json(user(["clinician"])),
     });
-    type(/Email or phone/, "dr@example.org");
-    type(/^Password/, "pw");
+    type(/Email or username/, "dr@example.org");
+    type(/^Password\(required/, "pw");
     await click("Sign in");
     expect(await screen.findByRole("heading", { name: "Enter your verification code" })).toBeTruthy();
-    type(/Code/, "123456");
+    type(/^Code\(required/, "123456");
     await click("Verify");
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/en/dashboard"));
   });
@@ -159,8 +161,8 @@ describe("staff sign-in (AUTH_RBAC §4.2)", () => {
         "POST /auth/login": () => json({}),
         "GET /auth/me": () => json(user(["clinician"])),
       });
-      type(/Email or phone/, "dr@example.org");
-      type(/^Password/, "pw");
+      type(/Email or username/, "dr@example.org");
+      type(/^Password\(required/, "pw");
       await click("Sign in");
       await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(expected));
       unmount();
@@ -169,8 +171,8 @@ describe("staff sign-in (AUTH_RBAC §4.2)", () => {
 
   it("a user with no clinical or admin role goes to /not-authorised", async () => {
     mount(<StaffSignIn />, { "POST /auth/login": () => json({}), "GET /auth/me": () => json(user([])) });
-    type(/Email or phone/, "dr@example.org");
-    type(/^Password/, "pw");
+    type(/Email or username/, "dr@example.org");
+    type(/^Password\(required/, "pw");
     await click("Sign in");
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/en/not-authorised"));
   });
@@ -187,13 +189,29 @@ describe("staff sign-in (AUTH_RBAC §4.2)", () => {
       "POST /auth/login": () => err("mfa_required", 401),
       "POST /auth/mfa/verify": () => err("validation_error", 400, "No pending MFA session found."),
     });
-    type(/Email or phone/, "a@b.co"); type(/^Password/, "pw");
+    type(/Email or username/, "a@b.co"); type(/^Password\(required/, "pw");
     await click("Sign in");
     await screen.findByRole("heading", { name: "Enter your verification code" });
-    type(/Code/, "123456");
+    type(/^Code\(required/, "123456");
     await click("Verify");
     expect((await screen.findByRole("alert")).textContent).toBe("Please sign in again.");
     expect(screen.getByRole("heading", { name: "Staff sign in" })).toBeTruthy();
+  });
+});
+
+describe("admin entrance (MASTERPLAN D-17)", () => {
+  beforeEach(() => { nav.pathname = "/en/admin/login"; });
+  it("uses its own endpoint and title, then the mandatory MFA step, and offers no staff or patient links", async () => {
+    const { calls } = mount(<StaffSignIn admin />, { "POST /auth/admin/login": () => err("mfa_required", 401), "POST /auth/mfa/verify": () => json({}), "GET /auth/me": () => json(user(["facility_admin"])) });
+    expect(screen.getByRole("heading", { name: "Administrator sign in" })).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
+    type(/Email or username/, "root@example.org"); type(/^Password\(required/, "pw");
+    await click("Sign in");
+    expect(await screen.findByRole("heading", { name: "Enter your verification code" })).toBeTruthy();
+    expect(calls[0]).toBe("POST /auth/admin/login");
+    type(/^Code\(required/, "123456");
+    await click("Verify");
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/en/facility"));
   });
 });
 
@@ -302,7 +320,7 @@ describe("flagged flows with mock adapters (Q-14 to Q-17)", () => {
     nav.pathname = "/en/login/staff/reset";
     const request = vi.fn().mockResolvedValue(undefined);
     mount(<PasswordResetScreen />, {}, { passwordReset: { request, complete: vi.fn() } });
-    type(/Email or phone/, "nobody@example.org");
+    type(/Email or username/, "nobody@example.org");
     await click("Send reset instructions");
     expect(await screen.findByText("If an account matches, we have sent instructions.")).toBeTruthy();
     expect(request).toHaveBeenCalledWith("nobody@example.org");
@@ -321,7 +339,7 @@ describe("flagged flows with mock adapters (Q-14 to Q-17)", () => {
   it("with the default adapter (no backend yet) a submit shows an honest error, never success", async () => {
     nav.pathname = "/en/login/staff/reset";
     mount(<PasswordResetScreen />, {});
-    type(/Email or phone/, "dr@example.org");
+    type(/Email or username/, "dr@example.org");
     await click("Send reset instructions");
     expect((await screen.findByRole("alert")).textContent).toMatch(/could not be completed/i);
     expect(screen.queryByText("If an account matches, we have sent instructions.")).toBeNull();

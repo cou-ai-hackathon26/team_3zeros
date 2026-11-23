@@ -28,7 +28,7 @@
 | Patient records and reports | Clinician browsing records without a care relationship | Relationship check (§4.3), read audit, periodic access review |
 | Patient records | Guessable IDs / IDOR | UUIDs, server-side scope on every query, 404 on denial |
 | Reports in object storage | Public bucket or leaked URL | Private bucket, backend-mediated short-lived links (§6.2) |
-| Accounts | Credential stuffing, OTP brute force | Rate limits, lockout, MFA for clinicians (§3) |
+| Accounts | Credential stuffing, password guessing | Rate limits, lockout, MFA for clinicians (§3) |
 | Sessions | XSS stealing tokens, CSRF | HttpOnly cookies, CSP, CSRF tokens (§3.2) |
 | Triage | Prompt injection making the assistant give unsafe advice | Backend-owned responses, output validator, red-flag rules first (§8) |
 | AI drafting | Instructions hidden in uploaded reports | Reports are data, not instructions; schema validation; clinician approval (§8.3) |
@@ -46,7 +46,7 @@
 
 | User | Method |
 |---|---|
-| Patient | Phone OTP via SMS (6 digits, 5-minute expiry, 5 attempts, then 15-minute lock) |
+| Patient | Email or username and password (min 12 chars, common-password check), self-registered at `/register`; 5 failed attempts per identifier or client, then a 15-minute lock |
 | Clinician, facility staff, facility admin | Password (Argon2id, min 12 chars, breached-password check) + MFA (Q-13: TOTP preferred; SMS OTP only if approved) |
 | Platform admin | Password + mandatory TOTP; access only from admin network (DEPLOYMENT §4) |
 
@@ -85,8 +85,8 @@ account / phone / session) and at the edge (per IP).
 | Endpoint | Limit |
 |---|---|
 | `POST /auth/login` | 5 per 15 min per account; 30 per 15 min per IP |
-| `POST /auth/otp/request` | 3 per 15 min per phone; 10 per hour per IP |
-| `POST /auth/otp/verify` | 5 attempts per code (then 15-min lock) |
+| `POST /auth/register` | 5 attempts per 15 min per client address |
+| `POST /auth/login`, `/auth/admin/login`, `/auth/mfa/verify` | 5 failed attempts per identifier or client, then a 15-min lock |
 | `POST /triage/sessions` | 5 per hour per patient or guest session; 20 per hour per IP |
 | Public directory `GET` | 60 per min per IP |
 | All other authenticated API | 300 per min per user |
@@ -246,7 +246,7 @@ care relationship, not by platform staff.
   appointment request has an update. Open the app to see it." No diagnosis,
   test result, doctor specialty or facility type that reveals a condition.
 - No inbound SMS commands (INV-6).
-- OTP messages include the domain for origin binding where the gateway
+- Messages sent by SMS (notifications only) include the domain for origin binding where the gateway
   supports it.
 
 ---
