@@ -116,9 +116,9 @@ export const useReferral = (id: string) => useGet<Referral>(queryKeys.referral(i
 
 // Collection roots (`/consents/`, `/referrals/`, `/patients/`, `/documents/`, `/notifications/`) are served with a trailing
 // slash (audit A-21). Django cannot redirect a POST, so the slash must be in the request; next.config keeps it.
-export const useConsents = () => useGet<ConsentsResponse>(queryKeys.consents, "/consents/?patient=me");
+export const useConsents = (enabled = true) => useGet<ConsentsResponse>(queryKeys.consents, "/consents/?patient=me", enabled);
 export const useConsentRequest = (id: string) => useGet<ConsentRequest>(queryKeys.consentRequest(id), `/consent-requests/${id}`);
-export const useNotifications = () => useGet<Page<NotificationItem>>(queryKeys.notifications, "/notifications/");
+export const useNotifications = (enabled = true) => useGet<Page<NotificationItem>>(queryKeys.notifications, "/notifications/", enabled);
 
 export function useMarkNotificationRead() {
   const api = useApi();

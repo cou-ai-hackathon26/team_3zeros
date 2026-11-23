@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Mic } from "lucide-react";
 import { usePageLocale } from "../../../usePageLocale";
 import { t, formatDhakaDateTime } from "../../../../i18n/format";
-import { useAppointments, useConsents } from "../../../../api/queries/hooks";
+import { useAppointments, useChart, useConsents, useTriageSessions } from "../../../../api/queries/hooks";
+import { useMe } from "../../../../auth/me";
 import { pickNextStep } from "../../../../features/patient/nextStep";
 import { APPOINTMENT_IN_PROGRESS, fill } from "../../../../features/patient/display";
 import { HandoverTracker } from "../../../../components/HandoverTracker/HandoverTracker";
@@ -16,15 +17,19 @@ import { Tile } from "../../../../components/ui/surfaces";
 /** `/home`: what is happening with my care, and what do I do next? (APPLICATION_DESIGN §4.2) */
 export default function PatientHomePage() {
   const locale = usePageLocale(undefined, "bn");
+  const { me } = useMe();
   const appts = useAppointments({ limit: "100" });
   const consents = useConsents();
+  const openTriage = useTriageSessions({ state: "ACTIVE,PAUSED,SUMMARY_PENDING_REVIEW", limit: "5" });
+  const chart = useChart(me?.patient_id ?? "", Boolean(me?.patient_id));
   const L = (k: string) => t(locale, `home.${k}`);
   const base = `/${locale}`;
 
   const loading = appts.isLoading || consents.isLoading;
   const failed = appts.isError || consents.isError;
   const appointments = appts.data?.results ?? [];
-  const next = appts.data && consents.data ? pickNextStep(appointments, consents.data) : null;
+  const triageSessions = openTriage.data?.results ?? [];
+  const next = appts.data && consents.data ? pickNextStep(appointments, consents.data, triageSessions) : null;
   const showStart = !!next && next.kind === "none";
 
   // The "start" actions do not depend on the data, so they work even when a request failed.
@@ -58,6 +63,17 @@ export default function PatientHomePage() {
         <Link href={`${base}/consents/${next.request.id}`} className={buttonVariants({ variant: "on-brand", size: "lg", className: "w-full sm:w-fit" })}>{L("consent.button")}</Link>
       </>
     );
+  } else if (next && next.kind === "triage") {
+    const href =
+      next.session.state === "SUMMARY_PENDING_REVIEW"
+        ? `${base}/triage/summary/${next.session.id}`
+        : `${base}/triage/session/${next.session.id}`;
+    main = (
+      <>
+        <p className="m-0 font-serif text-title">{L("triage.line")}</p>
+        <Link href={href} className={buttonVariants({ variant: "on-brand", size: "lg", className: "w-full sm:w-fit" })}>{L("triage.button")}</Link>
+      </>
+    );
   } else if (next && next.kind !== "none") {
     const a = next.appointment;
     const key = next.kind;
@@ -88,6 +104,7 @@ export default function PatientHomePage() {
   const inProgress = appointments.filter((a) => (APPOINTMENT_IN_PROGRESS as readonly string[]).includes(a.state)).length;
   const waiting = consents.data?.pending_requests.filter((r) => r.state === "PENDING").length ?? 0;
   const active = consents.data?.consents.filter((c) => c.state === "ACTIVE").length ?? 0;
+  const reportCount = chart.data?.documents?.length ?? 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -108,7 +125,9 @@ export default function PatientHomePage() {
         </Tile>
         <Tile href={`${base}/reports`} className="lg:col-span-4">
           <h2 className="m-0 text-subheading font-semibold">{t(locale, "nav.reports")}</h2>
-          <p className="m-0 mt-1 text-dense text-ink-muted">{L("reportsEmpty")}</p>
+          <p className="m-0 mt-1 text-dense text-ink-muted">
+            {reportCount > 0 ? fill(L("reportsCount"), { n: reportCount }) : L("reportsEmpty")}
+          </p>
         </Tile>
         <Tile href={`${base}/consents`} className="lg:col-span-4">
           <h2 className="m-0 text-subheading font-semibold">{t(locale, "nav.consents")}</h2>

@@ -23,6 +23,7 @@ import DoctorsPage from "./[locale]/(patient)/doctors/page";
 import PatientReportsPage from "./[locale]/(patient)/reports/page";
 import NotificationsPage from "./[locale]/(patient)/notifications/page";
 import TriagePage from "./[locale]/(patient)/triage/page";
+import { PatientShell } from "../components/shell/PatientShell";
 
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
 const err = (code: string, status: number) => json({ error: { code, message: code, request_id: "req-9" } }, status);
@@ -84,6 +85,25 @@ describe("/home (APPLICATION_DESIGN §4.2)", () => {
     mount(<HomePage />, { "GET /appointments": () => page([appt({ state: "CONFIRMED" })]), "GET /consents/": consents() });
     expect(await screen.findByText(/Visit confirmed: 26 Nov, 10:30, Tangail District Hospital/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "View visit" })).toBeTruthy();
+  });
+
+  it("Condition 5: an open triage session shows Continue linking to the session or summary", async () => {
+    const { unmount } = mount(<HomePage />, {
+      "GET /appointments": () => page([]),
+      "GET /consents/": consents(),
+      "GET /triage/sessions": () => page([{ id: "ts-open", state: "ACTIVE" }]),
+    });
+    expect(await screen.findByText("With you: finish describing your problem")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Continue" }).getAttribute("href")).toBe("/en/triage/session/ts-open");
+    unmount();
+
+    mount(<HomePage />, {
+      "GET /appointments": () => page([]),
+      "GET /consents/": consents(),
+      "GET /triage/sessions": () => page([{ id: "ts-sum", state: "SUMMARY_PENDING_REVIEW" }]),
+    });
+    expect(await screen.findByRole("link", { name: "Continue" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Continue" }).getAttribute("href")).toBe("/en/triage/summary/ts-sum");
   });
 
   it("when a request fails, the next-step tile shows an error but Start talking still works", async () => {
@@ -385,6 +405,64 @@ describe("/reports (G-2, Q-11)", () => {
       screen.getByText("During the pilot, reports are uploaded and verified by your clinician or facility staff.")
     ).toBeTruthy();
     expect(screen.getByText("Reports your doctor adds will appear here.")).toBeTruthy();
+  });
+
+  it("renders patient chart documents, distinguishes draft vs verified, expands extracted values, and audits download link (Review Focus #5)", async () => {
+    const { calls } = mount(<PatientReportsPage />, {
+      "GET /auth/me": () => json({ ...ME, patient_id: "pat-1" }),
+      "GET /patients/pat-1/chart": () =>
+        json({
+          patient_id: "pat-1",
+          encounters: [],
+          documents: [
+            { id: "doc-1", patient_id: "pat-1", original_filename: "CBC_Blood_Report.pdf", content_type: "application/pdf", size: 2048, state: "VERIFIED", created_at: "2026-11-23T08:00:00Z" },
+            { id: "doc-2", patient_id: "pat-1", original_filename: "Pending_Xray.pdf", content_type: "application/pdf", size: 4096, state: "EXTRACTED_UNVERIFIED", created_at: "2026-11-23T09:00:00Z" },
+          ],
+        }),
+      "GET /documents/doc-1/extraction": () =>
+        json({
+          document_id: "doc-1",
+          state: "VERIFIED",
+          fields: [{ id: "f1", name: "Hemoglobin", value: "13.4", unit: "g/dL", observed_date: "2026-11-23", lab: "Savar Lab", confidence: 0.98, page: 1, bbox: [0, 0, 0, 0] }],
+        }),
+      "POST /documents/doc-1/download-link": () =>
+        json({ document_id: "doc-1", url: "/api/v1/documents/doc-1/content?token=abc", expires_at: "2026-11-23T08:01:00Z" }),
+    });
+
+    expect(await screen.findByText("CBC_Blood_Report.pdf")).toBeTruthy();
+    expect(screen.getByText("Pending_Xray.pdf")).toBeTruthy();
+    // Draft document carries dashed draft border
+    const draftCard = screen.getByText("Pending_Xray.pdf").closest("section");
+    expect(draftCard?.className).toContain("border-dashed");
+
+    // Expand extracted values
+    fireEvent.click(screen.getAllByRole("button", { name: "View extracted values" })[0]);
+    expect(await screen.findByText("Hemoglobin")).toBeTruthy();
+    expect(screen.getByText(/13\.4/)).toBeTruthy();
+
+    // Audited download request displays safe notice without navigating to 404
+    fireEvent.click(screen.getAllByRole("button", { name: "Open report" })[0]);
+    expect(await screen.findByText(/Access logged/i)).toBeTruthy();
+    expect(calls.some((c) => c.key === "POST /documents/doc-1/download-link")).toBe(true);
+  });
+});
+
+describe("PatientShell unread/pending indicators", () => {
+  it("shows unread notification and pending consent indicator dots for signed-in patients", async () => {
+    nav.pathname = "/en/home";
+    mount(
+      <PatientShell>
+        <div>Home content</div>
+      </PatientShell>,
+      {
+        "GET /auth/me": () => json({ ...ME, patient_id: "pat-1" }),
+        "GET /notifications/": () => page([{ id: "n1", title: "Update", body: "x", read_at: null, created_at: "2026-11-23T08:00:00Z" }]),
+        "GET /consents/": () => json({ consents: [], pending_requests: [pendingReq] }),
+      },
+    );
+
+    expect(await screen.findByText(/1 unread notifications/i)).toBeTruthy();
+    expect(await screen.findByText(/1 pending sharing requests/i)).toBeTruthy();
   });
 });
 

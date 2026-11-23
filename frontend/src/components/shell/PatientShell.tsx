@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { usePageLocale } from "../../app/usePageLocale";
 import { t } from "../../i18n/format";
+import { useConsents, useNotifications } from "../../api/queries/hooks";
+import { fill } from "../../features/patient/display";
 import { visibleNav } from "../../auth/nav";
 import { useMe } from "../../auth/me";
 import { cn } from "../../lib/cn";
@@ -33,6 +35,11 @@ export function PatientShell({ children }: { children: React.ReactNode }) {
   const { me } = useMe();
   const subPath = pathname.replace(/^\/(bn|en)(?=\/|$)/, "") || "/";
   const isFocus = subPath === "/triage" || subPath.startsWith("/triage/session/");
+  const isSignedInPatient = Boolean(me && me.roles.includes("patient") && !isFocus);
+  const notifications = useNotifications(isSignedInPatient);
+  const consents = useConsents(isSignedInPatient);
+  const unreadCount = (notifications.data?.results ?? []).filter((n) => !n.read_at && n.state !== "READ").length;
+  const pendingConsentCount = (consents.data?.pending_requests ?? []).filter((r) => r.state === "PENDING").length;
   const items = isFocus ? [] : visibleNav(me, "patient");
   const isCurrent = (href: string) => pathname === `/${locale}${href}` || pathname.startsWith(`/${locale}${href}/`);
 
@@ -86,10 +93,28 @@ export function PatientShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2">
           {me ? (
             <>
-              <Link href={`/${locale}/notifications`} aria-label={t(locale, "nav.notifications")} className="flex size-11 items-center justify-center rounded-control hover:bg-sunken">
+              <Link
+                href={`/${locale}/notifications`}
+                aria-label={t(locale, "nav.notifications")}
+                className="relative flex size-11 items-center justify-center rounded-control hover:bg-sunken"
+              >
                 <Bell aria-hidden className="size-5" />
+                {unreadCount > 0 && (
+                  <>
+                    <span aria-hidden="true" className="absolute end-2 top-2 size-2 rounded-pill bg-indigo" />
+                    <span className="sr-only">{fill(t(locale, "shell.unreadNotifications"), { n: unreadCount })}</span>
+                  </>
+                )}
               </Link>
-              <AccountMenu me={me} locale={locale} area="patient" extraItems={[{ href: "/consents", label: t(locale, "nav.consents") }]} />
+              <div className="relative">
+                <AccountMenu me={me} locale={locale} area="patient" extraItems={[{ href: "/consents", label: t(locale, "nav.consents") }]} />
+                {pendingConsentCount > 0 && (
+                  <>
+                    <span aria-hidden="true" className="pointer-events-none absolute end-1 top-1 size-2 rounded-pill bg-indigo" />
+                    <span className="sr-only">{fill(t(locale, "shell.pendingConsents"), { n: pendingConsentCount })}</span>
+                  </>
+                )}
+              </div>
             </>
           ) : (
             <>
