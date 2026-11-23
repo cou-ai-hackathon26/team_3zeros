@@ -1,7 +1,8 @@
 import re
-from typing import List, Dict, Any, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
+from ..normalizer import normalize_for_matching
 
-# Red-flag symptom lexicons in English and Bangla
+# Red-flag symptom lexicons in English and Bangla (Q-06 placeholder until clinician sign-off)
 RED_FLAGS = [
     {
         "id": "RF-CHEST-01",
@@ -38,29 +39,37 @@ RED_FLAGS = [
 ]
 
 NEGATIONS_EN = [r"\bno\b", r"\bnot\b", r"\bdon't have\b", r"\bwithout\b", r"\bdenies\b", r"\bnever\b"]
-NEGATIONS_BN = ["নেই", "না", "নাই", "কোনো .* নেই", "ব্যথা নেই", "কষ্ট নেই"]
+NEGATIONS_BN = [r"নেই", r"না\b", r"নাই", r"কোনো .* নেই", r"ব্যথা নেই", r"কষ্ট নেই"]
+
+# Split into clauses so an earlier clause negation ("No fever, but chest pain")
+# never suppresses a red flag in a subsequent clause.
+_CLAUSE_SPLIT_RE = re.compile(r"[.,;!?।]+|\b(?:but|however|although|yet)\b|(?:কিন্তু|তবে|অথচ)", re.I)
+
+
+def _split_clauses(text: str) -> List[str]:
+    return [c.strip() for c in _CLAUSE_SPLIT_RE.split(text) if c.strip()]
+
 
 def is_negated(text: str, keyword: str, language: str = "bn") -> bool:
-    """Checks if keyword occurrence in text is preceded or succeeded by a negation marker."""
-    text_lower = text.lower()
-    kw_pos = text_lower.find(keyword.lower())
-    if kw_pos == -1:
+    """Checks if keyword occurrence is negated within its own clause."""
+    norm_text = normalize_for_matching(text)
+    norm_kw = normalize_for_matching(keyword)
+
+    matching_clauses = [c for c in _split_clauses(norm_text) if norm_kw in c]
+    if not matching_clauses:
         return False
 
-    # Check window of 25 characters around keyword
-    window_start = max(0, kw_pos - 25)
-    window_end = min(len(text_lower), kw_pos + len(keyword) + 25)
-    window = text_lower[window_start:window_end]
+    neg_patterns = NEGATIONS_EN if language == "en" else NEGATIONS_BN
 
-    if language == "en":
-        for neg in NEGATIONS_EN:
-            if re.search(neg, window):
-                return True
-    else:
-        for neg in NEGATIONS_BN:
-            if re.search(neg, window):
-                return True
-    return False
+    # Only considered negated if EVERY clause mentioning the keyword negates it.
+    for clause in matching_clauses:
+        kw_pos = clause.find(norm_kw)
+        window_start = max(0, kw_pos - 25)
+        window_end = min(len(clause), kw_pos + len(norm_kw) + 25)
+        window = clause[window_start:window_end]
+        if not any(re.search(neg, window) for neg in neg_patterns):
+            return False
+    return True
 
 
 def evaluate_red_flags(utterance: str, language: str = "bn") -> Tuple[bool, List[Dict[str, Any]], str]:
@@ -69,7 +78,8 @@ def evaluate_red_flags(utterance: str, language: str = "bn") -> Tuple[bool, List
     Checks both English and Bangla red-flag lexicons so bilingual / code-switched speech
     never misses a red flag, and returns instruction text in the requested session language.
     """
-    hits = []
+    norm_utterance = normalize_for_matching(utterance)
+    hits: List[Dict[str, Any]] = []
     instruction_text = ""
 
     for rf in RED_FLAGS:
@@ -77,8 +87,8 @@ def evaluate_red_flags(utterance: str, language: str = "bn") -> Tuple[bool, List
         matched_lang = language
         for lang_code, kw_list in (("en", rf["keywords_en"]), ("bn", rf["keywords_bn"])):
             for kw in kw_list:
-                if kw.lower() in utterance.lower():
-                    if not is_negated(utterance, kw, language=lang_code):
+                if normalize_for_matching(kw) in norm_utterance:
+                    if not is_negated(norm_utterance, kw, language=lang_code):
                         matched_kw = kw
                         matched_lang = lang_code
                         break
@@ -101,3 +111,24 @@ def evaluate_red_flags(utterance: str, language: str = "bn") -> Tuple[bool, List
     is_emergency = len(hits) > 0
     return is_emergency, hits, instruction_text
 
+
+def evaluate_session_red_flags(
+    utterances: Sequence[str],
+    language: str = "bn",
+) -> Tuple[bool, List[Dict[str, Any]], str]:
+    """Evaluate cumulative patient utterances in a session (BACKEND §8.2)."""
+    all_hits: List[Dict[str, Any]] = []
+    seen_rules = set()
+    final_instruction = ""
+
+    for utterance in utterances:
+        is_em, hits, instr = evaluate_red_flags(utterance, language=language)
+        if is_em:
+            for hit in hits:
+                if hit["rule_id"] not in seen_rules:
+                    seen_rules.add(hit["rule_id"])
+                    all_hits.append(hit)
+            if not final_instruction and instr:
+                final_instruction = instr
+
+    return len(all_hits) > 0, all_hits, final_instruction

@@ -74,3 +74,80 @@ def test_other_patient_cannot_act_on_a_patient_session(django_user_model):
         run_triage_action(session, "end", stranger)
     run_triage_action(session, "end", owner)
     assert session.state == "ENDED_BY_PATIENT"
+
+
+def test_normalizer_bangla_digits_and_nfc():
+    import unicodedata
+    from apps.triage.normalizer import normalize_bangla_digits, normalize_text
+
+    assert normalize_bangla_digits("৩ দিন ধরে ১০২ জ্বর") == "3 দিন ধরে 102 জ্বর"
+    decomposed = unicodedata.normalize("NFD", "ড়")
+    assert normalize_text(f"  {decomposed}   জ্বর  ") == unicodedata.normalize("NFC", "ড় জ্বর")
+
+
+def test_red_flag_clause_bounded_negation():
+    # Earlier clause negation must NOT negate a later clause's red flag (Review Focus #1)
+    is_em, hits, _ = evaluate_red_flags("No fever, but I have severe chest pain", language="en")
+    assert is_em is True
+    assert any(h["rule_id"] == "RF-CHEST-01" for h in hits)
+
+    is_em_bn, hits_bn, _ = evaluate_red_flags("জ্বর নেই, কিন্তু বুকে ব্যথা হচ্ছে", language="bn")
+    assert is_em_bn is True
+    assert any(h["rule_id"] == "RF-CHEST-01" for h in hits_bn)
+
+    # Same-clause negation must still suppress the false positive
+    is_em_safe, hits_safe, _ = evaluate_red_flags("I have fever, no chest pain", language="en")
+    assert is_em_safe is False
+    assert hits_safe == []
+
+
+def test_cumulative_session_red_flags():
+    from apps.triage.rules.engine import evaluate_session_red_flags
+
+    is_em, hits, instr = evaluate_session_red_flags(
+        ["I feel dizzy and weak", "Now I am struggling to breathe"],
+        language="en",
+    )
+    assert is_em is True
+    assert any(h["rule_id"] == "RF-BREATH-01" for h in hits)
+    assert "PLACEHOLDER — NOT CLINICALLY APPROVED" in instr
+
+
+def test_output_policy_blocks_diagnosis_and_prescription():
+    from apps.triage.policy import validate_assistant_output
+
+    text_unsafe, policy_unsafe = validate_assistant_output(
+        "You have dengue. Take 500mg paracetamol every 6 hours.",
+        language="en",
+    )
+    assert policy_unsafe == "declined"
+    assert "500mg" not in text_unsafe
+    assert "dengue" not in text_unsafe.lower()
+
+    text_safe, policy_safe = validate_assistant_output(
+        "How many days have you had this symptom?",
+        language="en",
+    )
+    assert policy_safe == "question"
+    assert text_safe == "How many days have you had this symptom?"
+
+
+def test_infer_specialty_returns_canonical_directory_code():
+    from apps.triage.policy import infer_specialty
+
+    assert infer_specialty("my child has fever")["code"] == "pediatrics"
+    assert infer_specialty("high blood pressure and palpitations")["code"] == "cardiology"
+    assert infer_specialty("fever and headache for 3 days")["code"] == "general_medicine"
+
+
+def test_placeholder_voice_provider_issues_pii_free_credentials():
+    from apps.triage.providers.placeholder import get_voice_provider
+
+    provider = get_voice_provider()
+    creds = provider.create_session("sess-ref-123", "bn")
+    assert creds.provider == "vapi_placeholder"
+    assert creds.session_ref == "sess-ref-123"
+    assert creds.token
+    assert creds.expires_at
+    assert creds.status == "placeholder"
+
