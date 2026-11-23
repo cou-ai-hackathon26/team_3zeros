@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import type { Locale } from "../../i18n/config";
 import { formatWaitingAge, t } from "../../i18n/format";
-import styles from "./QueueList.module.css";
+import { cn } from "../../lib/cn";
 
 export interface QueueItem {
   id: string;
@@ -55,7 +55,7 @@ export function QueueList({ items, selectedId, onSelect, locale }: QueueListProp
   });
 
   if (sorted.length === 0) {
-    return <p className={styles.empty}>{t(locale, "clinician.emptyQueue")}</p>;
+    return <p className="m-0 p-6 text-dense text-ink-muted">{t(locale, "clinician.emptyQueue")}</p>;
   }
 
   const visibleItems = sorted.length > 200 ? sorted.slice(0, 200) : sorted;
@@ -81,7 +81,7 @@ export function QueueList({ items, selectedId, onSelect, locale }: QueueListProp
       role="listbox"
       tabIndex={0}
       aria-label={locale === "bn" ? "রোগীর তালিকা" : "Clinician queue"}
-      className={styles.list}
+      className="flex flex-col border-t border-line outline-offset-2"
       onKeyDown={handleKeyDown}
     >
       {visibleItems.map((item, idx) => {
@@ -91,34 +91,39 @@ export function QueueList({ items, selectedId, onSelect, locale }: QueueListProp
             key={item.id}
             role="option"
             aria-selected={isSelected}
-            className={`${styles.row} ${isSelected ? styles.selected : ""} ${
-              item.escalated ? styles.escalated : ""
-            }`}
+            data-escalated={item.escalated ? "true" : undefined}
+            className={cn(
+              "flex cursor-pointer flex-col gap-1 border-b border-line px-4 py-3 text-dense",
+              "transition-colors duration-[var(--motion-state-duration)] ease-[var(--motion-state-easing)]",
+              isSelected ? "bg-indigo-wash" : "bg-surface hover:bg-sunken",
+              item.escalated && "border-s-4 border-s-signal bg-emergency-wash",
+            )}
             onClick={() => {
               setFocusedIdx(idx);
               onSelect(item.id);
             }}
           >
-            <div className={styles.headerRow}>
-              <span className={styles.patientName}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-semibold text-ink">
                 {item.patientName}
                 {item.patientNameBn && (
-                  <span lang="bn" className={styles.nameBn}>
+                  <span lang="bn" className="font-normal text-ink-muted">
                     {" "}
                     ({item.patientNameBn})
                   </span>
                 )}
               </span>
-              <span className={styles.age}>
+              <span className="text-caption tabular-nums text-ink-muted">
                 {formatWaitingAge(item.createdAt, locale)}
               </span>
             </div>
-            <div className={styles.metaRow}>
-              <span className={styles.reason}>{item.reason}</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-ink-muted">{item.reason}</span>
               <span
-                className={`${styles.urgencyTag} ${
-                  item.urgency === "emergency" ? styles.emergencyTag : ""
-                }`}
+                className={cn(
+                  "text-caption font-semibold text-ink-muted",
+                  item.urgency === "emergency" && "text-signal",
+                )}
               >
                 {item.urgency}
               </span>

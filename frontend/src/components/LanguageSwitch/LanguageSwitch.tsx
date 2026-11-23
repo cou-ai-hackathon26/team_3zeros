@@ -3,7 +3,7 @@
 import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Locale } from "../../i18n/config";
-import styles from "./LanguageSwitch.module.css";
+import { SegmentedControl } from "../ui/selection";
 
 export interface LanguageSwitchProps {
   locale: Locale;
@@ -11,9 +11,8 @@ export interface LanguageSwitchProps {
 }
 
 /**
- * UIUX §3.4 & §5:
- * Full-pill বাংলা / English switcher; sets lang attributes on mixed-language fragments (§8)
- * and navigates to the matching /[locale]/... route when used inside Next.js App Router.
+ * বাংলা / English switch (a SegmentedControl). Navigates to the matching
+ * /[locale]/... route when used inside the Next.js App Router.
  */
 export function LanguageSwitch({ locale, onChange }: LanguageSwitchProps) {
   let pathname: string | null = null;
@@ -40,25 +39,14 @@ export function LanguageSwitch({ locale, onChange }: LanguageSwitchProps) {
   }
 
   return (
-    <div className={styles.pill} role="group" aria-label="Language switch">
-      <button
-        type="button"
-        lang="bn"
-        aria-pressed={locale === "bn"}
-        className={`${styles.option} ${locale === "bn" ? styles.active : ""}`}
-        onClick={() => handleSelect("bn")}
-      >
-        বাংলা
-      </button>
-      <button
-        type="button"
-        lang="en"
-        aria-pressed={locale === "en"}
-        className={`${styles.option} ${locale === "en" ? styles.active : ""}`}
-        onClick={() => handleSelect("en")}
-      >
-        English
-      </button>
-    </div>
+    <SegmentedControl
+      label="Language"
+      value={locale}
+      onValueChange={handleSelect}
+      options={[
+        { value: "bn", label: "বাংলা", lang: "bn" },
+        { value: "en", label: "English", lang: "en" },
+      ]}
+    />
   );
 }

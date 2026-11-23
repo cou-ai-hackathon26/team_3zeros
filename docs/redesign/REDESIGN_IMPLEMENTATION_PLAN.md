@@ -23,9 +23,14 @@ No time estimates are given. Phases are ordered by dependency.
 
 ## 1. Current state
 
-These seven documents are the only change so far. No application code,
-dependency, or existing document has been edited. `frontend/node_modules`
-is not installed, so no test or build was run during the audit.
+Progress on branch `redesign/handover`:
+
+| Phase | Status |
+|---|---|
+| 0 Governance | Done. Edits to MASTERPLAN, FRONTEND, UIUX_DESIGN, SECURITY and CLAUDE.md are committed; awaiting lead developer approval |
+| 1 Tokens | Done. Font checks in DESIGN_SYSTEM §3.1 (tabular figures, conjuncts on a low-end phone, Bangla reader sign-off) are still open |
+| 2 Components | Done except where noted in the Phase 2 rulings (see git log). Old `RouteLine`, `StatusLabel` and `SiteNav` remain until the pages using them migrate in Phases 3, 5 and 6 |
+| 3–10 | Not started |
 
 ---
 

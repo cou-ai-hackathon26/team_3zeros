@@ -8,7 +8,14 @@ import type {
   VoiceSessionState,
 } from "../../voice/types";
 import { LanguageSwitch } from "../LanguageSwitch/LanguageSwitch";
-import styles from "./VoicePanel.module.css";
+import { buttonVariants } from "../ui/button";
+import { cn } from "../../lib/cn";
+
+const BTN = {
+  primary: buttonVariants({ variant: "primary", size: "lg" }),
+  secondary: buttonVariants({ variant: "secondary", size: "md" }),
+  quiet: buttonVariants({ variant: "quiet", size: "md" }),
+};
 
 export interface VoicePanelProps {
   phase: VoiceSessionState;
@@ -88,9 +95,9 @@ function SpeakerSvg({ muted }: { muted: boolean }) {
 }
 
 /**
- * UIUX §3.1, §4.2, §5, §6.2 & FRONTEND §7:
+ * UIUX §6.2 & FRONTEND §7:
  * - Permission explainer before getUserMedia (INV-2).
- * - Live route-line segment bending with 30 fps microphone & spoken voice amplitude (no glowing orb).
+ * - Live level meter driven by microphone amplitude (no glowing orb).
  * - Always-on live captions (assistant 24px width 106, patient ink-muted, plus live interim speech).
  * - Actionable, non-apologetic recovery steps on permission_denied or unsupported_browser.
  */
@@ -121,8 +128,6 @@ export function VoicePanel({
   const lastAssistantTurn = [...turns].reverse().find((t) => t.role === "assistant");
   const lastPatientTurn = [...turns].reverse().find((t) => t.role === "patient");
 
-  const waveDeflection = Math.round(Math.min(1, Math.max(0.08, micLevel)) * 18);
-
   const quickPrompts =
     language === "bn"
       ? [
@@ -142,13 +147,13 @@ export function VoicePanel({
 
   if (phase === "permission_prompt" && !textMode) {
     return (
-      <section className={styles.panel}>
-        <div className={styles.topBar}>
+      <section className="flex flex-col gap-5 rounded-tile border border-line bg-surface p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className={styles.heading}>
+            <h2 className="m-0 font-serif text-title">
               {language === "bn" ? "শুরু করার আগে" : "Before we start"}
             </h2>
-            <p className={styles.subHeading}>
+            <p className="m-0 mt-1 text-dense text-ink-muted">
               {language === "bn"
                 ? "সরাসরি কথা বলে বা লিখে আপনার শারীরিক সমস্যার সারাংশ তৈরি করুন"
                 : "Speak naturally or type to prepare your visit summary for the doctor"}
@@ -157,7 +162,7 @@ export function VoicePanel({
           <LanguageSwitch locale={language} onChange={onLanguageChange} />
         </div>
 
-        <ul className={styles.explainerList}>
+        <ul className="m-0 flex list-disc flex-col gap-2 ps-5 text-body">
           <li>
             {language === "bn"
               ? "শুধুমাত্র এই স্ক্রিনটি খোলা থাকাকালীন আপনার মাইক্রোফোন ব্যবহার করা হবে।"
@@ -175,7 +180,7 @@ export function VoicePanel({
           </li>
         </ul>
 
-        <label className={styles.consentCheck}>
+        <label className="flex items-start gap-3 text-body">
           <input
             type="checkbox"
             checked={disclosureAccepted}
@@ -188,11 +193,11 @@ export function VoicePanel({
           </span>
         </label>
 
-        <div className={styles.bottomActions}>
+        <div className="flex flex-wrap gap-3">
           <button
             type="button"
             disabled={!disclosureAccepted}
-            className={styles.primaryBtn}
+            className={BTN.primary}
             onClick={onAllowMicrophone}
           >
             <MicSvg />
@@ -202,7 +207,7 @@ export function VoicePanel({
           </button>
           <button
             type="button"
-            className={styles.secondaryBtn}
+            className={BTN.secondary}
             onClick={onSwitchToText}
           >
             {language === "bn" ? "লিখে জানান" : "Type instead"}
@@ -214,16 +219,16 @@ export function VoicePanel({
 
   if (phase === "permission_denied" && !textMode) {
     return (
-      <section className={styles.panel}>
-        <h2 className={styles.heading}>
+      <section className="flex flex-col gap-5 rounded-tile border border-line bg-surface p-5">
+        <h2 className="m-0 font-serif text-title">
           {language === "bn"
             ? "মাইক্রোফোন ব্লক করা আছে। ব্রাউজার সেটিংস থেকে চালু করুন অথবা নিচে লিখে জানান।"
             : "Microphone is blocked. Turn it on in your browser settings, or type instead."}
         </h2>
-        <div className={styles.bottomActions}>
+        <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            className={styles.primaryBtn}
+            className={BTN.primary}
             onClick={onSwitchToText}
           >
             {language === "bn" ? "লিখে জানান" : "Type instead"}
@@ -243,17 +248,16 @@ export function VoicePanel({
   const isMuted = providerConfig.speakerEnabled === false;
 
   return (
-    <section className={styles.panel}>
-      <div className={styles.topBar}>
-        <div className={styles.topBarMeta}>
-          <button type="button" className={styles.endBtn} onClick={onEnd}>
+    <section className="flex flex-col gap-5 rounded-tile border border-line bg-surface p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" className={BTN.quiet} onClick={onEnd}>
             {language === "bn" ? "← শেষ করুন" : "← End"}
           </button>
-          <span className={styles.liveBadge}>
+          <span className="inline-flex items-center gap-2 rounded-control bg-indigo-wash px-3 py-1 text-caption font-semibold">
             <span
-              className={
-                phase === "speaking" ? styles.liveDotSpeaking : styles.liveDot
-              }
+              aria-hidden="true"
+              className={cn("size-2 rounded-pill", phase === "speaking" ? "bg-indigo" : "bg-ink-muted")}
             />
             {textMode
               ? language === "bn"
@@ -263,11 +267,11 @@ export function VoicePanel({
           </span>
         </div>
 
-        <div className={styles.topBarMeta}>
+        <div className="flex flex-wrap items-center gap-3">
           {!textMode && (
             <button
               type="button"
-              className={styles.secondaryBtn}
+              className={BTN.secondary}
               onClick={() =>
                 onUpdateProvider?.({
                   speakerEnabled: isMuted,
@@ -290,15 +294,15 @@ export function VoicePanel({
         </div>
       </div>
 
-      <div className={styles.captionStage}>
-        <div className={styles.assistantHeader}>
-          <span className={styles.roleTag}>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-caption font-semibold text-ink-muted">
             {language === "bn" ? "স্বাস্থ্য নির্দেশিকা" : "Care Guide"}
           </span>
           {phase === "speaking" && onBargeIn && (
             <button
               type="button"
-              className={styles.secondaryBtn}
+              className={BTN.secondary}
               onClick={onBargeIn}
             >
               <MicSvg />
@@ -310,9 +314,9 @@ export function VoicePanel({
         </div>
 
         {lastAssistantTurn ? (
-          <p className={styles.assistantCaption}>{lastAssistantTurn.text}</p>
+          <p className="m-0 text-title font-medium">{lastAssistantTurn.text}</p>
         ) : (
-          <p className={styles.assistantCaption}>
+          <p className="m-0 text-title font-medium">
             {language === "bn"
               ? "আপনার কী শারীরিক সমস্যা হচ্ছে, নিজের ভাষায় বলুন…"
               : "Please describe what symptoms you are experiencing today…"}
@@ -320,22 +324,22 @@ export function VoicePanel({
         )}
 
         {interimText && (
-          <p className={styles.interimCaption}>
+          <p className="m-0 text-body text-ink-muted">
             {language === "bn" ? "শুনছি: " : "Listening: "}“{interimText}”
           </p>
         )}
 
         {lastPatientTurn && (
-          <p className={styles.patientCaption}>
+          <p className="m-0 text-dense text-ink-muted">
             {language === "bn" ? "আপনার উত্তর: " : "Your response: "}“
             {lastPatientTurn.text}”
           </p>
         )}
       </div>
 
-      <div className={styles.liveRouteIndicator}>
-        <div className={styles.waveHeader}>
-          <span className={styles.phaseLabel} role="status">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-dense font-semibold" role="status">
             {phase === "thinking"
               ? language === "bn"
                 ? "বিবেচনা করা হচ্ছে…"
@@ -360,7 +364,7 @@ export function VoicePanel({
           {turns.length > 1 && (
             <button
               type="button"
-              className={styles.textFallbackBtn}
+              className={BTN.quiet}
               onClick={() => setShowTranscript((v) => !v)}
             >
               {showTranscript
@@ -374,33 +378,24 @@ export function VoicePanel({
           )}
         </div>
 
-        <svg
-          className={styles.liveWave}
-          viewBox="0 0 360 44"
-          aria-hidden="true"
+        {/* Live level: a segment that fills with microphone amplitude (no orb, no waveform). */}
+        <div
+          role="meter"
+          aria-label={language === "bn" ? "মাইক্রোফোনের মাত্রা" : "Microphone level"}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(Math.min(1, Math.max(0, micLevel)) * 100)}
+          className="h-2 w-full overflow-hidden rounded-control bg-sunken"
         >
-          <line
-            x1="12"
-            y1="22"
-            x2="344"
-            y2="22"
-            className={styles.waveBaseline}
-          />
-          <path
-            d={`M 12 22 Q 95 ${22 - waveDeflection}, 178 22 T 344 22`}
-            className={styles.wavePath}
-          />
-          <circle cx="12" cy="22" r="4.5" className={styles.waveOrigin} />
-          <circle cx="178" cy="22" r="4" className={styles.waveStop} />
-          <circle cx="344" cy="22" r="6" className={styles.waveStop} />
-        </svg>
+          <div className="h-full bg-indigo" style={{ width: `${Math.round(Math.min(1, Math.max(0, micLevel)) * 100)}%` }} />
+        </div>
       </div>
 
       {showTranscript && turns.length > 0 && (
-        <div className={styles.transcriptDrawer}>
+        <div className="flex max-h-60 flex-col gap-2 overflow-y-auto rounded-panel bg-sunken p-3">
           {turns.map((t, i) => (
-            <div key={`${t.at}-${i}`} className={styles.transcriptItem}>
-              <span className={styles.transcriptRole}>
+            <div key={`${t.at}-${i}`} className="flex flex-col text-dense">
+              <span className="text-caption font-semibold text-ink-muted">
                 {t.role === "assistant"
                   ? language === "bn"
                     ? "নির্দেশিকা"
@@ -415,20 +410,21 @@ export function VoicePanel({
         </div>
       )}
 
-      <div className={styles.quickPromptsSection}>
-        <span className={styles.quickPromptsLabel}>
+      <div className="flex flex-col gap-2">
+        <span className="text-caption text-ink-muted">
           {language === "bn"
             ? "সাধারণ লক্ষণ (চাপলে সাথে সাথে উত্তর পাঠানো হবে):"
             : "Common symptoms (tap to answer immediately):"}
         </span>
-        <div className={styles.quickPromptsRow}>
+        <div className="flex flex-wrap gap-2">
           {quickPrompts.map((p) => (
             <button
               key={p.text}
               type="button"
-              className={
-                p.emergency ? styles.promptChipEmergency : styles.promptChip
-              }
+              className={cn(
+                "min-h-11 rounded-control border bg-surface px-3 text-dense hover:bg-sunken",
+                p.emergency ? "border-signal text-signal" : "border-line-strong text-ink",
+              )}
               onClick={() => onSendTextTurn(p.text)}
             >
               {p.label}
@@ -437,7 +433,7 @@ export function VoicePanel({
         </div>
       </div>
 
-      <form className={styles.textForm} onSubmit={handleTextSubmit}>
+      <form className="flex gap-2" onSubmit={handleTextSubmit}>
         <input
           type="text"
           value={textInput}
@@ -451,19 +447,19 @@ export function VoicePanel({
                 ? "কথা বলুন অথবা এখানে লিখে পাঠান…"
                 : "Speak or type your answer here…"
           }
-          className={styles.textInput}
+          className="h-12 min-w-0 flex-1 rounded-control border border-line-strong bg-surface px-3 text-body"
         />
-        <button type="submit" className={styles.primaryBtn}>
+        <button type="submit" className={BTN.primary}>
           {language === "bn" ? "পাঠান" : "Send"}
         </button>
       </form>
 
       {!textMode && (
-        <div className={styles.bottomRow}>
-          <div className={styles.topBarMeta}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              className={styles.secondaryBtn}
+              className={BTN.secondary}
               onClick={
                 phase === "paused" || phase === "ended" ? onResume : onPause
               }
@@ -479,7 +475,7 @@ export function VoicePanel({
 
             {audioDevices.length > 1 && (
               <select
-                className={styles.deviceSelect}
+                className="h-11 rounded-control border border-line-strong bg-surface px-2 text-dense"
                 value={providerConfig.selectedDeviceId ?? ""}
                 onChange={(e) =>
                   onUpdateProvider?.({ selectedDeviceId: e.target.value })
@@ -501,7 +497,7 @@ export function VoicePanel({
 
           <button
             type="button"
-            className={styles.textFallbackBtn}
+            className={BTN.quiet}
             onClick={onSwitchToText}
           >
             {language === "bn" ? "লিখে জানান" : "Type instead"}

@@ -4,7 +4,7 @@ import React from "react";
 import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";
 import { SourceChip, type SourceReference } from "../SourceChip/SourceChip";
-import styles from "./DraftBlock.module.css";
+import { cn } from "../../lib/cn";
 
 export interface DraftBlockProps {
   title: string;
@@ -37,44 +37,54 @@ export function DraftBlock({
 }: DraftBlockProps) {
   return (
     <section
-      className={`${styles.block} ${verified ? styles.verified : styles.draft}`}
+      data-verified={verified ? "true" : "false"}
+      className={cn(
+        "relative flex flex-col gap-3 rounded-panel p-4",
+        verified ? "bg-surface" : "bg-draft-wash",
+      )}
     >
-      <svg className={styles.borderOverlay} aria-hidden="true">
+      <svg aria-hidden="true" className="pointer-events-none absolute inset-0 size-full">
         <rect
           x="1"
           y="1"
           width="99%"
           height="98%"
-          rx="12"
-          ry="12"
-          className={verified ? styles.solidRect : styles.dashedRect}
+          rx="10"
+          ry="10"
+          fill="none"
+          className={cn(
+            "transition-[stroke-dasharray] duration-[var(--motion-state-duration)] ease-[var(--motion-state-easing)]",
+            verified
+              ? "stroke-line [stroke-dasharray:0] [stroke-width:1px]"
+              : "stroke-draft [stroke-dasharray:6_4] [stroke-width:1.5px]",
+          )}
         />
       </svg>
 
-      <header className={styles.header}>
-        <h3 className={styles.title}>{title}</h3>
+      <header className="flex items-center justify-between gap-2">
+        <h3 className="m-0 text-subheading font-semibold text-ink">{title}</h3>
         {!verified && (
-          <span className={styles.draftTag}>
+          <span className="rounded-control bg-surface px-2 py-0.5 text-caption font-semibold text-draft">
             {t(locale, "clinician.draftBadge")}
           </span>
         )}
       </header>
 
       {children ? (
-        <div className={styles.content}>{children}</div>
+        <div className="text-dense text-ink">{children}</div>
       ) : editable ? (
         <textarea
           aria-label={title}
-          className={styles.editor}
+          className="min-h-28 w-full rounded-control border border-line-strong bg-surface p-3 text-dense text-ink"
           value={content}
           onChange={(e) => onChange?.(e.target.value)}
         />
       ) : (
-        <p className={styles.content}>{content}</p>
+        <p className="m-0 text-dense text-ink">{content}</p>
       )}
 
       {sources.length > 0 && (
-        <div className={styles.sourceList}>
+        <div className="flex flex-wrap gap-2">
           {sources.map((src) => (
             <SourceChip key={src.id} source={src} onOpen={onOpenSource} />
           ))}

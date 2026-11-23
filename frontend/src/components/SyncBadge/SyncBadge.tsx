@@ -1,7 +1,9 @@
 import React from "react";
 import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";
-import styles from "./SyncBadge.module.css";
+import { Check, Loader, TriangleAlert } from "lucide-react";
+import { cn } from "../../lib/cn";
+import { Button } from "../ui/button";
 
 export interface SyncBadgeProps {
   fhirSyncStatus?: "NOT_REQUIRED" | "PENDING" | "SYNCED" | "FAILED";
@@ -45,25 +47,27 @@ export function SyncBadge({
 
   const canRetry = isFailed && allowedActions.includes("retry_sync") && onRetrySync;
 
+  const Icon = isFailed ? TriangleAlert : isPending ? Loader : Check;
+
   return (
     <div
-      className={`${styles.badge} ${
-        isFailed ? styles.failed : isPending ? styles.pending : styles.synced
-      }`}
       role="status"
+      data-sync={isFailed ? "failed" : isPending ? "pending" : "synced"}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-control border px-3 py-1 text-caption font-medium",
+        isFailed
+          ? "border-ochre bg-ochre-wash text-ochre"
+          : isPending
+            ? "border-indigo bg-indigo-wash text-ink"
+            : "border-line bg-surface text-positive",
+      )}
     >
-      <span className={styles.indicator} aria-hidden="true">
-        {isFailed ? "▪" : isPending ? "◌" : "●"}
-      </span>
-      <span className={styles.label}>{label}</span>
+      <Icon aria-hidden className="size-4 shrink-0" />
+      <span>{label}</span>
       {canRetry && (
-        <button
-          type="button"
-          className={styles.retryButton}
-          onClick={onRetrySync}
-        >
+        <Button size="sm" variant="secondary" onClick={onRetrySync}>
           {t(locale, "action.referral.retry_sync")}
-        </button>
+        </Button>
       )}
     </div>
   );

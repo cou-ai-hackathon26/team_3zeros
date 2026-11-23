@@ -5,7 +5,10 @@ import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";
 import { getActionDefinition, type StatefulEntity } from "../../state/actions";
 import { createIntentIdempotencyKey } from "../../api/client";
-import styles from "./ActionBar.module.css";
+import { cn } from "../../lib/cn";
+import { Button } from "../ui/button";
+import { Field, Input } from "../ui/field";
+import { Dialog, DialogContent } from "../ui/overlays";
 
 export interface ActionPayload {
   reason?: string;
@@ -18,6 +21,7 @@ export interface ActionBarProps {
   allowedActions: string[];
   isPending: boolean;
   locale: Locale;
+  className?: string;
   onAction: (action: string, payload: ActionPayload) => void;
 }
 
@@ -33,6 +37,7 @@ export function ActionBar({
   allowedActions,
   isPending,
   locale,
+  className,
   onAction,
 }: ActionBarProps) {
   const [activeReasonAction, setActiveReasonAction] = useState<string | null>(null);
@@ -83,87 +88,69 @@ export function ActionBar({
     setReasonText("");
   }
 
+  const labelOf = (action: string) => t(locale, getActionDefinition(entity, action).labelKey);
+  const reasonOpen = activeReasonAction !== null;
+  const slotOpen = activeSlotAction !== null;
+  const closeLabel = t(locale, "common.close");
+
   return (
-    <div className={styles.bar}>
-      <div className={styles.buttonGroup}>
-        {definitions.map((def) => (
-          <button
-            key={def.action}
-            type="button"
-            disabled={isPending}
-            className={`${styles.button} ${styles[def.confirmationStyle]}`}
-            onClick={() => handleActionClick(def.action, def.requiresReason, def.requiresAlternateSlot)}
-          >
-            {t(locale, def.labelKey)}
-          </button>
-        ))}
-      </div>
-
-      {activeSlotAction && (
-        <form
-          className={styles.reasonSheet}
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!alternateSlotId.trim()) return;
-            onAction(activeSlotAction, {
-              alternateSlotId: alternateSlotId.trim(),
-              idempotencyKey: getOrMintIntentKey(activeSlotAction),
-            });
-            setActiveSlotAction(null);
-          }}
+    <div className={cn("flex flex-wrap items-center justify-end gap-2", className)}>
+      {definitions.map((def) => (
+        <Button
+          key={def.action}
+          disabled={isPending}
+          variant={def.confirmationStyle === "primary" ? "primary" : "secondary"}
+          onClick={() => handleActionClick(def.action, def.requiresReason, def.requiresAlternateSlot)}
         >
-          <label className={styles.reasonLabel} htmlFor="alternate-slot-input">
-            {locale === "bn" ? "বিকল্প স্লট নির্বাচন করুন" : "Alternate slot ID"}
-          </label>
-          <input
-            id="alternate-slot-input"
-            type="text"
-            required
-            value={alternateSlotId}
-            onChange={(e) => setAlternateSlotId(e.target.value)}
-            className={styles.reasonInput}
-          />
-          <div className={styles.reasonActions}>
-            <button type="submit" className={`${styles.button} ${styles.primary}`}>
-              {locale === "bn" ? "প্রস্তাব পাঠান" : "Confirm alternate slot"}
-            </button>
-          </div>
-        </form>
-      )}
+          {t(locale, def.labelKey)}
+        </Button>
+      ))}
 
-      {activeReasonAction && (
-        <form className={styles.reasonSheet} onSubmit={handleConfirmReason}>
-          <label className={styles.reasonLabel} htmlFor="action-reason-input">
-            {locale === "bn" ? "কারণ লিখুন (বাধ্যতামূলক)" : "Reason (required)"}
-          </label>
-          <input
-            id="action-reason-input"
-            type="text"
-            required
-            value={reasonText}
-            onChange={(e) => setReasonText(e.target.value)}
-            className={styles.reasonInput}
-          />
-          <div className={styles.reasonActions}>
-            <button
-              type="button"
-              className={`${styles.button} ${styles.secondary}`}
-              onClick={() => setActiveReasonAction(null)}
+      <Dialog open={slotOpen} onOpenChange={(open) => !open && setActiveSlotAction(null)}>
+        {activeSlotAction && (
+          <DialogContent title={labelOf(activeSlotAction)} closeLabel={closeLabel}>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!alternateSlotId.trim()) return;
+                onAction(activeSlotAction, {
+                  alternateSlotId: alternateSlotId.trim(),
+                  idempotencyKey: getOrMintIntentKey(activeSlotAction),
+                });
+                setActiveSlotAction(null);
+              }}
             >
-              {locale === "bn" ? "ফিরে যান" : "Back"}
-            </button>
-            <button
-              type="submit"
-              disabled={!reasonText.trim() || isPending}
-              className={`${styles.button} ${styles.destructive}`}
-            >
-              {locale === "bn"
-                ? `নিশ্চিত করুন`
-                : `Confirm ${activeReasonAction.replace(/_/g, " ")}`}
-            </button>
-          </div>
-        </form>
-      )}
+              <Field label={locale === "bn" ? "বিকল্প স্লট নির্বাচন করুন" : "Alternate slot ID"} required locale={locale}>
+                {(p) => <Input {...p} type="text" required value={alternateSlotId} onChange={(e) => setAlternateSlotId(e.target.value)} />}
+              </Field>
+              <div className="flex justify-end gap-2">
+                <Button type="submit">{locale === "bn" ? "প্রস্তাব পাঠান" : "Confirm alternate slot"}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog open={reasonOpen} onOpenChange={(open) => !open && setActiveReasonAction(null)}>
+        {activeReasonAction && (
+          <DialogContent title={labelOf(activeReasonAction)} closeLabel={closeLabel}>
+            <form className="flex flex-col gap-4" onSubmit={handleConfirmReason}>
+              <Field label={locale === "bn" ? "কারণ লিখুন" : "Reason"} required locale={locale}>
+                {(p) => <Input {...p} type="text" required value={reasonText} onChange={(e) => setReasonText(e.target.value)} />}
+              </Field>
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setActiveReasonAction(null)}>
+                  {t(locale, "common.back")}
+                </Button>
+                <Button type="submit" variant="danger" disabled={!reasonText.trim() || isPending}>
+                  {locale === "bn" ? "নিশ্চিত করুন" : `Confirm ${activeReasonAction.replace(/_/g, " ")}`}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

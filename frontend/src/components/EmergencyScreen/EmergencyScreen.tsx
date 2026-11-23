@@ -1,6 +1,6 @@
 import React from "react";
 import type { Locale } from "../../i18n/config";
-import styles from "./EmergencyScreen.module.css";
+
 
 export interface EmergencyNumber {
   label: string;
@@ -32,28 +32,28 @@ export function EmergencyScreen({
     <section
       role="alert"
       aria-live="assertive"
-      className={styles.emergencyScreen}
+      className="flex min-h-screen w-full flex-col gap-6 bg-emergency-wash px-6 py-8 text-ink transition-none animate-none"
     >
-      <h1 className={styles.heading}>
+      <h1 className="m-0 text-heading font-semibold">
         {locale === "bn"
           ? "এটি একটি জরুরি অবস্থা হতে পারে।"
           : "This may be an emergency."}
       </h1>
 
       {!isPlaceholder && (
-        <div className={styles.placeholderNotice}>
+        <div className="rounded-control border-[1.5px] border-dashed border-signal bg-surface px-3 py-2 text-caption font-semibold text-signal">
           PLACEHOLDER — NOT CLINICALLY APPROVED (Q-06)
         </div>
       )}
 
-      <p className={styles.instruction}>{instructionText}</p>
+      <p className="m-0 text-body">{instructionText}</p>
 
-      <div className={styles.actions}>
+      <div className="flex flex-col items-start gap-4">
         {emergencyNumbers.map((num) => (
           <a
             key={num.phone}
             href={`tel:${num.phone}`}
-            className={styles.callButton}
+            className="flex min-h-12 w-full max-w-sm items-center justify-center rounded-control bg-signal px-6 text-body font-semibold text-surface no-underline"
           >
             {locale === "bn" ? `কল করুন ${num.label} (${num.phone})` : `Call ${num.label} (${num.phone})`}
           </a>
@@ -61,7 +61,7 @@ export function EmergencyScreen({
 
         <button
           type="button"
-          className={styles.facilitiesLink}
+          className="min-h-11 rounded-control border border-ink bg-surface px-4 text-body font-semibold text-ink"
           onClick={onShowNearestFacilities}
         >
           {locale === "bn"

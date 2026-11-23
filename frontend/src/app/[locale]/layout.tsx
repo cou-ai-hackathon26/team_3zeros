@@ -2,6 +2,7 @@ import React from "react";
 import { Hind_Siliguri, Tiro_Bangla } from "next/font/google";
 import "../globals.css";
 import { SessionProvider } from "../../auth/session";
+import { Toaster } from "../../components/Toast/Toast";
 import { AppProviders } from "../../api/queries/provider";
 import { resolveSyncLocale, type LocaleLayoutProps } from "../resolveLocale";
 
@@ -35,7 +36,9 @@ export default async function LocaleRootLayout({
     >
       <body>
         <AppProviders>
-          <SessionProvider>{children}</SessionProvider>
+          <Toaster>
+            <SessionProvider>{children}</SessionProvider>
+          </Toaster>
         </AppProviders>
       </body>
     </html>

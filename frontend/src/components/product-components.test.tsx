@@ -55,3 +55,24 @@ describe("StatusBadge (DESIGN_SYSTEM §6.6)", () => {
     expect(screen.getByText("Draft")).toBeTruthy();
   });
 });
+
+describe("Toaster and LanguageSwitch", () => {
+  it("shows a toast from useToast with the action's verb", async () => {
+    const { Toaster, useToast } = await import("./Toast/Toast");
+    const { fireEvent } = await import("@testing-library/react");
+    function Trigger() {
+      const show = useToast();
+      return <button onClick={() => show({ message: "Request accepted" })}>go</button>;
+    }
+    render(<Toaster><Trigger /></Toaster>);
+    fireEvent.click(screen.getByText("go"));
+    expect((await screen.findAllByText("Request accepted")).length).toBeGreaterThan(0);
+  });
+
+  it("LanguageSwitch is a two-option radio group that marks the current language", async () => {
+    const { LanguageSwitch } = await import("./LanguageSwitch/LanguageSwitch");
+    render(<LanguageSwitch locale="bn" />);
+    expect(screen.getByRole("radio", { name: "বাংলা" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "English" }).getAttribute("aria-checked")).toBe("false");
+  });
+});
