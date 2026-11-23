@@ -17,6 +17,9 @@ import DashboardPage from "./[locale]/(clinician)/dashboard/page";
 import ReferralsPage from "./[locale]/(clinician)/referrals/page";
 import OutgoingReferralsPage from "./[locale]/(clinician)/referrals/outgoing/page";
 import NewReferralPage from "./[locale]/(clinician)/referrals/new/page";
+import PatientsPage from "./[locale]/(clinician)/patients/page";
+import PatientChartPage from "./[locale]/(clinician)/patients/[id]/page";
+import VerifyReportPage from "./[locale]/(clinician)/patients/[id]/reports/[docId]/verify/page";
 import ReferralWorkspacePage from "./[locale]/(clinician)/referrals/[id]/page";
 
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
@@ -333,5 +336,143 @@ describe("/referrals/[id] workspace", () => {
     unmount();
     mount(<ReferralWorkspacePage />, { "GET /auth/me": () => json(ME(["clinician"])), "GET /referrals/r1": () => err("not_found", 404) });
     expect(await screen.findByText("We could not find that referral, or you do not have access to it.")).toBeTruthy();
+  });
+});
+
+describe("/patients", () => {
+  beforeEach(() => { nav.pathname = "/en/patients"; });
+  it("before searching it says how to search and shows no list", async () => {
+    const { calls } = mount(<PatientsPage />, {});
+    expect(screen.getByText("Search by name, phone or ID.")).toBeTruthy();
+    expect(calls).toEqual([]);
+  });
+  it("searches through the API once typing pauses and links each result to its chart", async () => {
+    const { calls } = mount(<PatientsPage />, { "GET /patients/": () => page([patient("p1", "Karim", "করিম")]) });
+    fireEvent.change(screen.getByLabelText("Search patients"), { target: { value: "Kar" } });
+    const link = await screen.findByRole("link", { name: /Karim Uddin/ });
+    expect(link.getAttribute("href")).toBe("/en/patients/p1");
+    expect(calls.some((c) => c.key === "GET /patients/?q=Kar")).toBe(true);
+  });
+  it("says when nothing matches and when the search fails", async () => {
+    const { unmount } = mount(<PatientsPage />, { "GET /patients/": () => page([]) });
+    fireEvent.change(screen.getByLabelText("Search patients"), { target: { value: "zzz" } });
+    expect(await screen.findByText("No patient matches.")).toBeTruthy();
+    unmount();
+    mount(<PatientsPage />, { "GET /patients/": () => err("provider_unavailable", 503) });
+    fireEvent.change(screen.getByLabelText("Search patients"), { target: { value: "zzz" } });
+    expect(await screen.findByText("We could not search.", {}, { timeout: 4000 })).toBeTruthy();
+  });
+});
+
+describe("/patients/[id] chart", () => {
+  beforeEach(() => { nav.pathname = "/en/patients/p1"; nav.params = { id: "p1" }; });
+  const chartRoutes = (extra: Record<string, Route> = {}) => ({
+    "GET /auth/me": () => json(ME(["clinician"])),
+    "GET /patients/p1": () => json(patient("p1", "Karim", "করিম")),
+    "GET /patients/p1/chart": () => json({ patient_id: "p1", encounters: [{ id: "e1", patient_id: "p1", facility_id: "f1", facility_name: "Tangail", period_start: "2026-11-01T04:00:00Z", encounter_type: "outpatient", reason: "Fever", observations: [{ id: "o1", code: "temp", display_name: "Temperature", value_string: "38.5", unit: "C" }] }] }),
+    "GET /patients/p1/duplicate-candidates": () => json([]),
+    "GET /referrals?direction=incoming": () => page([]),
+    "GET /referrals?direction=outgoing": () => page([referral("r1", "SENT", { patient_id: "p1" }), referral("r2", "SENT", { patient_id: "other" })]),
+    ...extra,
+  });
+
+  it("shows the identity header in both scripts, the latest visit, and refer and record-visit actions", async () => {
+    mount(<PatientChartPage />, chartRoutes());
+    expect(await screen.findByRole("heading", { level: 1, name: /Karim Uddin/ })).toBeTruthy();
+    expect(screen.getByText("(করিম)")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Refer this patient" }).getAttribute("href")).toBe("/en/referrals/new?patient=p1");
+    expect(await screen.findByText(/Temperature: 38.5 C/)).toBeTruthy();
+    expect(screen.queryByText(/break-glass/i)).toBeNull();
+  });
+
+  it("the Referrals tab shows only this patient's referrals", async () => {
+    mount(<PatientChartPage />, chartRoutes());
+    await screen.findByRole("heading", { level: 1, name: /Karim Uddin/ });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Referrals" })); fireEvent.click(screen.getByRole("tab", { name: "Referrals" }));
+    expect((await screen.findAllByRole("link")).filter((a) => a.getAttribute("href") === "/en/referrals/r1")).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: /r2/ })).toBeNull();
+  });
+
+  it("a possible duplicate is a notice with two choices and a confirmation; nothing merges until confirmed", async () => {
+    const { calls } = mount(<PatientChartPage />, chartRoutes({
+      "GET /patients/p1/duplicate-candidates": () => json([{ id: "c1", patient_a_id: "p1", patient_b_id: "p2", score: 0.9, reasons: [], status: "open" }]),
+      "POST /patients/p1/duplicate-candidates/c1/resolve": () => json({}),
+    }));
+    expect(await screen.findByText("This record may be the same person as another record.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Different person" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Confirm your decision" });
+    expect(calls.some((c) => c.key.startsWith("POST"))).toBe(false);
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" })); });
+    const post = await waitFor(() => { const c = calls.find((x) => x.key.endsWith("/resolve")); expect(c).toBeTruthy(); return c!; });
+    expect(JSON.parse(post.body)).toEqual({ status: "different" });
+  });
+
+  it("a facility staff member without a clinician role has no Refer button", async () => {
+    mount(<PatientChartPage />, chartRoutes({ "GET /auth/me": () => json(ME(["facility_staff"])) }));
+    await screen.findByRole("heading", { level: 1, name: /Karim Uddin/ });
+    expect(screen.queryByRole("link", { name: "Refer this patient" })).toBeNull();
+  });
+
+  it("404 is one message", async () => {
+    mount(<PatientChartPage />, chartRoutes({ "GET /patients/p1": () => err("not_found", 404) }));
+    expect(await screen.findByText("We could not find that patient, or you do not have access to it.")).toBeTruthy();
+  });
+});
+
+describe("/patients/[id]/reports/[docId]/verify", () => {
+  beforeEach(() => { nav.pathname = "/en/patients/p1/reports/d1/verify"; nav.params = { id: "p1", docId: "d1" }; });
+  const doc = (state: string) => ({ id: "d1", patient_id: "p1", original_filename: "cbc.pdf", content_type: "application/pdf", size: 10, state, created_at: "2026-11-23T08:00:00Z" });
+  const field = { id: "f1", name: "Hemoglobin", value: "10.2", unit: "g/dL", observed_date: "2026-11-20", lab: "City Lab", confidence: 0.7, page: 1, bbox: [0.1, 0.2, 0.4, 0.25], status: "candidate" };
+  const routes = (state: string, extra: Record<string, Route> = {}) => ({
+    "GET /auth/me": () => json(ME(["clinician"])),
+    "GET /documents/d1": () => json(doc(state)),
+    "GET /documents/d1/extraction": () => json({ document_id: "d1", state, fields: [field] }),
+    "GET /patients/p1/results": () => json({ patient_id: "p1", results: [{ id: "r", code: "hb", display_name: "Hemoglobin", value: "11.5", unit: "g/dL", observed_date: "2026-08-01T00:00:00Z", lab: "City Lab" }] }),
+    ...extra,
+  });
+
+  it("while OCR runs it shows a processing label, not values", async () => {
+    mount(<VerifyReportPage />, routes("OCR_RUNNING"));
+    expect(await screen.findAllByText("Reading the report…", {}, { timeout: 2500 })).toBeTruthy(); // label appears after 1 s
+    expect(screen.queryByText("Hemoglobin")).toBeNull();
+  });
+
+  it("OCR failure offers Retry reading", async () => {
+    const { calls } = mount(<VerifyReportPage />, routes("OCR_FAILED", { "POST /documents/d1/actions/retry_ocr": () => json({}) }));
+    await act(async () => { fireEvent.click(await screen.findByRole("button", { name: "Retry reading" })); });
+    await waitFor(() => expect(calls.some((c) => c.key === "POST /documents/d1/actions/retry_ocr")).toBe(true));
+  });
+
+  it("shows extracted values with a Check this marker (no percentage) and earlier results with date and lab (INV-15)", async () => {
+    mount(<VerifyReportPage />, routes("EXTRACTED_UNVERIFIED"));
+    expect(await screen.findByDisplayValue("10.2")).toBeTruthy();
+    expect(screen.getByText("Check this")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/70\s?%|0\.7/);
+    expect(screen.getByText(/Earlier result:/)).toBeTruthy();
+    expect(screen.getByText(/2026-08-01, City Lab/)).toBeTruthy();
+  });
+
+  it("confirming sends the edited values and shows saving, never done, until the server says VERIFIED (INV-12)", async () => {
+    const { calls } = mount(<VerifyReportPage />, routes("EXTRACTED_UNVERIFIED", { "POST /documents/d1/extraction/verify": () => json({}, 202) }));
+    fireEvent.change(await screen.findByDisplayValue("10.2"), { target: { value: "10.4" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Confirm|Verify/ })); });
+    const post = await waitFor(() => { const c = calls.find((x) => x.key === "POST /documents/d1/extraction/verify"); expect(c).toBeTruthy(); return c!; });
+    expect(JSON.parse(post.body).fields[0]).toMatchObject({ name: "Hemoglobin", value: "10.4" });
+    expect(await screen.findByText("Sending…")).toBeTruthy();
+    expect(screen.queryByText("These values are verified.")).toBeNull();
+  });
+
+  it("a verified, rejected or blocked document says so and offers nothing to change", async () => {
+    const { unmount } = mount(<VerifyReportPage />, routes("VERIFIED"));
+    expect(await screen.findByText("These values are verified.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Confirm|Verify/ })).toBeNull();
+    unmount();
+    mount(<VerifyReportPage />, routes("QUARANTINED"));
+    expect(await screen.findByText("This file was blocked and cannot be opened.")).toBeTruthy();
+  });
+
+  it("404 is one message", async () => {
+    mount(<VerifyReportPage />, { "GET /auth/me": () => json(ME(["clinician"])), "GET /documents/d1": () => err("not_found", 404) });
+    expect(await screen.findByText("We could not find that report, or you do not have access to it.")).toBeTruthy();
   });
 });

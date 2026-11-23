@@ -263,3 +263,49 @@ export function useCreateEncounter(patientId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.patientChart(patientId) }),
   });
 }
+
+
+export interface PriorResult { id: string; code: string; display_name: string; value: string; unit: string; observed_date: string | null; lab: string }
+export interface DuplicateCandidate { id: string; patient_a_id: string; patient_b_id: string; score: number; reasons: unknown; status: string }
+
+/** Earlier verified results with date and lab (INV-15). */
+export function usePriorResults(patientId: string) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.patientResults(patientId),
+    queryFn: async () => (await api.get<{ results: PriorResult[] }>(`/patients/${patientId}/results`)).data.results,
+  });
+}
+
+export function useDuplicateCandidates(patientId: string) {
+  const api = useApi();
+  return useQuery({
+    queryKey: ["records", "duplicates", patientId],
+    queryFn: async () => asList((await api.get<Page<DuplicateCandidate> | DuplicateCandidate[]>(`/patients/${patientId}/duplicate-candidates`)).data).filter((c) => c.status === "open"),
+  });
+}
+
+/** A human decision on a possible duplicate. Nothing merges automatically, and the browser never picks (INV-13). */
+export function useResolveDuplicate(patientId: string) {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { candidateId: string; status: "same_person" | "different"; idempotencyKey: string }) =>
+      (await api.post<unknown>(`/patients/${patientId}/duplicate-candidates/${v.candidateId}/resolve`, { body: { status: v.status }, idempotencyKey: v.idempotencyKey })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["records"] }),
+  });
+}
+
+/** Report upload (multipart). The server starts OCR; the verify page polls the document. */
+export function useUploadDocument() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: async (v: { patientId: string; file: File; encounterId?: string; idempotencyKey: string }) => {
+      const form = new FormData();
+      form.set("patient_id", v.patientId);
+      form.set("file", v.file);
+      if (v.encounterId) form.set("encounter_id", v.encounterId);
+      return (await api.post<DocumentMeta>("/documents", { body: form, idempotencyKey: v.idempotencyKey })).data;
+    },
+  });
+}

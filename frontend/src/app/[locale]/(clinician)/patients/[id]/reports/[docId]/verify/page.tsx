@@ -1,71 +1,90 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
-import { ReportViewer } from "@/components/ReportViewer/ReportViewer";
-import { SyncBadge } from "@/components/SyncBadge/SyncBadge";
-import { Toast } from "@/components/Toast/Toast";
-import { t } from "@/i18n/format";
-import { type LocalePageProps } from "@/app/resolveLocale";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { usePageLocale } from "@/app/usePageLocale";
-import styles from "@/app/[locale]/screens.module.css";
+import { createIntentIdempotencyKey } from "@/api/client";
+import { t } from "@/i18n/format";
+import { useDocument, useDocumentAction, useExtraction, usePriorResults } from "@/api/queries/hooks";
+import type { ApiExtractedField } from "@/api/queries/types";
+import { QueryBoundary } from "@/components/QueryBoundary";
+import { ReportViewer, type ExtractedCandidateField, type PriorTestResult } from "@/components/ReportViewer/ReportViewer";
+import { SyncBadge } from "@/components/SyncBadge/SyncBadge";
+import { Button } from "@/components/ui/button";
+import { Alert, ErrorState, Skeleton } from "@/components/ui/states";
+import { PageHeader } from "@/components/ui/surfaces";
+
+const toViewer = (f: ApiExtractedField): ExtractedCandidateField => ({ id: f.id, name: f.name, value: f.value, unit: f.unit, observedDate: f.observed_date, lab: f.lab, confidence: f.confidence, page: f.page, bbox: f.bbox });
 
 /**
- * UIUX §6.9: Report verification split view.
+ * `/patients/[id]/reports/[docId]/verify`: confirm OCR values against the original. Verification is
+ * FHIR-gated, so after confirming the page shows "saving" until the server says VERIFIED (INV-12).
  */
-export default function ReportVerificationPage({ params }: LocalePageProps) {
-  const locale = usePageLocale(params, "en");
-  const [syncState, setSyncState] = useState<"NOT_REQUIRED" | "PENDING" | "SYNCED">("NOT_REQUIRED");
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+export default function VerifyReportPage() {
+  const locale = usePageLocale(undefined, "en");
+  const { id: patientId, docId } = useParams<{ id: string; docId: string }>() as { id: string; docId: string };
+  const L = (k: string) => t(locale, `verify.${k}`);
+  const doc = useDocument(docId);
+  const state = doc.data?.state;
+  const extraction = useExtraction(docId, state === "EXTRACTED_UNVERIFIED" || state === "VERIFIED");
+  const prior = usePriorResults(patientId);
+  const action = useDocumentAction(docId);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run(kind: "verify" | "reject" | "retry_ocr", fields?: ApiExtractedField[]) {
+    setError(null);
+    try {
+      await action.mutateAsync({ kind, fields, idempotencyKey: createIntentIdempotencyKey() });
+      if (kind === "verify") setSubmitted(true);
+    } catch {
+      setError(L("confirmError"));
+    }
+  }
+
+  const priorByTest: Record<string, PriorTestResult[]> = {};
+  for (const r of prior.data ?? []) {
+    const key = (r.display_name || r.code).toLowerCase();
+    (priorByTest[key] ??= []).push({ value: r.value, unit: r.unit, date: r.observed_date?.slice(0, 10) ?? "", lab: r.lab });
+  }
+  const priorFor = (fields: ApiExtractedField[]) => Object.fromEntries(fields.map((f) => [f.name, priorByTest[f.name.toLowerCase()] ?? []]));
 
   return (
-    <main className={styles.wideShell}>
-      <header className={styles.topBar}>
-        <h1 className={styles.sectionHeading}>
-          {locale === "bn" ? "ল্যাব রিপোর্টের শনাক্তকৃত মান যাচাই করুন" : "Verify extracted lab values"}
-        </h1>
-        <SyncBadge fhirSyncStatus={syncState} locale={locale} />
-      </header>
-
-      <ReportViewer
-        documentUrl="/api/v1/documents/doc-1/content"
-        filename="cbc-panel-2026-11-22.pdf"
-        fields={[
-          {
-            id: "f-hb",
-            name: "Hemoglobin",
-            value: "10.2",
-            unit: "g/dL",
-            observedDate: "2026-11-22",
-            lab: "Tangail Diagnostic Center",
-            confidence: 0.68,
-            page: 1,
-            bbox: [0.12, 0.25, 0.48, 0.31],
-          },
-          {
-            id: "f-wbc",
-            name: "WBC Count",
-            value: "11400",
-            unit: "/µL",
-            observedDate: "2026-11-22",
-            lab: "Tangail Diagnostic Center",
-            confidence: 0.94,
-            page: 1,
-            bbox: [0.12, 0.35, 0.48, 0.41],
-          },
-        ]}
-        priorResults={{
-          Hemoglobin: [
-            { value: "11.4", unit: "g/dL", date: "14 Sep 2026", lab: "Mirzapur UHC Lab" },
-          ],
+    <div className="flex flex-col gap-4">
+      <Link href={`/${locale}/patients/${patientId}`} className="text-dense text-indigo underline underline-offset-2">{L("backToChart")}</Link>
+      <PageHeader title={L("title")} context={doc.data?.original_filename} />
+      <QueryBoundary query={doc} locale={locale} loadingLabel={L("processing")} errorMessage={L("error")} notFoundMessage={L("notFound")}>
+        {(d) => {
+          if (["UPLOADED", "OCR_QUEUED", "OCR_RUNNING"].includes(d.state)) return <Skeleton label={L("processing")} />;
+          if (d.state === "OCR_FAILED") {
+            return <ErrorState message={L("ocrFailed")} locale={locale} retryLabel={L("retry")} onRetry={() => run("retry_ocr")} />;
+          }
+          if (d.state === "REJECTED") return <Alert tone="attention" title={L("rejected")} />;
+          if (d.state === "QUARANTINED") return <Alert tone="attention" title={L("quarantined")} />;
+          if (d.state === "VERIFIED") return <Alert tone="positive" title={L("verified")} />;
+          return (
+            <>
+              {(submitted || action.isPending) && <SyncBadge fhirSyncStatus="PENDING" pendingAction="verify" locale={locale} />}
+              {error && <Alert tone="attention" title={error} />}
+              <QueryBoundary query={extraction} locale={locale} loadingLabel={L("processing")} errorMessage={L("error")}>
+                {(x) => (
+                  <ReportViewer
+                    documentUrl=""
+                    filename={d.original_filename}
+                    fields={x.fields.map(toViewer)}
+                    priorResults={priorFor(x.fields)}
+                    locale={locale}
+                    onVerify={(edited) => run("verify", edited.map((e) => ({ ...(x.fields.find((f) => f.id === e.id) as ApiExtractedField), value: e.value })))}
+                    onReject={() => run("reject")}
+                  />
+                )}
+              </QueryBoundary>
+              {submitted && <Button variant="quiet" size="sm" onClick={() => doc.refetch()}>{t(locale, "common.tryAgain")}</Button>}
+            </>
+          );
         }}
-        locale={locale}
-        onVerify={() => {
-          setSyncState("SYNCED");
-          setToastMsg(t(locale, "toast.document.verify"));
-        }}
-      />
-
-      {toastMsg && <Toast message={toastMsg} onDismiss={() => setToastMsg(null)} />}
-    </main>
+      </QueryBoundary>
+    </div>
   );
 }

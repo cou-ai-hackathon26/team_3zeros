@@ -23,12 +23,15 @@ export function ErrorState({
   message,
   locale,
   onRetry,
+  retryLabel,
   requestId,
   variant = "page",
 }: {
   message: string;
   locale: Locale;
   onRetry?: () => void;
+  /** Defaults to "Try again". */
+  retryLabel?: string;
   requestId?: string;
   variant?: "page" | "inline";
 }) {
@@ -40,7 +43,7 @@ export function ErrorState({
       <p className={cn("m-0", variant === "page" ? "text-heading font-semibold" : "text-dense")}>{message}</p>
       {onRetry && (
         <Button variant="secondary" onClick={onRetry}>
-          {t(locale, "common.tryAgain")}
+          {retryLabel ?? t(locale, "common.tryAgain")}
         </Button>
       )}
       {requestId && (
