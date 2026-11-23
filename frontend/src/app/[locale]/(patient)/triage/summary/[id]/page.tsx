@@ -19,6 +19,7 @@ import { EmergencyScreen } from "../../../../../../components/EmergencyScreen/Em
 import { Column, QueryBoundary } from "../../../../../../components/QueryBoundary";
 import { PageHeader, Panel } from "../../../../../../components/ui/surfaces";
 import { Alert } from "../../../../../../components/ui/states";
+import { ConsultationReport } from "../../../../../../components/triage/ConsultationReport";
 import { Button, buttonVariants } from "../../../../../../components/ui/button";
 
 interface EditableFields {
@@ -238,6 +239,8 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
           </div>
         </Panel>
       )}
+
+      {sf.report && <ConsultationReport report={sf.report} locale={locale} />}
 
       {errorMessage && <Alert tone="attention" title={errorMessage} />}
 

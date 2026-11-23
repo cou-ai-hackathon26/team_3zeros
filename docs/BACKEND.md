@@ -508,8 +508,12 @@ provides `PlaceholderVoiceProvider` implementing `VoiceProvider`.
   until a clinician-approved source is marked approved (`--approve`, or the `approved` flag in admin).
   Scanned PDFs need OCR first. Search is keyword-based (`apps/knowledge/search.py`).
 - Verified context (`apps/triage/context.py`): references, doctors (after 3 patient turns) and emergency
-  hospitals are looked up and appended to the prompt. At `finish`, `generate_triage_result` stores a
-  validated JSON result with retrieval-based citations in `structured_fields.triage_result`.
+  hospitals are looked up and appended to the prompt.
+- Report (D-25): at `finish`, `generate_consultation_report` (prompt `report_prompt.md`) stores
+  `structured_fields.report` = `conversation_summary` + `health_assessment`. Code enforces: citations from
+  retrieval only, no explanations without retrieved evidence, unsafe lines dropped and flagged
+  `requires_clinician_review`, emergency never downgraded (fixed instruction), fixed disclaimer, and no
+  patient identity sent to the model.
 - Vapi dashboard setup: server URL = the provider-events endpoint with the same secret,
   `monitorPlan.controlEnabled = true`, and no model-generated replies.
 

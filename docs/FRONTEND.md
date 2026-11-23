@@ -259,6 +259,11 @@ fetched from `POST /triage/sessions/{id}/translate`; one language if it fails), 
 mute / end / type-instead buttons. If the server ends the call (emergency), the
 controller reloads the session and shows `EmergencyScreen`.
 
+**Report on the summary page (D-25).** `components/triage/ConsultationReport` shows
+`summary.structured_fields.report`: priority, overview, what to do now, warning signs, possible
+explanations (always labelled "not a diagnosis"), specialist, follow-up, document and page references,
+a clinician-review notice, and the fixed disclaimer. An emergency instruction renders as an alert.
+
 ### 8.3 Failure handling
 
 | Condition | Behavior |

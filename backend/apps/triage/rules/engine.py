@@ -38,6 +38,20 @@ RED_FLAGS = [
     },
 ]
 
+# Combinations that are only an emergency together, across any of the patient's turns (placeholder until Q-06).
+COMBINED_RED_FLAGS = [
+    {
+        "id": "RF-MENING-01",
+        "symptom": "fever_with_stiff_neck",
+        "all_of": [
+            {"en": ["fever", "high temperature"], "bn": ["জ্বর"]},
+            {"en": ["stiff neck", "neck stiffness", "neck is stiff", "stiffness in neck"], "bn": ["ঘাড় শক্ত", "ঘাড় আড়ষ্ট", "ঘাড় নাড়াতে পারছি না"]},
+        ],
+        "instruction_en": "Fever together with a stiff neck can be a sign of a serious infection. Go to the nearest emergency facility immediately or call 999.",
+        "instruction_bn": "জ্বরের সাথে ঘাড় শক্ত হয়ে যাওয়া গুরুতর সংক্রমণের লক্ষণ হতে পারে। অবিলম্বে নিকটস্থ জরুরী বিভাগে যান অথবা ৯৯৯ নম্বরে কল করুন।",
+    },
+]
+
 NEGATIONS_EN = [r"\bno\b", r"\bnot\b", r"\bdon't have\b", r"\bwithout\b", r"\bdenies\b", r"\bnever\b"]
 NEGATIONS_BN = [r"নেই", r"না\b", r"নাই", r"কোনো .* নেই", r"ব্যথা নেই", r"কষ্ট নেই"]
 
@@ -131,4 +145,35 @@ def evaluate_session_red_flags(
             if not final_instruction and instr:
                 final_instruction = instr
 
+    combined_hits, combined_instruction = evaluate_combined_red_flags(utterances, language=language)
+    all_hits += [h for h in combined_hits if h["rule_id"] not in seen_rules]
+    final_instruction = final_instruction or combined_instruction
+
     return len(all_hits) > 0, all_hits, final_instruction
+
+
+def _present(norm_text: str, group: Dict[str, List[str]]):
+    """First non-negated keyword of a group (English or Bangla) found in the text, else None."""
+    for lang_code in ("en", "bn"):
+        for kw in group[lang_code]:
+            if normalize_for_matching(kw) in norm_text and not is_negated(norm_text, kw, language=lang_code):
+                return kw, lang_code
+    return None
+
+
+def evaluate_combined_red_flags(utterances: Sequence[str], language: str = "bn") -> Tuple[List[Dict[str, Any]], str]:
+    """Emergencies that need two findings (e.g. fever + stiff neck), possibly said in different turns."""
+    norm = normalize_for_matching(" . ".join(utterances))
+    hits, instruction = [], ""
+    for rf in COMBINED_RED_FLAGS:
+        found = [_present(norm, g) for g in rf["all_of"]]
+        if all(found):
+            hits.append({
+                "rule_id": rf["id"],
+                "symptom": rf["symptom"],
+                "matched_keyword": " + ".join(f[0] for f in found),
+                "language_detected": found[0][1],
+            })
+            base = rf["instruction_en"] if language == "en" else rf["instruction_bn"]
+            instruction = instruction or f"PLACEHOLDER — NOT CLINICALLY APPROVED: {base}"
+    return hits, instruction

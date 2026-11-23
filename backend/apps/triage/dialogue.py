@@ -7,25 +7,26 @@ Facts it may use (reference passages, real doctors, real emergency hospitals) ar
 backend and appended to the prompt (`context.py`); the model has no tools and cannot invent them.
 If no model is configured or the call fails, the caller falls back to the scripted reply.
 
-The prompts live in prompt.md and triage_result_prompt.md so clinicians can review them as text.
+The prompts live in prompt.md and report_prompt.md so clinicians can review them as text.
 """
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from apps.ai.chat import generate_text
 
 from .context import build_context
-from .policy import infer_specialty
+from .policy import infer_specialty, validate_assistant_output
+from .rules.engine import evaluate_session_red_flags
 
 _DIR = Path(__file__).parent
 TRIAGE_SYSTEM_PROMPT = (_DIR / "prompt.md").read_text(encoding="utf-8")
-TRIAGE_RESULT_PROMPT = (_DIR / "triage_result_prompt.md").read_text(encoding="utf-8")
+REPORT_PROMPT = (_DIR / "report_prompt.md").read_text(encoding="utf-8")
 
 MAX_TURNS = 24
+EMERGENCY_MARKER = "[EMERGENCY]"  # the model starts its reply with this to raise an emergency (prompt section 0)
 LEVELS = ("LOW", "MODERATE", "HIGH", "EMERGENCY")
-CONFIDENCE = ("LOW", "MEDIUM", "HIGH")
 
 
 def _messages(session) -> List[Dict[str, str]]:
@@ -53,36 +54,148 @@ def llm_next_reply(session) -> Optional[str]:
     return generate_text(messages, system=system, max_tokens=260)
 
 
-def generate_triage_result(session) -> Optional[Dict]:
-    """Structured result for the summary the patient reviews (never a diagnosis). None if no model."""
-    messages = _messages(session)
-    if not messages:
+DISCLAIMER = {
+    "en": "This AI-generated report is intended for healthcare guidance and triage support. It is not a confirmed medical diagnosis and does not replace consultation with a qualified healthcare professional.",
+    "bn": "এই এআই-তৈরি প্রতিবেদন স্বাস্থ্যসেবা নির্দেশনা ও ট্রায়াজ সহায়তার জন্য। এটি নিশ্চিত চিকিৎসা রোগ নির্ণয় নয় এবং যোগ্য স্বাস্থ্যসেবা পেশাদারের পরামর্শের বিকল্প নয়।",
+}
+EMERGENCY_TEXT = {
+    "en": "Call 999 or go to the nearest emergency department now. Do not wait for an appointment.",
+    "bn": "এখনই ৯৯৯ নম্বরে কল করুন অথবা নিকটস্থ হাসপাতালের জরুরী বিভাগে যান। অ্যাপয়েন্টমেন্টের জন্য অপেক্ষা করবেন না।",
+}
+
+
+def _line(x) -> str:
+    """One readable line from a list item. Models sometimes return {"question":…, "answer":…} objects instead of text."""
+    if isinstance(x, dict):
+        q, a = x.get("question"), x.get("answer")
+        return f"{q} — {a}" if q and a else " — ".join(str(v) for v in x.values() if v)
+    return str(x)
+
+
+def _strings(value, limit: int = 20) -> List[str]:
+    return [t for t in (_line(x).strip() for x in value) if t][:limit] if isinstance(value, list) else []
+
+
+def _safe(items: List[str], language: str) -> Tuple[List[str], bool]:
+    """Drops any line that gives a dose, a medicine instruction or a diagnosis (INV-7). Returns (kept, dropped_any)."""
+    kept = [x for x in items if validate_assistant_output(x, language=language)[1] != "declined"]
+    return kept, len(kept) != len(items)
+
+
+def _alnum(text: str) -> str:
+    """Letters and digits only, lower-case, with PDF line-break hyphenation joined, so a quote can be matched exactly
+    even when the PDF text has odd spacing, line breaks or punctuation."""
+    return re.sub(r"[^a-z0-9]+", "", re.sub(r"\s*-\s*\n\s*", "", text).lower())
+
+
+def _grounded_explanations(items, passages: List[Dict]) -> Tuple[List[Dict], bool]:
+    """Keeps only explanations whose supporting quote really appears in a retrieved passage, and records which one.
+    Returns (kept, dropped_any). Anything without a verifiable quote is removed."""
+    haystacks = [(p, _alnum(p["relevant_information"])) for p in passages]
+    kept = []
+    for item in items if isinstance(items, list) else []:
+        text = str(item.get("text") or "").strip() if isinstance(item, dict) else ""
+        quote = _alnum(str(item.get("supporting_quote") or "")) if isinstance(item, dict) else ""
+        match = next((p for p, hay in haystacks if len(quote) >= 25 and quote in hay), None)
+        if text and match:
+            kept.append({"text": text, "document": match["document_name"], "page": match["page_number"]})
+    return kept, len(kept) != len(items if isinstance(items, list) else [])
+
+
+def generate_consultation_report(session) -> Optional[Dict]:
+    """Conversation summary and AI health assessment for the patient to review (an AI draft, never a diagnosis).
+    Returns None when no model is configured or its answer is unusable. Safety is enforced here, not trusted to the model."""
+    turns = list(session.turns.filter(role__in=("patient", "assistant")).order_by("at")[:MAX_TURNS * 2])
+    patient_said = [t.text for t in turns if t.role == "patient"]
+    if not patient_said:
         return None
-    raw = generate_text(messages + [{"role": "user", "text": "Return the JSON triage result now."}], system=TRIAGE_RESULT_PROMPT, max_tokens=700, temperature=0)
+    language = "en" if session.language == "en" else "bn"
+
+    # Facts the report may rest on: fixed red-flag rules, and passages found by retrieval (never by the model).
+    rule_hit, hits, _ = evaluate_session_red_flags(patient_said, language=language)
+    had_emergency = (
+        rule_hit
+        or session.state == "EMERGENCY_PATHWAY"
+        or any(t.response_policy == "emergency" for t in turns)
+    )
+    specialty = infer_specialty(" ".join(patient_said))
+    _, passages = build_context(session, specialty["code"], 0)
+    summary = getattr(session, "summary", None)
+    history = {k: v for k, v in (summary.structured_fields if summary else {}).items() if k in ("chief_complaint", "duration", "severity", "additional_notes")}
+    payload = {
+        "consultation_id": str(session.public_id),
+        "language": language,
+        "transcript": [{"role": "patient" if t.role == "patient" else "agent", "text": t.text} for t in turns],
+        "structured_symptom_history": history,
+        "red_flag_results": [h["rule_id"] for h in hits] or "none triggered",
+        "retrieved_passages": passages,
+        "suggested_specialty": specialty["en"],
+    }
+    raw = generate_text(
+        [{"role": "user", "text": json.dumps(payload, ensure_ascii=False)}],
+        system=REPORT_PROMPT, max_tokens=3000, temperature=0, timeout=45,
+    )
     if not raw:
         return None
     try:
         data = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.M).strip())
-    except ValueError:
+        cs, ha = data["conversation_summary"], data["health_assessment"]
+    except (ValueError, KeyError, TypeError):
         return None
-    if not isinstance(data, dict) or data.get("triage_level") not in LEVELS:
+    if not isinstance(cs, dict) or not isinstance(ha, dict) or ha.get("triage_level") not in LEVELS:
         return None
-    result = {
-        "triage_level": data["triage_level"],
-        "primary_complaint": str(data.get("primary_complaint") or ""),
-        "reported_symptoms": [str(x) for x in data.get("reported_symptoms") or []][:20],
-        "relevant_history": data.get("relevant_history") if isinstance(data.get("relevant_history"), dict) else {},
-        "red_flags": [str(x) for x in data.get("red_flags") or []][:20],
-        "reasoning_summary": str(data.get("reasoning_summary") or ""),
-        "recommended_action": str(data.get("recommended_action") or ""),
-        "doctor_specialization": data.get("doctor_specialization") or None,
-        "emergency_required": bool(data.get("emergency_required")),
-        "missing_information": [str(x) for x in data.get("missing_information") or []][:20],
-        "confidence": data.get("confidence") if data.get("confidence") in CONFIDENCE else "LOW",
+
+    review = bool(ha.get("requires_clinician_review"))
+    # Rule 8: if the live agent said something unsafe, do not repeat it and flag it for a clinician.
+    review |= any(validate_assistant_output(t.text, language=language)[1] == "declined" for t in turns if t.role == "assistant")
+    actions, d1 = _safe(_strings(ha.get("recommended_actions")), language)
+    # Possible explanations only when each one is backed by a quote found in a retrieved passage.
+    explanations, d2 = _grounded_explanations(ha.get("possible_explanations"), passages)
+    safe_texts, d2b = _safe([e["text"] for e in explanations], language)
+    explanations = [e for e in explanations if e["text"] in safe_texts]
+    d2 = d2 or d2b
+    advice, d3 = _safe(_strings(cs.get("advice_given")), language)
+    review |= d1 or d2 or d3
+
+    level = ha["triage_level"]
+    emergency_instructions = ha.get("emergency_instructions") if isinstance(ha.get("emergency_instructions"), str) else None
+    if had_emergency or level == "EMERGENCY":
+        level, review = "EMERGENCY", True  # never downgraded (INV-8)
+        emergency_instructions = EMERGENCY_TEXT[language]  # the fixed instruction, not the model's words
+    elif emergency_instructions:
+        emergency_instructions = None
+
+    return {
+        "conversation_summary": {
+            "language": language,
+            "overview": str(cs.get("overview") or ""),
+            "primary_complaint": str(cs.get("primary_complaint") or ""),
+            "reported_symptoms": _strings(cs.get("reported_symptoms")),
+            "symptom_duration": str(cs.get("symptom_duration") or ""),
+            "medical_history": _strings(cs.get("medical_history")),
+            "important_questions_and_answers": _strings(cs.get("important_questions_and_answers")),
+            "advice_given": advice,
+            "referral_information": str(cs.get("referral_information") or ""),
+            "missing_information": _strings(cs.get("missing_information")),
+        },
+        "health_assessment": {
+            "primary_concern": str(ha.get("primary_concern") or ""),
+            "reported_symptoms": _strings(ha.get("reported_symptoms")),
+            "possible_explanations": explanations,
+            "triage_level": level,
+            "triage_reasoning": str(ha.get("triage_reasoning") or ""),
+            # Citations come from retrieval (document, page), never from the model.
+            "medical_evidence": [
+                {"document": p["document_name"], "page": p["page_number"], "relevant_information": p["relevant_information"]}
+                for p in passages
+            ],
+            "recommended_actions": actions,
+            "warning_signs": _strings(ha.get("warning_signs")),
+            "recommended_specialization": ha.get("recommended_specialization") or specialty["en"],
+            "follow_up_guidance": str(ha.get("follow_up_guidance") or ""),
+            "emergency_instructions": emergency_instructions,
+            "missing_information": _strings(ha.get("missing_information")),
+            "requires_clinician_review": review,
+            "disclaimer": DISCLAIMER[language],
+        },
     }
-    if result["emergency_required"] or result["red_flags"]:
-        result["triage_level"], result["emergency_required"] = "EMERGENCY", True  # never downgraded (INV-8)
-    # Citations come from what retrieval really returned, not from the model.
-    _, passages = build_context(session, "", 0)
-    result["knowledge_base_evidence"] = passages
-    return result

@@ -232,6 +232,31 @@ export interface TriageGuidanceSource {
   version?: string;
 }
 
+/** AI consultation report stored by the backend at finish (D-25). A draft for the patient; never a diagnosis. */
+export interface ConsultationReport {
+  conversation_summary: {
+    overview: string;
+    missing_information: string[];
+    [k: string]: unknown;
+  };
+  health_assessment: {
+    primary_concern: string;
+    possible_explanations: Array<{ text: string; document: string; page: number | null }>;
+    triage_level: "LOW" | "MODERATE" | "HIGH" | "EMERGENCY";
+    triage_reasoning: string;
+    medical_evidence: Array<{ document: string; page: number | null; relevant_information: string }>;
+    recommended_actions: string[];
+    warning_signs: string[];
+    recommended_specialization: string | null;
+    follow_up_guidance: string;
+    emergency_instructions: string | null;
+    missing_information: string[];
+    requires_clinician_review: boolean;
+    disclaimer: string;
+    [k: string]: unknown;
+  };
+}
+
 export interface TriageSummaryData {
   patient_words?: string;
   structured_fields?: {
@@ -244,6 +269,7 @@ export interface TriageSummaryData {
     suggested_specialty_en?: string;
     suggested_specialty_bn?: string;
     guidance_sources?: TriageGuidanceSource[];
+    report?: ConsultationReport;
     [k: string]: unknown;
   };
   guidance_given?: string | unknown[];

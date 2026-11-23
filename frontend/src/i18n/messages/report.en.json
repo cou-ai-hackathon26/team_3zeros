@@ -1,0 +1,21 @@
+{
+  "title": "Your health assessment",
+  "draftNote": "Drafted by AI from your conversation. It is not a diagnosis.",
+  "overview": "Summary of the conversation",
+  "concern": "Main concern",
+  "possible": "Possible explanations (not a diagnosis)",
+  "level": "Priority",
+  "levelLOW": "Low",
+  "levelMODERATE": "Moderate: see a doctor",
+  "levelHIGH": "High: see a doctor promptly",
+  "levelEMERGENCY": "Emergency",
+  "evidence": "Medical references",
+  "page": "page",
+  "actions": "What to do now",
+  "warnings": "Get urgent help if you notice",
+  "specialty": "Suggested specialist",
+  "followUp": "Follow-up",
+  "missing": "What we did not know",
+  "review": "A clinician should review this report.",
+  "emergencyTitle": "Emergency: get help now"
+}

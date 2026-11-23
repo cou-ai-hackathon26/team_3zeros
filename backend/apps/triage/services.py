@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
-from .dialogue import generate_triage_result, llm_next_reply
+from .dialogue import EMERGENCY_MARKER, generate_consultation_report, llm_next_reply
 from .models import TriageSession, Turn, TriageSummary
 from .normalizer import normalize_for_matching, normalize_text
 from .policy import (
@@ -187,6 +187,12 @@ def create_triage_session(user, language="bn", mode="text", disclosure_version="
         return session
 
 
+MODEL_EMERGENCY_INSTRUCTION = {
+    False: "PLACEHOLDER — NOT CLINICALLY APPROVED: আপনার লক্ষণ জরুরী হতে পারে। অবিলম্বে ৯৯৯ নম্বরে কল করুন অথবা নিকটস্থ হাসপাতালের জরুরী বিভাগে যান।",
+    True: "PLACEHOLDER — NOT CLINICALLY APPROVED: Your symptoms may be an emergency. Call 999 or go to the nearest emergency department immediately.",
+}
+
+
 def _scripted_reply(session, turn_count: int, latest_text: str, specialty: dict) -> str:
     """Fixed fallback dialogue, used when no language model is configured or it fails."""
     if turn_count == 1:
@@ -267,8 +273,41 @@ def _build_clinical_dialogue_and_summary(session: TriageSession, latest_text: st
     summary.save()
 
     reply = llm_next_reply(session) or _scripted_reply(session, turn_count, latest_text, specialty)
+    if reply.lstrip().startswith(EMERGENCY_MARKER):
+        # The model judged this an emergency: use the fixed official instruction, never the model's own words (INV-8, INV-16).
+        return MODEL_EMERGENCY_INSTRUCTION[session.language == "en"], "emergency"
 
     return validate_assistant_output(reply, language=session.language, intended_policy="question")
+
+
+def _escalate_emergency(session: TriageSession, instruction: str, hits: list, user, request_id: str):
+    """Move the session to the emergency pathway and record the official instruction (INV-8, INV-16)."""
+    session.ended_at = timezone.now()
+    run_triage_action(session, "red_flag", request_id=request_id)
+    assistant_turn = Turn.objects.create(
+        session=session,
+        role="assistant",
+        text=instruction,
+        language_detected=session.language,
+        red_flag_hits=hits,
+        response_policy="emergency",
+    )
+    OutboxEvent.objects.create(
+        aggregate_type="triage_session",
+        aggregate_id=session.public_id,
+        event_type="triage.emergency",
+        payload={"session_id": str(session.public_id), "hits": hits},
+    )
+    record_audit_event(
+        action="transition",
+        object_type="triage_session",
+        object_id=str(session.public_id),
+        actor_user=user,
+        outcome="emergency_flagged",
+        reason=f"Red flag hit: {[h['rule_id'] for h in hits]}",
+        request_id=request_id,
+    )
+    return assistant_turn
 
 
 def process_patient_turn(session: TriageSession, text: str, user=None, request_id=""):
@@ -301,37 +340,12 @@ def process_patient_turn(session: TriageSession, text: str, user=None, request_i
         )
 
         if is_emergency:
-            session.ended_at = timezone.now()
-            run_triage_action(session, "red_flag", request_id=request_id)
-
-            assistant_turn = Turn.objects.create(
-                session=session,
-                role="assistant",
-                text=instruction,
-                language_detected=session.language,
-                red_flag_hits=hits,
-                response_policy="emergency",
-            )
-
-            OutboxEvent.objects.create(
-                aggregate_type="triage_session",
-                aggregate_id=session.public_id,
-                event_type="triage.emergency",
-                payload={"session_id": str(session.public_id), "hits": hits},
-            )
-
-            record_audit_event(
-                action="transition",
-                object_type="triage_session",
-                object_id=str(session.public_id),
-                actor_user=user,
-                outcome="emergency_flagged",
-                reason=f"Red flag hit: {[h['rule_id'] for h in hits]}",
-                request_id=request_id,
-            )
-            return assistant_turn
+            return _escalate_emergency(session, instruction, hits, user, request_id)
 
         next_reply, response_policy = _build_clinical_dialogue_and_summary(session, cleaned_text)
+        if response_policy == "emergency":
+            hits = [{"rule_id": "MODEL-EMERGENCY", "symptom": "model_judgement", "matched_keyword": "", "language_detected": session.language}]
+            return _escalate_emergency(session, next_reply, hits, user, request_id)
         assistant_turn = Turn.objects.create(
             session=session,
             role="assistant",
@@ -342,11 +356,11 @@ def process_patient_turn(session: TriageSession, text: str, user=None, request_i
         return assistant_turn
 
 
-def attach_triage_result(session: TriageSession) -> None:
-    """Best-effort: store the structured triage result on the summary (an AI draft the patient still reviews, INV-7)."""
-    result = generate_triage_result(session)
-    if not result:
+def attach_consultation_report(session: TriageSession) -> None:
+    """Best-effort: store the conversation summary and AI health assessment on the summary (an AI draft the patient reviews, INV-7)."""
+    report = generate_consultation_report(session)
+    if not report:
         return
     summary, _ = TriageSummary.objects.get_or_create(session=session)
-    summary.structured_fields = {**summary.structured_fields, "triage_result": result}
+    summary.structured_fields = {**summary.structured_fields, "report": report}
     summary.save(update_fields=["structured_fields", "updated_at"])

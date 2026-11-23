@@ -7,7 +7,7 @@ from apps.knowledge.search import chunk_text, reset_index, search
 from apps.organizations.models import Facility, Practitioner, PractitionerRole
 from apps.triage import dialogue
 from apps.triage.models import TriageSummary
-from apps.triage.services import attach_triage_result, create_triage_session, process_patient_turn
+from apps.triage.services import create_triage_session, process_patient_turn
 
 
 @pytest.fixture(autouse=True)
@@ -70,33 +70,6 @@ def test_no_doctor_block_before_enough_history(monkeypatch):
     monkeypatch.setattr(dialogue, "generate_text", lambda m, system="", **k: seen.update(system=system) or "ok?")
     process_patient_turn(session, "I have fever")
     assert "DOCTORS ON THE PLATFORM (real" not in seen["system"] and "EMERGENCY HOSPITALS (verified" not in seen["system"] and "DOCTORS: none" not in seen["system"]
-
-
-@pytest.mark.django_db
-def test_structured_result_is_validated_and_citations_come_from_retrieval(monkeypatch):
-    _doc(True)
-    session = create_triage_session(user=None, language="en", disclosure_version="v1.0")
-    process_patient_turn(session, "fever and headache")
-    good = {"triage_level": "MODERATE", "primary_complaint": "fever", "reported_symptoms": ["fever"], "reasoning_summary": "r",
-            "recommended_action": "see a doctor", "doctor_specialization": "general_medicine", "emergency_required": False,
-            "confidence": "HIGH", "knowledge_base_evidence": [{"document_name": "MADE UP", "page_number": 1}]}
-    monkeypatch.setattr(dialogue, "generate_text", lambda *a, **k: "```json\n" + json.dumps(good) + "\n```")
-    attach_triage_result(session)
-    r = TriageSummary.objects.get(session=session).structured_fields["triage_result"]
-    assert r["triage_level"] == "MODERATE" and r["confidence"] == "HIGH"
-    assert [e["document_name"] for e in r["knowledge_base_evidence"]] == ["Fever Guide"]  # not "MADE UP"
-
-
-@pytest.mark.django_db
-def test_red_flag_in_result_forces_emergency_and_junk_is_ignored(monkeypatch):
-    session = create_triage_session(user=None, language="en", disclosure_version="v1.0")
-    process_patient_turn(session, "fever")
-    bad = {"triage_level": "LOW", "red_flags": ["chest pain"], "emergency_required": False}
-    monkeypatch.setattr(dialogue, "generate_text", lambda *a, **k: json.dumps(bad))
-    r = dialogue.generate_triage_result(session)
-    assert r["triage_level"] == "EMERGENCY" and r["emergency_required"] is True
-    monkeypatch.setattr(dialogue, "generate_text", lambda *a, **k: "not json")
-    assert dialogue.generate_triage_result(session) is None
 
 
 @pytest.mark.django_db
