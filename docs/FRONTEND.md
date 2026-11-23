@@ -237,8 +237,10 @@ interface VoiceClient {
 }
 ```
 
-- One implementation per vendor (Q-05) plus `TextClient`, which implements
-  the same interface over `POST /turns` so the UI has one code path.
+- One implementation per vendor (Q-05, starting with `PlaceholderVoiceClient` in
+  `src/voice/placeholderClient.ts` as the Vapi swap-in boundary) plus
+  `TextClient`, which implements the same interface over `POST /turns` so the UI
+  has one code path.
 - The browser receives captions and audio. It never receives or sends
   instructions to the provider's model. What the assistant says comes from
   the backend (BACKEND §8).

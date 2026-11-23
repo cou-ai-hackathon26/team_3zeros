@@ -464,6 +464,8 @@ class VoiceProvider(Protocol):
 
 Credentials are short-lived (≤ 5 minutes to start, bound to one session).
 Only `session_ref` (random) is sent; no name, phone or record ID (SECURITY §8).
+Until a vendor is wired (Q-05, e.g. Vapi), `apps/triage/providers/placeholder.py`
+provides `PlaceholderVoiceProvider` implementing `VoiceProvider`.
 
 ---
 
