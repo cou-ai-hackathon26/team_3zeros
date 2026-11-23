@@ -23,7 +23,7 @@ type WorkspaceArea = Exclude<Area, "patient">;
 
 function facilityName(me: UserMe, locale: Locale): string {
   const f = me.active_facility;
-  if (!f) return t(locale, "shell.noFacility");
+  if (!f) return t(locale, me.roles.includes("platform_admin") ? "shell.allFacilities" : "shell.noFacility");
   return locale === "bn" && f.name_bn ? f.name_bn : f.name;
 }
 

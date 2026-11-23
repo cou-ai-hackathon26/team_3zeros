@@ -10,7 +10,7 @@ import { t } from "../../../../i18n/format";
 import { fill } from "../../../../features/patient/display";
 import { CreateStaffDialog, EditStaffDialog, SecretsDialog } from "../../../../components/admin/StaffDialogs";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
-import { StatusBadge } from "../../../../components/StatusBadge/StatusBadge";
+import { Check, CircleOff } from "lucide-react";
 import { useToast } from "../../../../components/Toast/Toast";
 import { Button } from "../../../../components/ui/button";
 import { Alert, EmptyState, ErrorState, Skeleton } from "../../../../components/ui/states";
@@ -68,6 +68,7 @@ export default function AdminStaffPage() {
           <TableHead>
             <TableRow>
               <TableHeaderCell>{t(locale, "admin.staff.name")}</TableHeaderCell>
+              <TableHeaderCell>{L("facility")}</TableHeaderCell>
               <TableHeaderCell>{t(locale, "admin.staff.role")}</TableHeaderCell>
               <TableHeaderCell>{t(locale, "admin.staff.contact")}</TableHeaderCell>
               <TableHeaderCell>{t(locale, "admin.staff.permissions")}</TableHeaderCell>
@@ -82,10 +83,17 @@ export default function AdminStaffPage() {
               return (
                 <TableRow key={m.id}>
                   <TableCell className="font-semibold">{m.name}</TableCell>
+                  <TableCell>{m.facility_name}</TableCell>
                   <TableCell>{t(locale, `role.${m.role}`)}</TableCell>
                   <TableCell className="text-dense text-ink-muted">{m.email || m.username || "—"}</TableCell>
                   <TableCell className="text-caption text-ink-muted">{(m.permissions ?? []).map((p) => t(locale, `admin.staff.perm.${p.replace(".", "_")}`)).join(", ") || "—"}</TableCell>
-                  <TableCell><StatusBadge entity="consent" state={isActive ? "ACTIVE" : "REVOKED"} tone={isActive ? "positive" : "neutral"} locale={locale} /></TableCell>
+                  <TableCell>
+                    {/* Icon and word, never colour alone. */}
+                    <span className={`inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-dense font-medium ${isActive ? "bg-positive-wash text-positive" : "bg-sunken text-ink"}`}>
+                      {isActive ? <Check aria-hidden className="size-4" /> : <CircleOff aria-hidden className="size-4" />}
+                      {isActive ? L("active") : L("inactive")}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     {own ? <span className="text-caption text-ink-muted">{L("selfNote")}</span> : (
                       <div className="flex flex-wrap gap-1">

@@ -184,8 +184,11 @@ describe("Phase 7 — Admin screens (G-5)", () => {
       mount(<AdminStaffPage />, routes([row(), row({ id: "mem-me", user_id: "me-1", name: "Admin Self", role: "facility_admin", permissions: [] })]));
       expect(await screen.findByText("Farhana Akter")).toBeTruthy();
       expect(screen.getByText("Facility staff")).toBeTruthy();
+      expect(screen.getByRole("columnheader", { name: "Facility" })).toBeTruthy();
+      expect(screen.getAllByText("Tangail").length).toBeGreaterThan(0);
       expect(document.body.textContent).toContain("Acknowledge or decline incoming referrals");
       expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Revoked")).toBeNull();
       expect(screen.getByText("You cannot change your own access here.")).toBeTruthy();
       expect(screen.getAllByRole("button", { name: "Edit access" })).toHaveLength(1);
     });
@@ -225,6 +228,7 @@ describe("Phase 7 — Admin screens (G-5)", () => {
         "POST /admin/staff/mem-2/reactivate": () => json(row({ id: "mem-2" })),
       }));
       await screen.findByText("Farhana Akter");
+      expect(screen.getByText("Deactivated")).toBeTruthy(); // the inactive row says so in words
       await click("Deactivate");
       const dialog = await screen.findByRole("alertdialog", { name: "Deactivate Farhana Akter?" });
       expect(calls.some((c) => c.key.endsWith("/deactivate"))).toBe(false);

@@ -135,3 +135,9 @@ Decisions (MASTERPLAN D-16, D-17, D-18; contract rows in §6.3 and the §10 ledg
 - Frontend: `/register`, `/admin/login`, a rebuilt `/staff` page with dialogs, and `useAuth().signIn / registerPatient`. Seed users: `patient@demo.com`, `doctor@demo.com`, `admin@demo.com` (all `Password123!`; the seeded `admin@demo.com` has no membership role, create a platform admin with the command).
 
 Still open: facility/schedule/capacity writes (G-5), an audit-log view (Q-07), password self-service reset (Q-14), TOTP for clinicians (Q-13), real SMS for notifications, and a shared cache in production. Not verified in a browser (the browser tool was unavailable): the new pages were checked by tests, a production build and route smoke tests only.
+
+### Browser verification (2026-11-23)
+
+`frontend/e2e/admin-access.mjs` drives real Chrome (via the installed Playwright and the system Chrome, no download) through: platform admin sign-in at `/en/admin/login` with TOTP; the staff entrance refusing the same account; creating a clinician and seeing the temporary password once; the clinician signing in and being kept out of `/staff`; deactivate (open session ends, sign-in refused) and reactivate; password reset (old refused, new accepted); patient registration and being kept out of the clinical area; a platform admin creating a facility admin who signs in only via the admin URL and cannot grant the admin role; and the sign-in rate limit. **12 of 12 checks pass.** Run it against a scratch backend (see the header comment in the file), and build the frontend from a copy of `frontend/` (building in place collides with a running `next dev`).
+
+Found and fixed by the run: the staff status badge used consent labels instead of "Deactivated", the table had no Facility column for platform admins, and the sidebar said "No facility selected" for a platform admin (now "All facilities").

@@ -248,7 +248,8 @@
     "noFacility": "No facility selected",
     "language": "Language",
     "switchArea": "Switch to",
-    "loading": "Loading your account"
+    "loading": "Loading your account",
+    "allFacilities": "All facilities"
   },
   "area": {
     "patient": "Patient",

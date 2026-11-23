@@ -248,7 +248,8 @@
     "noFacility": "কোনো সুবিধা নির্বাচিত নয়",
     "language": "ভাষা",
     "switchArea": "যান",
-    "loading": "আপনার অ্যাকাউন্ট লোড হচ্ছে"
+    "loading": "আপনার অ্যাকাউন্ট লোড হচ্ছে",
+    "allFacilities": "সব সুবিধা"
   },
   "area": {
     "patient": "রোগী",
