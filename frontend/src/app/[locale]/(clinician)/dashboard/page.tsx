@@ -70,8 +70,8 @@ export default function DashboardPage() {
       ) : failed ? (
         <ErrorState message={L("error")} locale={locale} onRetry={() => { appts.refetch(); incoming.refetch(); outgoing.refetch(); }} />
       ) : (
-        <Tabs value={tab} onValueChange={(v) => { setTab(v as QueueTab); setMobileDetail(false); }} className="grid gap-4 lg:grid-cols-[360px_1fr] xl:grid-cols-[360px_1fr_320px]">
-          <div className={mobileDetail ? "hidden lg:block" : ""}>
+        <Tabs value={tab} onValueChange={(v) => { setTab(v as QueueTab); setMobileDetail(false); }} className="grid gap-5 lg:grid-cols-[360px_1fr] xl:grid-cols-[360px_1fr_320px]">
+          <div className={mobileDetail ? "hidden lg:block" : "rounded-[20px] border border-line/80 bg-surface p-4"}>
             <TabsList className="flex-wrap">
               {tabs.map((k) => (
                 <TabsTrigger key={k} value={k}>
@@ -80,7 +80,7 @@ export default function DashboardPage() {
               ))}
             </TabsList>
             {tabs.map((k) => (
-              <TabsContent key={k} value={k} className="mt-2">
+              <TabsContent key={k} value={k} className="mt-3">
                 {tab === k && (items.length === 0 ? (
                   <EmptyState message={k === "verify" ? L("emptyVerify") : L("empty")} />
                 ) : (
@@ -91,11 +91,13 @@ export default function DashboardPage() {
           </div>
 
           <div className={mobileDetail ? "" : "hidden lg:block"}>
-            {mobileDetail && <Button variant="quiet" size="sm" className="mb-2 lg:hidden" onClick={() => setMobileDetail(false)}>{t(locale, "common.back")}</Button>}
+            {mobileDetail && <Button variant="quiet" size="sm" className="mb-3 lg:hidden" onClick={() => setMobileDetail(false)}>{t(locale, "common.back")}</Button>}
             {current ? (
               <QueueDetail key={current.key} entry={current} patient={patients.get(current.patientId)} locale={locale} onActed={afterAction} />
             ) : (
-              <p className="m-0 text-dense text-ink-muted">{L("pick")}</p>
+              <div className="rounded-[20px] bg-sunken/70 p-6">
+                <p className="m-0 text-dense text-ink-muted">{L("pick")}</p>
+              </div>
             )}
           </div>
 

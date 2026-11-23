@@ -28,7 +28,7 @@ export function Hero({ locale, claims }: { locale: Locale; claims: LandingClaims
         <div className="flex flex-col gap-6">
           <h1
             id="hero-title"
-            className="m-0 font-serif text-display tracking-[-0.025em] text-balance text-ink"
+            className="m-0 font-serif text-display tracking-[-0.025em] text-balance text-ink xl:text-[62px] xl:leading-[1.08]"
           >
             <BlurText text={L("hero.headline")} />
           </h1>
@@ -86,7 +86,7 @@ export function Hero({ locale, claims }: { locale: Locale; claims: LandingClaims
           </ul>
         </div>
 
-        <div className="rounded-[2rem] bg-sunken px-4 py-8 sm:px-8 sm:py-10">
+        <div className="relative rounded-[2rem] bg-sunken px-4 py-7 ring-1 ring-line/70 sm:px-8 sm:py-9">
           <PhoneMockup
             locale={locale}
             doctor={L("hero.sampleDoctor")}

@@ -33,7 +33,7 @@ function SectionTitle({ id, children, className }: { id: string; children: React
       id={id}
       tabIndex={-1}
       className={cn(
-        "m-0 font-serif text-title tracking-[-0.02em] text-balance text-ink outline-none",
+        "m-0 font-serif text-title tracking-[-0.025em] text-balance text-ink outline-none md:text-[36px] md:leading-[1.15] xl:text-[40px]",
         className,
       )}
     >
@@ -42,12 +42,32 @@ function SectionTitle({ id, children, className }: { id: string; children: React
   );
 }
 
+/** Subtle architectural curve inspired by Life Care's calm full-bleed vector wave. */
+function EditorialWave() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 1440 120"
+      fill="none"
+      preserveAspectRatio="none"
+      className="pointer-events-none absolute inset-x-0 top-10 -z-0 h-28 w-full opacity-55"
+    >
+      <path
+        d="M0 78C260 18 520 118 820 56C1060 8 1260 44 1440 24"
+        className="stroke-line"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
 /** #why: Life Care-inspired airy editorial pillar grid on warm cream ground (LANDING §4.2). No fabricated figures. */
 export function Problem({ locale }: { locale: Locale }) {
   const L = (k: string) => t(locale, `landing.problem.${k}`);
   return (
-    <section id="why" aria-labelledby="why-title" className="bg-paper">
-      <div className={cn(wrap, sectionPad)}>
+    <section id="why" aria-labelledby="why-title" className="relative overflow-hidden bg-paper">
+      <EditorialWave />
+      <div className={cn(wrap, sectionPad, "relative z-10")}>
         <div className="border-t border-line pt-12 md:pt-16">
           <SectionTitle id="why-title">{L("title")}</SectionTitle>
           <div className="mt-12 grid gap-10 md:grid-cols-3 md:gap-12">
@@ -126,15 +146,17 @@ export function How({ locale }: { locale: Locale }) {
             {(["tell", "check", "choose", "decide"] as const).map((k, i) => (
               <li
                 key={k}
-                className="grid gap-3 border-s-4 border-indigo/75 ps-5 pb-12 last:pb-0 md:grid-cols-[11rem_1fr] md:gap-8 md:border-s-0 md:ps-0"
+                className="group grid gap-3 border-s-4 border-indigo/75 ps-5 pb-12 last:pb-0 md:grid-cols-[11rem_1fr] md:gap-8 md:border-s-0 md:ps-0"
               >
                 <div className="pt-0.5">
-                  <span className="inline-flex items-center gap-2 rounded-pill bg-surface px-3.5 py-1.5 text-caption font-semibold text-ink-muted">
+                  <span className="inline-flex items-center gap-2 rounded-pill bg-surface px-3.5 py-1.5 text-caption font-semibold text-ink-muted ring-1 ring-line/60 transition-colors duration-[var(--motion-state-duration)] group-hover:ring-indigo/40">
                     <span
                       aria-hidden="true"
                       className={cn(
-                        "size-2 rounded-pill",
-                        holders[i] === "practitioner" ? "bg-positive" : "bg-indigo",
+                        "size-2 rounded-pill ring-4",
+                        holders[i] === "practitioner"
+                          ? "bg-positive ring-positive-wash"
+                          : "bg-indigo ring-indigo-wash",
                       )}
                     />
                     {t(locale, `holderName.${holders[i]}`)}
@@ -143,7 +165,9 @@ export function How({ locale }: { locale: Locale }) {
                 <BlurFade delay={i * 0.06} className="flex flex-col gap-3.5">
                   <h3 className="m-0 text-heading font-semibold text-ink">{L(`steps.${k}.title`)}</h3>
                   <p className="m-0 max-w-xl text-body leading-relaxed text-ink-muted">{L(`steps.${k}.text`)}</p>
-                  {visual[k]}
+                  <div className="transition-transform duration-[var(--motion-state-duration)] ease-[var(--motion-state-easing)] group-hover:-translate-y-0.5">
+                    {visual[k]}
+                  </div>
                 </BlurFade>
               </li>
             ))}
@@ -348,8 +372,9 @@ export function Audiences({ locale, claims }: { locale: Locale; claims: LandingC
   const P = (k: string) => t(locale, `landing.audiences.patient.${k}`);
   const S = (k: string) => t(locale, `landing.audiences.staff.${k}`);
   return (
-    <section id="for-doctors" aria-labelledby="for-doctors-title" className="bg-paper">
-      <div className={cn(wrap, sectionPad)}>
+    <section id="for-doctors" aria-labelledby="for-doctors-title" className="relative overflow-hidden bg-paper">
+      <EditorialWave />
+      <div className={cn(wrap, sectionPad, "relative z-10")}>
         <h2 id="for-doctors-title" className="sr-only">
           {S("title")}
         </h2>

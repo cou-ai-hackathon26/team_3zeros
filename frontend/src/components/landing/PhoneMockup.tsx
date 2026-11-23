@@ -1,11 +1,22 @@
 "use client";
 
-import React from "react";
-import { motion, useReducedMotion } from "motion/react";
-import { Bell, CalendarDays, CircleUser, FileText, Home, Stethoscope } from "lucide-react";
+import React, { useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import {
+  Bell,
+  CalendarDays,
+  CircleUser,
+  FilePenLine,
+  FileText,
+  Home,
+  MessageSquareText,
+  Stethoscope,
+} from "lucide-react";
 import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";
+import { cn } from "../../lib/cn";
 import { HandoverTracker } from "../HandoverTracker/HandoverTracker";
+import { StatusBadge } from "../StatusBadge/StatusBadge";
 import { Mark } from "../shell/Mark";
 import { ConsentPreview } from "./Client";
 
@@ -18,10 +29,12 @@ export interface PhoneMockupProps {
   sampleCaption: string;
 }
 
+type PreviewScreen = "handover" | "guide" | "doctor";
+
 /**
  * Realistic smartphone mockup showcasing the actual Medi Waypoint mobile patient UI
- * (top bar, real HandoverTracker, real ConsentSheet, and 4-tab bottom navigation).
- * All interactive elements inside the screen stay inert and hidden from assistive tech.
+ * with an interactive 3-screen switcher (Handover & Consent, Symptom Guide, Doctor & Slot).
+ * All interactive elements inside the phone screen stay inert and hidden from assistive tech.
  */
 export function PhoneMockup({
   locale,
@@ -32,16 +45,50 @@ export function PhoneMockup({
   sampleCaption,
 }: PhoneMockupProps) {
   const prefersReduced = useReducedMotion();
+  const [screen, setScreen] = useState<PreviewScreen>("handover");
+
+  const screenOptions: { id: PreviewScreen; label: string }[] = [
+    { id: "handover", label: t(locale, "nav.appointments") },
+    { id: "guide", label: t(locale, "nav.home") },
+    { id: "doctor", label: t(locale, "nav.doctors") },
+  ];
 
   const tabs = [
-    { id: "home", label: t(locale, "nav.home"), Icon: Home, active: false },
-    { id: "doctors", label: t(locale, "nav.doctors"), Icon: Stethoscope, active: false },
-    { id: "appointments", label: t(locale, "nav.appointments"), Icon: CalendarDays, active: true },
+    { id: "home", label: t(locale, "nav.home"), Icon: Home, active: screen === "guide" },
+    { id: "doctors", label: t(locale, "nav.doctors"), Icon: Stethoscope, active: screen === "doctor" },
+    { id: "appointments", label: t(locale, "nav.appointments"), Icon: CalendarDays, active: screen === "handover" },
     { id: "reports", label: t(locale, "nav.reports"), Icon: FileText, active: false },
   ] as const;
 
   return (
     <div className="relative mx-auto flex w-full max-w-[320px] flex-col items-center sm:max-w-[344px]">
+      {/* Interactive 3-screen preview switcher (outside inert so visitors can explore real views) */}
+      <div
+        role="group"
+        aria-label={sampleCaption}
+        className="mb-5 inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-pill border border-line bg-surface p-1"
+      >
+        {screenOptions.map((opt) => {
+          const active = screen === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setScreen(opt.id)}
+              className={cn(
+                "min-h-9 cursor-pointer rounded-pill border-0 px-3.5 text-caption font-semibold transition-all duration-[var(--motion-feedback-duration)]",
+                active
+                  ? "bg-indigo text-surface"
+                  : "bg-transparent text-ink-muted hover:bg-sunken hover:text-ink",
+              )}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Smartphone Chassis with gentle floating animation */}
       <motion.div
         initial={prefersReduced ? false : { opacity: 0, y: 14 }}
@@ -105,29 +152,112 @@ export function PhoneMockup({
               </span>
             </div>
 
-            {/* Real Mobile App Viewport Content */}
-            <div className="flex flex-col gap-2.5 bg-paper px-3 py-3">
-              {/* Real HandoverTracker in mobile card proportion */}
-              <div className="rounded-panel border border-line bg-surface p-3 shadow-raised [&_p.font-serif]:mb-2 [&_p.font-serif]:text-subheading [&_p.font-serif]:leading-snug [&_ol>li]:px-2.5 [&_ol>li]:py-1.5">
-                <HandoverTracker
-                  entity="appointment"
-                  currentState="REQUESTED"
-                  objectId="landing-preview"
-                  locale={locale}
-                  holderName={doctor}
-                />
-              </div>
+            {/* Real Mobile App Viewport Content with smooth view transitions */}
+            <div className="min-h-[388px] bg-paper px-3 py-3">
+              <AnimatePresence mode="wait" initial={false}>
+                {screen === "handover" && (
+                  <motion.div
+                    key="handover"
+                    initial={prefersReduced ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReduced ? undefined : { opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col gap-2.5"
+                  >
+                    <div className="rounded-panel border border-line bg-surface p-3 [&_p.font-serif]:mb-2 [&_p.font-serif]:text-subheading [&_p.font-serif]:leading-snug [&_ol>li]:px-2.5 [&_ol>li]:py-1.5">
+                      <HandoverTracker
+                        entity="appointment"
+                        currentState="REQUESTED"
+                        objectId="landing-preview"
+                        locale={locale}
+                        holderName={doctor}
+                      />
+                    </div>
+                    <div className="[&_section]:gap-2.5 [&_section]:rounded-panel [&_section]:p-3 [&_h2]:font-sans [&_h2]:text-dense [&_h2]:font-semibold [&_dl]:gap-x-3 [&_dl]:gap-y-1 [&_dl]:text-caption [&_p]:text-caption [&_p]:leading-snug [&_div.grid]:grid-cols-2 [&_div.grid]:gap-2 [&_button]:h-9 [&_button]:px-2 [&_button]:text-caption">
+                      <ConsentPreview
+                        locale={locale}
+                        doctor={doctor}
+                        facility={facility}
+                        purpose={purpose}
+                        categories={categories}
+                      />
+                    </div>
+                  </motion.div>
+                )}
 
-              {/* Real ConsentSheet in compact mobile proportion */}
-              <div className="[&_section]:gap-2.5 [&_section]:rounded-panel [&_section]:p-3 [&_section]:shadow-raised [&_h2]:font-sans [&_h2]:text-dense [&_h2]:font-semibold [&_dl]:gap-x-3 [&_dl]:gap-y-1 [&_dl]:text-caption [&_p]:text-caption [&_p]:leading-snug [&_div.grid]:grid-cols-2 [&_div.grid]:gap-2 [&_button]:h-9 [&_button]:px-2 [&_button]:text-caption">
-                <ConsentPreview
-                  locale={locale}
-                  doctor={doctor}
-                  facility={facility}
-                  purpose={purpose}
-                  categories={categories}
-                />
-              </div>
+                {screen === "guide" && (
+                  <motion.div
+                    key="guide"
+                    initial={prefersReduced ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReduced ? undefined : { opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col gap-3"
+                  >
+                    <div className="rounded-panel bg-brand p-3.5 text-brand-foreground">
+                      <div className="flex items-center gap-2 text-caption font-semibold text-paddy">
+                        <MessageSquareText className="size-3.5" />
+                        <span>{t(locale, "landing.how.steps.tell.sample")}</span>
+                      </div>
+                      <p className="m-0 mt-1.5 font-serif text-subheading leading-snug">
+                        {t(locale, "landing.how.steps.tell.title")}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2.5 rounded-panel border border-line bg-surface p-3.5">
+                      <p className="m-0 max-w-[88%] rounded-panel bg-sunken px-3 py-2 text-caption font-medium text-ink">
+                        {t(locale, "landing.how.steps.tell.assistant")}
+                      </p>
+                      <p className="m-0 ms-auto max-w-[88%] rounded-panel bg-indigo-wash px-3 py-2 text-caption text-ink">
+                        {t(locale, "landing.how.steps.tell.patient")}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-3.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="m-0 text-dense font-semibold text-ink">
+                          {t(locale, "landing.how.steps.check.sample")}
+                        </p>
+                        <FilePenLine className="size-4 shrink-0 text-indigo" />
+                      </div>
+                      <span className="w-fit rounded-pill bg-indigo-wash px-2.5 py-0.5 text-caption font-semibold text-indigo">
+                        {t(locale, "patient.changedByYou")}
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+
+                {screen === "doctor" && (
+                  <motion.div
+                    key="doctor"
+                    initial={prefersReduced ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReduced ? undefined : { opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col gap-3"
+                  >
+                    <div className="rounded-panel border border-line bg-surface p-3.5">
+                      <p className="m-0 text-dense font-semibold text-ink">{doctor}</p>
+                      <p className="m-0 mt-0.5 text-caption text-ink-muted">
+                        {t(locale, "landing.how.steps.choose.sampleSpecialty")}
+                      </p>
+                      <p className="m-0 mt-0.5 text-caption text-ink-muted">{facility}</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="rounded-pill border border-indigo bg-indigo-wash px-3 py-1 text-caption font-semibold text-indigo">
+                          {t(locale, "landing.how.steps.choose.sampleSlot")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2.5 rounded-panel border border-line bg-surface p-3.5">
+                      <p className="m-0 text-caption font-semibold text-ink-muted">
+                        {t(locale, "landing.how.steps.decide.title")}
+                      </p>
+                      <StatusBadge entity="appointment" state="REQUESTED" tone="active" locale={locale} />
+                      <p className="m-0 text-caption leading-snug text-ink-muted">
+                        {t(locale, "landing.how.steps.decide.text")}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Real Mobile Bottom Tab Bar (mirrors PatientShell) */}
