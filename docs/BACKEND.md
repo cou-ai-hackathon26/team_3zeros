@@ -178,6 +178,10 @@ Only the fields that drive behavior are listed. All models extend
   written to HAPI as canonical; PostgreSQL keeps only an index row
   `FhirIndex(resource_type, fhir_id, version, patient, encounter)` for
   listing and permission filtering.
+- `ClinicalObservation`: local index and cache for clinical measurements and vital signs.
+- `ClinicalOrder`: `encounter`, `patient`, `test_name`, `code`, `notes`, `priority`,
+  `status`, `ordered_by`. Diagnostic test orders placed by clinicians; response returns
+  recent verified results advisory (INV-15: non-suppression). Endpoint `POST /encounters/{id}/orders`.
 
 ### 4.7 documents
 
@@ -500,8 +504,10 @@ Only `session_ref` (random) is sent; no name, phone or record ID (SECURITY §8).
    `DiagnosticReport` + `Observation`s + `Provenance` (author = clinician,
    derived from = DocumentReference, agent = OCR engine version) in one
    Bundle, then marks `VERIFIED`.
-5. Prior results endpoint lists earlier verified Observations for the same
-   test code with date and lab. No logic cancels or hides a test (INV-15).
+5. Prior results endpoint (`GET /patients/{id}/results?test=&group_by=test`) lists
+   earlier verified Observations grouped chronologically by test name with date, lab,
+   and verified status. No logic cancels or hides a test (INV-15). Orders trigger
+   recent-results advisory without auto-cancelling the request.
 
 ---
 

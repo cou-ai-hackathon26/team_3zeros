@@ -148,9 +148,32 @@ export interface Encounter {
   fhir_sync_status?: string;
 }
 
+export interface ActiveAllergy {
+  id: string;
+  name: string;
+  reaction: string;
+  observed_date?: string | null;
+}
+
+export interface ActiveMedication {
+  id: string;
+  name: string;
+  dosage: string;
+  observed_date?: string | null;
+}
+
+export interface ActiveProblem {
+  encounter_id: string;
+  reason: string;
+  period_start: string;
+}
+
 export interface Chart {
   patient_id: string;
   encounters: Encounter[];
+  active_allergies?: ActiveAllergy[];
+  active_medications?: ActiveMedication[];
+  active_problems?: ActiveProblem[];
 }
 
 export interface DocumentMeta {
@@ -304,6 +327,67 @@ export interface NewEDVisit {
   arrival_mode?: "AMBULANCE" | "WALK_IN" | "POLICE" | "REFERRAL" | "OTHER";
   vitals?: Record<string, string | number>;
   notes?: string;
+}
+
+export interface ClinicalOrderItem {
+  id: string;
+  encounter_id: string;
+  patient_id: string;
+  test_name: string;
+  code: string;
+  notes: string;
+  priority: "ROUTINE" | "URGENT" | "STAT";
+  status: "PLACED" | "COMPLETED" | "CANCELLED";
+  ordered_by_name: string | null;
+  created_at: string;
+}
+
+export interface NewClinicalOrder {
+  test_name: string;
+  code?: string;
+  notes?: string;
+  priority?: "ROUTINE" | "URGENT" | "STAT";
+}
+
+export interface OrderRecentResultItem {
+  id: string;
+  test_name: string;
+  code: string;
+  value: string;
+  unit: string;
+  observed_date: string;
+  days_ago: number;
+  facility_name: string;
+  verified: boolean;
+}
+
+export interface OrderCreateResponse {
+  order: ClinicalOrderItem;
+  recent_results: OrderRecentResultItem[];
+  advisory: string | null;
+}
+
+export interface TestResultTimelineItem {
+  id: string;
+  code: string;
+  display_name: string;
+  value: string;
+  unit: string;
+  observed_date: string | null;
+  lab: string;
+  verified: boolean;
+}
+
+export interface TestTimelineGroup {
+  test_name: string;
+  code: string;
+  results: TestResultTimelineItem[];
+}
+
+export interface PatientResultsResponse {
+  patient_id: string;
+  results: TestResultTimelineItem[];
+  timeline: TestTimelineGroup[];
 }
 
 export type QueryFilters = Record<string, string | undefined>;

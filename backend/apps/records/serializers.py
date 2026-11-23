@@ -1,5 +1,39 @@
 from rest_framework import serializers
-from .models import Encounter, ClinicalObservation
+from .models import Encounter, ClinicalObservation, ClinicalOrder
+
+class ClinicalOrderSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="public_id", read_only=True)
+    encounter_id = serializers.UUIDField(source="encounter.public_id", read_only=True)
+    patient_id = serializers.UUIDField(source="patient.public_id", read_only=True)
+    ordered_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClinicalOrder
+        fields = [
+            "id",
+            "encounter_id",
+            "patient_id",
+            "test_name",
+            "code",
+            "notes",
+            "priority",
+            "status",
+            "ordered_by_name",
+            "created_at",
+        ]
+
+    def get_ordered_by_name(self, obj):
+        if not obj.ordered_by:
+            return None
+        return getattr(obj.ordered_by, "name", None) or obj.ordered_by.email
+
+
+class ClinicalOrderCreateSerializer(serializers.Serializer):
+    test_name = serializers.CharField(max_length=255)
+    code = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    priority = serializers.ChoiceField(choices=["ROUTINE", "URGENT", "STAT"], default="ROUTINE")
+
 
 class ClinicalObservationSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source="public_id", read_only=True)

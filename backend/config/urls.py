@@ -12,6 +12,7 @@ from apps.records.views import (
     PatientEncounterListCreateView,
     EncounterDetailView,
     EncounterObservationCreateView,
+    EncounterOrderListCreateView,
 )
 from apps.documents.views import PatientPriorResultsView
 from apps.consent.views import (
@@ -50,6 +51,7 @@ urlpatterns = [
     path("api/v1/encounters/<uuid:public_id>/observations", EncounterObservationCreateView.as_view(), name="canonical-encounter-observations"),
     path("api/v1/encounters/<uuid:public_id>/allergies", EncounterObservationCreateView.as_view(), name="canonical-encounter-allergies"),
     path("api/v1/encounters/<uuid:public_id>/medications", EncounterObservationCreateView.as_view(), name="canonical-encounter-medications"),
+    path("api/v1/encounters/<uuid:public_id>/orders", EncounterOrderListCreateView.as_view(), name="canonical-encounter-orders"),
     path("api/v1/practitioners/<uuid:practitioner_id>/slots", PractitionerSlotsView.as_view(), name="canonical-practitioner-slots"),
     path("api/v1/appointments", AppointmentListCreateView.as_view(), name="canonical-appointment-list-create"),
     path("api/v1/appointments/<uuid:public_id>", AppointmentDetailView.as_view(), name="canonical-appointment-detail"),

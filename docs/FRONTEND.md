@@ -69,7 +69,7 @@ frontend/
         layout.tsx           # PatientShell; requires patient session (Q-03 may allow guest on /triage)
       (clinician)/
         dashboard/           # queue + detail panes
-        patients/            # search, [id] chart, [id]/reports/[docId]/verify
+        patients/            # search, [id] chart (results timeline, test ordering advisory, active lists, printable summary), [id]/reports/[docId]/verify
         referrals/           # index (Incoming / Outgoing tabs), new, [id], incoming, outgoing
         emergency/           # emergency referral mode (offline-capable)
         notifications/

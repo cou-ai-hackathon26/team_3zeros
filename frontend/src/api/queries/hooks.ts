@@ -4,8 +4,8 @@ import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, ty
 import type { RequestOptions } from "../client";
 import { queryKeys } from "./index";
 import { useApi } from "./provider";
-import type { AccessRequestItem, ApiExtractedField, Appointment, Chart, DocumentMeta, ExtractionResponse, Patient, TriageSessionDetail, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot, EDVisitItem, NewEDVisit } from "./types";
-export type { AccessRequestItem, EDVisitItem, NewEDVisit } from "./types";
+import type { AccessRequestItem, ApiExtractedField, Appointment, Chart, DocumentMeta, ExtractionResponse, Patient, TriageSessionDetail, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot, EDVisitItem, NewEDVisit, PatientResultsResponse, ClinicalOrderItem, NewClinicalOrder, OrderCreateResponse } from "./types";
+export type { AccessRequestItem, EDVisitItem, NewEDVisit, PatientResultsResponse, ClinicalOrderItem, NewClinicalOrder, OrderCreateResponse } from "./types";
 
 /** Builds `?a=1&b=2`, skipping undefined and empty values. */
 export function withQuery(path: string, params?: QueryFilters): string {
@@ -497,6 +497,38 @@ export function useEDVisitAction(id: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.edVisit(id) });
       qc.invalidateQueries({ queryKey: ["edVisits"] });
+    },
+  });
+}
+
+export const usePatientResults = (patientId: string) =>
+  useGet<PatientResultsResponse>(queryKeys.patientResults(patientId), `/patients/${patientId}/results`, Boolean(patientId));
+
+export const useEncounterOrders = (encounterId: string) =>
+  useGet<{ orders: ClinicalOrderItem[] }>(queryKeys.encounterOrders(encounterId), `/encounters/${encounterId}/orders`, Boolean(encounterId));
+
+export function useCreateClinicalOrder(encounterId: string) {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (order: NewClinicalOrder) =>
+      (await api.post<OrderCreateResponse>(`/encounters/${encounterId}/orders`, { body: order })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.encounterOrders(encounterId) });
+    },
+  });
+}
+
+export function useRecordClinicalEntry(encounterId: string) {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (entry: { type: "allergies" | "medications" | "observations"; code: string; display_name: string; value_string?: string; value_numeric?: number; unit?: string }) => {
+      const { type, ...body } = entry;
+      return (await api.post(`/encounters/${encounterId}/${type}`, { body })).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["patients"] });
     },
   });
 }

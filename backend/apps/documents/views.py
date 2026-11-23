@@ -227,7 +227,7 @@ class PatientPriorResultsView(views.APIView):
         test_filter = request.query_params.get("test")
         qs = ClinicalObservation.objects.filter(patient=patient).select_related("encounter", "encounter__facility").order_by("-observed_date")
         if test_filter:
-            qs = qs.filter(code__iexact=test_filter)
+            qs = qs.filter(models.Q(code__iexact=test_filter) | models.Q(display_name__icontains=test_filter))
         results = [
             {
                 "id": str(obs.public_id),
@@ -235,11 +235,27 @@ class PatientPriorResultsView(views.APIView):
                 "display_name": obs.display_name,
                 "value": obs.value_string or (str(obs.value_numeric) if obs.value_numeric is not None else ""),
                 "unit": obs.unit,
-                "observed_date": obs.observed_date.isoformat() if obs.observed_date else None,
+                "observed_date": obs.observed_date.isoformat() if obs.observed_date else (obs.created_at.isoformat() if obs.created_at else None),
                 "lab": obs.encounter.facility.name if obs.encounter and obs.encounter.facility else "",
+                "verified": True,
             }
             for obs in qs
         ]
-        return Response({"patient_id": str(patient.public_id), "results": results})
+        timeline = {}
+        for r in results:
+            key = r["display_name"]
+            if key not in timeline:
+                timeline[key] = {
+                    "test_name": key,
+                    "code": r["code"],
+                    "results": [],
+                }
+            timeline[key]["results"].append(r)
+
+        return Response({
+            "patient_id": str(patient.public_id),
+            "results": results,
+            "timeline": list(timeline.values()),
+        })
 
 

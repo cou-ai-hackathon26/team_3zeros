@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from apps.common.models import TimeStamped
 
 class Encounter(TimeStamped):
@@ -55,4 +56,36 @@ class ClinicalObservation(TimeStamped):
 
     def __str__(self):
         return f"Observation({self.code}: {self.value_string or self.value_numeric} {self.unit})"
+
+
+class ClinicalOrder(TimeStamped):
+    """
+    Diagnostic investigation order per MASTERPLAN §6.3.
+    Carries non-suppression advisory if prior verified results exist (INV-15).
+    """
+    STATUS_CHOICES = [
+        ("PLACED", "Placed"),
+        ("COMPLETED", "Completed"),
+        ("CANCELLED", "Cancelled"),
+    ]
+    PRIORITY_CHOICES = [
+        ("ROUTINE", "Routine"),
+        ("URGENT", "Urgent"),
+        ("STAT", "Stat"),
+    ]
+
+    encounter = models.ForeignKey(Encounter, on_delete=models.CASCADE, related_name="orders")
+    patient = models.ForeignKey("identity.Patient", on_delete=models.CASCADE, related_name="orders")
+    test_name = models.CharField(max_length=255)
+    code = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default="ROUTINE")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PLACED")
+    ordered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"ClinicalOrder({self.test_name}, status={self.status})"
 

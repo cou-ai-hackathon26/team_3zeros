@@ -448,13 +448,14 @@ backend must match it. Paths are relative to `/api/v1`.
 | records | `GET /patients/{id}/chart` | Authorized chart sections |
 | records | `POST /patients/{id}/encounters`, `GET /encounters/{id}`, `PATCH /encounters/{id}` | Encounters |
 | records | `POST /encounters/{id}/observations`, allergies, medications | Clinical entries |
+| records | `POST /encounters/{id}/orders`, `GET /encounters/{id}/orders` | Diagnostic orders; response returns recent verified results advisory (INV-15: non-suppression) |
 | documents | `POST /documents` (multipart) | Upload report (`patient_id`, optional `encounter_id`) |
 | documents | `GET /documents/{id}` | Metadata + extraction state |
 | documents | `POST /documents/{id}/download-link` | Short-lived signed link (audited) |
 | documents | `GET /documents/{id}/extraction` | Candidate values with confidence and source location |
 | documents | `POST /documents/{id}/extraction/verify` | Clinician-corrected values → verified Observations |
 | documents | `POST /documents/{id}/extraction/reject` | Discard extraction |
-| documents | `GET /patients/{id}/results?test=` | Prior results with date and lab (INV-15) |
+| documents | `GET /patients/{id}/results?test=&group_by=` | Prior results timeline grouped by test with date, lab, verified status (INV-15) |
 | referrals | `POST /referrals` | Create draft (`patient_id`, `encounter_id`, destination, urgency) |
 | referrals | `POST /referrals/{id}/generate-draft` | Queue AI summary draft |
 | referrals | `PATCH /referrals/{id}` | Edit draft content (DRAFT only; use `reopen_draft` action first otherwise) |
@@ -657,7 +658,8 @@ Record every change to §4–§7 here so both ends see it. Newest first.
 
 | Date | Change | Backend updated | Frontend updated | By |
 |---|---|---|---|---|
-| 2026-11-23 | Phase C Emergency Department: `EDVisit` entity (§5.9), state transitions ARRIVED → TRIAGED → UNDER_CARE → {ADMITTED, DISCHARGED, TRANSFERRED, LEFT, DIED}; endpoints `POST /ed-visits`, `GET /ed-visits`, `GET /ed-visits/{id}`, `POST /ed-visits/{id}/actions/{action}`; permission `ed.manage` | yes (in progress) | yes (in progress) | Planning |
+| 2026-11-23 | Phase D Record Continuity: `POST /encounters/{id}/orders`, `GET /encounters/{id}/orders` with recent-results advisory (INV-15: non-suppression); `GET /patients/{id}/results?group_by=test` timeline; active clinical lists (allergies, medications, problems) on chart and referral draft reconciliation; patient-held summary | yes | yes | Planning |
+| 2026-11-23 | Phase C Emergency Department: `EDVisit` entity (§5.9), state transitions ARRIVED → TRIAGED → UNDER_CARE → {ADMITTED, DISCHARGED, TRANSFERRED, LEFT, DIED}; endpoints `POST /ed-visits`, `GET /ed-visits`, `GET /ed-visits/{id}`, `POST /ed-visits/{id}/actions/{action}`; permission `ed.manage` | yes | yes | Planning |
 | 2026-11-23 | Phase B Private Chamber: `POST /access-requests`, `GET /admin/access-requests`, `POST /admin/access-requests/{id}/approve`, `POST /admin/access-requests/{id}/reject`; `Facility.type` gains `private_chamber` | yes | yes | Planning |
 | 2026-11-23 | Product expansion decisions: D-19 (private chambers), D-20 (patient identity baseline), Q-18 (ED intake minimum dataset), Q-19 (research ethics deferral); access-request and ED visit entities initiated | yes (in progress) | yes (in progress) | Planning |
 | 2026-11-23 | Admin access control: D-16, D-17; `GET /admin/permissions`, `POST /admin/staff`, `PATCH /admin/staff/{id}` and five action endpoints; `POST /auth/admin/login`; `POST /auth/register` replaces `POST /auth/otp/request` and `/auth/otp/verify` (D-18); error code `rate_limited` now returned for sign-in attempts; `me` roles ignore expired memberships | yes | yes | Planning |

@@ -49,6 +49,7 @@ CANONICAL_PATHS = [
     f"/api/v1/encounters/{SAMPLE_UUID}/observations",
     f"/api/v1/encounters/{SAMPLE_UUID}/allergies",
     f"/api/v1/encounters/{SAMPLE_UUID}/medications",
+    f"/api/v1/encounters/{SAMPLE_UUID}/orders",
     "/api/v1/documents/",
     f"/api/v1/documents/{SAMPLE_UUID}",
     f"/api/v1/documents/{SAMPLE_UUID}/download-link",

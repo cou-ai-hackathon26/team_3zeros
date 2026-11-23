@@ -24,4 +24,5 @@ export const queryKeys = {
   adminAccessRequests: (status?: string) => ["admin", "accessRequests", status ?? "all"] as const,
   edVisits: (state?: string) => ["edVisits", state ?? "all"] as const,
   edVisit: (id: string) => ["edVisit", id] as const,
+  encounterOrders: (encounterId: string) => ["encounters", encounterId, "orders"] as const,
 };

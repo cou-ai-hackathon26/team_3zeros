@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { usePageLocale } from "../../../../usePageLocale";
 import { ApiError, createIntentIdempotencyKey } from "../../../../../api/client";
 import { formatDhakaDateTime, formatTimeAgo, t } from "../../../../../i18n/format";
-import { useReferral, useReferralDraft } from "../../../../../api/queries/hooks";
+import { useReferral, useReferralDraft, useChart } from "../../../../../api/queries/hooks";
 import type { Referral } from "../../../../../api/queries/types";
 import { useCaseActions } from "../../../../../features/clinical/useCaseActions";
 import { referralTone } from "../../../../../features/clinical/referralDisplay";
@@ -46,6 +46,9 @@ export default function ReferralWorkspacePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const r = query.data;
+  const chart = useChart(r?.patient_id ?? "");
+  const activeMeds = chart.data?.active_medications ?? [];
+  const activeAllergies = chart.data?.active_allergies ?? [];
 
   // Load the editable copy whenever the server version changes.
   useEffect(() => {
@@ -104,6 +107,43 @@ export default function ReferralWorkspacePage() {
                       </Button>
                     )}
                   </div>
+                  {isDraft && (activeMeds.length > 0 || activeAllergies.length > 0) && (
+                    <div className="rounded-panel border border-line bg-sunken p-3 flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-dense font-bold text-ink">{t(locale, "patients.reconcileMedications")}</span>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            const reconciledLines: string[] = [];
+                            if (activeAllergies.length > 0) {
+                              reconciledLines.push(`Allergies: ${activeAllergies.map((a) => `${a.name} (${a.reaction})`).join(", ")}`);
+                            }
+                            if (activeMeds.length > 0) {
+                              reconciledLines.push(`Medications: ${activeMeds.map((m) => `${m.name} ${m.dosage}`).join("; ")}`);
+                            }
+                            const addition = "\n" + reconciledLines.join("\n");
+                            setReason((prev) => (prev ? prev + addition : reconciledLines.join("\n")));
+                          }}
+                        >
+                          {t(locale, "patients.includeInReferral")}
+                        </Button>
+                      </div>
+                      <p className="m-0 text-caption text-ink-muted">{t(locale, "patients.reconcilePrompt")}</p>
+                      <div className="flex flex-wrap gap-2 text-caption">
+                        {activeAllergies.map((a) => (
+                          <span key={a.id} className="rounded-control border border-signal bg-signal-wash px-2 py-0.5 text-signal font-medium">
+                            {a.name}
+                          </span>
+                        ))}
+                        {activeMeds.map((m) => (
+                          <span key={m.id} className="rounded-control border border-line bg-surface px-2 py-0.5 text-ink">
+                            {m.name} {m.dosage}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {isDraft ? (
                     <label className="flex flex-col gap-1 text-dense font-semibold">
                       {L("reason")}
