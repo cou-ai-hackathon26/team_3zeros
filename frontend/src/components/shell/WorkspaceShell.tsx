@@ -44,8 +44,8 @@ function SidebarContent({ me, locale, area, onNavigate }: { me: UserMe; locale: 
       onClick={onNavigate}
       aria-current={current(item.href) ? "page" : undefined}
       className={cn(
-        "flex min-h-11 items-center gap-3 rounded-control px-3 text-dense no-underline",
-        current(item.href) ? "bg-indigo font-semibold text-surface" : "text-brand-foreground hover:bg-indigo",
+        "flex min-h-11 items-center gap-3 rounded-pill px-4 text-dense no-underline transition-colors duration-[var(--motion-feedback-duration)]",
+        current(item.href) ? "bg-indigo font-semibold text-surface" : "text-brand-foreground/90 hover:bg-indigo/70 hover:text-surface",
         item.id === "emergency" && "border border-paddy",
       )}
     >
@@ -55,18 +55,18 @@ function SidebarContent({ me, locale, area, onNavigate }: { me: UserMe; locale: 
   );
 
   return (
-    <div className="flex h-full flex-col gap-4 bg-brand p-3 text-brand-foreground">
-      <div className="flex items-center gap-2 px-2 pt-1">
+    <div className="flex h-full flex-col gap-5 bg-brand p-4 text-brand-foreground">
+      <div className="flex items-center gap-2.5 px-2 pt-1">
         <Mark tile />
         <p className="m-0 text-dense font-semibold">{facilityName(me, locale)}</p>
       </div>
       <nav aria-label={t(locale, "shell.mainNav")} className="flex flex-1 flex-col gap-1">
         {main.map(link)}
-        {apart.length > 0 && <hr className="my-2 border-0 border-t border-indigo" />}
+        {apart.length > 0 && <hr className="my-2.5 border-0 border-t border-surface/15" />}
         {apart.map(link)}
       </nav>
-      <div className="flex flex-col gap-2 border-t border-indigo pt-3">
-        <Link href={`/${locale}/notifications`} className="flex min-h-11 items-center gap-3 rounded-control px-3 text-dense text-brand-foreground no-underline hover:bg-indigo">
+      <div className="flex flex-col gap-2.5 border-t border-surface/15 pt-3.5">
+        <Link href={`/${locale}/notifications`} className="flex min-h-11 items-center gap-3 rounded-pill px-4 text-dense text-brand-foreground/90 no-underline transition-colors hover:bg-indigo/70 hover:text-surface">
           <Bell aria-hidden className="size-5" />
           {t(locale, "nav.notifications")}
         </Link>

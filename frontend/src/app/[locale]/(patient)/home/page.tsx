@@ -107,31 +107,31 @@ export default function PatientHomePage() {
   const reportCount = chart.data?.documents?.length ?? 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <h1 className="sr-only">{L("title")}</h1>
-      <div className="grid gap-4 lg:grid-cols-12">
-        <Tile tone="brand" className={showStart ? "lg:col-span-12" : "lg:col-span-8"}>
-          <section aria-label={L("nextStep")} className="flex flex-col gap-4">{main}</section>
+      <div className="grid gap-5 lg:grid-cols-12">
+        <Tile tone="brand" className={showStart ? "p-7 sm:p-9 lg:col-span-12" : "p-7 sm:p-8 lg:col-span-8"}>
+          <section aria-label={L("nextStep")} className="flex flex-col gap-5">{main}</section>
         </Tile>
         {!showStart && (
-          <Tile className="flex flex-col gap-3 lg:col-span-4">
+          <Tile className="flex flex-col justify-between gap-4 border-0 bg-sunken p-7 lg:col-span-4">
             <h2 className="m-0 text-heading font-semibold">{L("describe")}</h2>
             {start}
           </Tile>
         )}
-        <Tile href={`${base}/appointments`} className="lg:col-span-4">
+        <Tile href={`${base}/appointments`} className="border-0 bg-sunken p-7 lg:col-span-4">
           <h2 className="m-0 text-subheading font-semibold">{t(locale, "nav.appointments")}</h2>
-          <p className="m-0 mt-1 text-dense text-ink-muted">{inProgress > 0 ? fill(L("appointmentsInProgress"), { n: inProgress }) : L("appointmentsEmpty")}</p>
+          <p className="m-0 mt-2 text-dense leading-relaxed text-ink-muted">{inProgress > 0 ? fill(L("appointmentsInProgress"), { n: inProgress }) : L("appointmentsEmpty")}</p>
         </Tile>
-        <Tile href={`${base}/reports`} className="lg:col-span-4">
+        <Tile href={`${base}/reports`} className="border-0 bg-sunken p-7 lg:col-span-4">
           <h2 className="m-0 text-subheading font-semibold">{t(locale, "nav.reports")}</h2>
-          <p className="m-0 mt-1 text-dense text-ink-muted">
+          <p className="m-0 mt-2 text-dense leading-relaxed text-ink-muted">
             {reportCount > 0 ? fill(L("reportsCount"), { n: reportCount }) : L("reportsEmpty")}
           </p>
         </Tile>
-        <Tile href={`${base}/consents`} className="lg:col-span-4">
+        <Tile href={`${base}/consents`} className="border-0 bg-sunken p-7 lg:col-span-4">
           <h2 className="m-0 text-subheading font-semibold">{t(locale, "nav.consents")}</h2>
-          <p className="m-0 mt-1 text-dense text-ink-muted">
+          <p className="m-0 mt-2 text-dense leading-relaxed text-ink-muted">
             {waiting > 0 ? fill(L("consentsWaiting"), { n: waiting }) : active > 0 ? fill(L("consentsActive"), { n: active }) : L("consentsEmpty")}
           </p>
         </Tile>

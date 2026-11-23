@@ -82,16 +82,16 @@ function DoctorRow({
   }
 
   return (
-    <li className="m-0 list-none border-b border-line">
+    <li className="m-0 list-none rounded-[20px] border border-line/80 bg-surface transition-colors duration-[var(--motion-feedback-duration)] hover:border-indigo/30">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-14 w-full items-center gap-3 bg-transparent px-1 py-3 text-start"
+        className="flex min-h-16 w-full cursor-pointer items-center gap-3 bg-transparent px-5 py-4 text-start"
       >
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-body font-semibold">{pickName(locale, doctor.name, doctor.name_bn)}</span>
+          <span className="text-body font-semibold text-ink">{pickName(locale, doctor.name, doctor.name_bn)}</span>
           <span className="text-caption text-ink-muted">
             {[
               specialty,
@@ -104,11 +104,11 @@ function DoctorRow({
           </span>
           <CapacityLine facility={facility && facilities.get(facility.id)} locale={locale} />
         </span>
-        <ChevronDown aria-hidden className={cn("size-5 shrink-0 transition-transform", open && "rotate-180")} />
+        <ChevronDown aria-hidden className={cn("size-5 shrink-0 text-ink-muted transition-transform duration-[var(--motion-state-duration)]", open && "rotate-180 text-indigo")} />
       </button>
 
       {open && (
-        <div id={panelId} className="flex flex-col gap-3 px-1 pb-4">
+        <div id={panelId} className="flex flex-col gap-4 border-t border-line/70 px-5 py-4">
           {sentId ? (
             <Alert tone="positive" title={L("sent")} action={<Link href={`/${locale}/appointments/${sentId}`} className="text-indigo underline underline-offset-2">{L("viewRequest")}</Link>} />
           ) : slots.isLoading ? (
@@ -128,7 +128,12 @@ function DoctorRow({
                     role="radio"
                     aria-checked={slotId === s.id}
                     onClick={() => setSlotId(s.id)}
-                    className={cn("min-h-11 rounded-control border px-3 text-dense", slotId === s.id ? "border-indigo bg-indigo-wash font-semibold" : "border-line-strong bg-surface hover:bg-sunken")}
+                    className={cn(
+                      "min-h-11 cursor-pointer rounded-pill border px-4 text-dense transition-colors duration-[var(--motion-feedback-duration)]",
+                      slotId === s.id
+                        ? "border-indigo bg-indigo text-surface font-semibold"
+                        : "border-line-strong bg-surface text-ink hover:border-indigo hover:bg-sunken",
+                    )}
                   >
                     {formatDhakaDateTime(s.start, locale)}
                   </button>
@@ -184,13 +189,13 @@ export default function DoctorDiscoveryPage() {
     <Column>
       <PageHeader serif title={L("title")} />
       {triageSessionId && <Alert tone="info" title={t(locale, "triage.triageAttached")} />}
-      <details className="rounded-panel border border-line bg-surface p-4" open={filtered || undefined}>
-        <summary className="cursor-pointer text-dense font-semibold">{L("filters")}</summary>
+      <details className="rounded-[20px] border border-line/80 bg-sunken/70 p-5" open={filtered || undefined}>
+        <summary className="cursor-pointer text-dense font-semibold text-ink">{L("filters")}</summary>
         <div className="mt-4 flex flex-col gap-4">
           <AreaPicker key={pickerKey} locale={locale} onChange={setArea} />
           <label className="flex flex-col gap-1.5 text-dense font-semibold">
             {L("specialty")}
-            <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="h-12 rounded-control border border-line-strong bg-surface px-3 text-body font-normal">
+            <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="h-12 rounded-panel border border-line-strong bg-surface px-3.5 text-body font-normal">
               <option value="">{L("anySpecialty")}</option>
               {((specialties.data ?? []) as SpecialtyOption[]).map((s) => (
                 <option key={s.code} value={s.code}>{pickName(locale, s.name_en, s.name_bn)}</option>
@@ -211,7 +216,7 @@ export default function DoctorDiscoveryPage() {
         <EmptyState message={L("empty")} />
       ) : (
         <>
-          <ul className="m-0 p-0">
+          <ul className="m-0 flex flex-col gap-3 p-0">
             {doctors.map((d) => <DoctorRow key={d.id} doctor={d} facilities={facilityMap} locale={locale} triageSessionId={triageSessionId} />)}
           </ul>
           {list.hasNextPage && (

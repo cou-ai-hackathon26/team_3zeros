@@ -21,9 +21,9 @@ export default function PatientAppointmentsPage() {
 
   const group = (title: string, items: Appointment[]) =>
     items.length === 0 ? null : (
-      <section aria-label={title} className="flex flex-col gap-2">
-        <h2 className="m-0 text-heading font-semibold">{title}</h2>
-        <ul className="m-0 p-0">
+      <section aria-label={title} className="flex flex-col gap-3 rounded-[24px] bg-surface p-5 sm:p-6">
+        <h2 className="m-0 text-heading font-semibold text-ink">{title}</h2>
+        <ul className="m-0 p-0 [&>li:last-child>a]:border-b-0 [&>li:last-child>div]:border-b-0">
           {items.map((a) => (
             <ListRow
               key={a.id}

@@ -6,22 +6,22 @@ import { cn } from "../../lib/cn";
 
 /** DESIGN_SYSTEM §6.2. One `primary` per view; `danger` for destructive confirmation and the emergency call only. */
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-control font-semibold no-underline cursor-pointer select-none " +
-    "transition-colors duration-[var(--motion-feedback-duration)] ease-[var(--motion-feedback-easing)] " +
+  "inline-flex items-center justify-center gap-2 rounded-pill font-semibold no-underline cursor-pointer select-none " +
+    "transition-all duration-[var(--motion-state-duration)] ease-[var(--motion-state-easing)] active:scale-[0.99] " +
     "disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:cursor-not-allowed aria-disabled:opacity-40",
   {
     variants: {
       variant: {
         primary: "bg-primary text-primary-foreground hover:bg-indigo-hover",
-        secondary: "border border-line-strong bg-surface text-ink hover:bg-sunken",
-        quiet: "bg-transparent text-indigo hover:bg-indigo-wash",
+        secondary: "border border-indigo/40 bg-surface text-ink hover:border-indigo hover:bg-indigo hover:text-surface",
+        quiet: "rounded-control bg-transparent text-indigo hover:bg-indigo-wash",
         danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         "on-brand": "bg-paddy text-indigo-deep hover:bg-paddy/90 focus-visible:outline-paddy",
       },
       size: {
-        lg: "h-13 px-6 text-body",
-        md: "h-11 px-4 text-dense",
-        sm: "h-9 px-3 text-dense",
+        lg: "h-13 px-7 text-body",
+        md: "h-11 px-5 text-dense",
+        sm: "h-9 px-4 text-dense",
       },
     },
     defaultVariants: { variant: "primary", size: "md" },

@@ -70,7 +70,7 @@ export function Skeleton({ label, className }: { label?: string; className?: str
   );
 }
 
-const alert = cva("flex items-start gap-3 rounded-panel p-3 text-dense", {
+const alert = cva("flex items-start gap-3.5 rounded-[18px] p-4 text-dense", {
   variants: {
     tone: {
       info: "bg-indigo-wash text-ink",
