@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { VapiVoiceClient } from "./vapiClient";
+import { VapiVoiceClient, captionLanguage } from "./vapiClient";
 import type { VoiceSessionState } from "./types";
 
 function fakeSdk() {
@@ -51,6 +51,19 @@ describe("VapiVoiceClient", () => {
     sdk.handlers["message"]({ type: "transcript", role: "assistant", transcriptType: "final", transcript: "আপনার সমস্যা কী?" });
     sdk.handlers["message"]({ type: "transcript", role: "user", transcriptType: "final", transcript: "জ্বর" });
     expect(captions).toEqual(["assistant:bn:আপনার সমস্যা কী?", "patient:bn:জ্বর"]);
+  });
+
+  it("labels each caption by its own script, not by the page language", async () => {
+    expect(captionLanguage("How old are you?")).toBe("en");
+    expect(captionLanguage("আপনার বয়স কত?")).toBe("bn");
+    expect(captionLanguage("Hello, আমাদের স্বাস্থ্যসেবা সহায়ক প্ল্যাটফর্মে আপনাকে স্বাগতম।")).toBe("bn");
+    const sdk = fakeSdk();
+    const client = new VapiVoiceClient("en", sdk.load); // page in English, agent speaks Bangla
+    const langs: string[] = [];
+    client.on("caption", (c) => langs.push(c.lang));
+    await client.connect(creds, null);
+    sdk.handlers["message"]({ type: "transcript", role: "assistant", transcriptType: "final", transcript: "আপনার সমস্যা কী?" });
+    expect(langs).toEqual(["bn"]);
   });
 
   it("reports connection_lost when the SDK errors or start fails, and stops tracks of the probe stream", async () => {

@@ -24,6 +24,13 @@ type VapiLike = {
 
 type VapiMessage = { type?: string; role?: string; transcriptType?: string; transcript?: string };
 
+/** Language of a caption line, from its script: Vapi may speak either language whatever the page language is. */
+export function captionLanguage(text: string): Locale {
+  const bangla = (text.match(/[\u0980-\u09FF]/g) ?? []).length;
+  const latin = (text.match(/[A-Za-z]/g) ?? []).length;
+  return bangla >= latin ? "bn" : "en";
+}
+
 export class VapiVoiceClient implements VoiceClient {
   private vapi: VapiLike | null = null;
   private lang: Locale;
@@ -74,7 +81,7 @@ export class VapiVoiceClient implements VoiceClient {
           this.emit("caption", {
             role: m.role === "user" ? "patient" : "assistant",
             text: m.transcript,
-            lang: this.lang,
+            lang: captionLanguage(m.transcript),
             at: new Date().toISOString(),
           });
         }
