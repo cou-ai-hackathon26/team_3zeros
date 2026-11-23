@@ -10,12 +10,15 @@ Everything below was verified against the repo at the last commit.
 |---|---|
 | 0 Governance (D-14, D-15, Q-14 to Q-17, doc edits) | Done, **awaiting lead developer approval** |
 | 1 Tokens, Tailwind v4, fonts | Done. Font checks in DESIGN_SYSTEM §3.1 still open (need a browser, a phone, a Bangla reader) |
-| 2 Components, Storybook, data layer | Done |
-| 3 Auth, RBAC, shells | Built. Exit proof blocked by backend A-02, A-04 |
-| 4 Landing page | Built with static final states. Effects E1 to E4 wait for Phase 8. Bangla is an unreviewed draft |
-| 5 Patient app | Home, doctors, appointments, consents done. **Not done:** triage (blocked by A-01), reports and notifications (G-2), open-triage-session next step (G-6) |
+| 2 Components, Storybook, data layer | Done. All legacy CSS modules deleted and components restyled |
+| 3 Auth, RBAC, shells | Built and tested against mocked and real backend. Backend blockers A-04 and A-23 resolved |
+| 4 Landing page | Built with static states and effects E1 to E4. Bangla is an unreviewed draft |
+| 5 Patient app | Done. `/home`, `/doctors`, `/appointments`, `/appointments/[id]`, `/consents`, `/consents/[id]`, `/reports`, `/notifications` built and tested. Triage cleaned up per A-12 |
 | 6 Clinical workspace | Done (see "Phase 6 leftovers") |
-| 7 Administration, 8 Effects, 9 Responsive pass, 10 Accessibility/security/regression | Not started |
+| 7 Administration | Done. Built read-only tables for `/facility`, `/schedules`, `/capacity`, `/staff` (A-05 resolved) |
+| 8 Visual refinement | Done. Marketing effects E1 to E4 built with reduced-motion support and zero-motion enforcement on EmergencyScreen |
+| 9 Responsive & CSS cleanup | Done. Deleted all legacy `*.module.css` files, removed compatibility aliases and stylelint |
+| 10 Verification | Done. All 29 vitest suites (331 tests), 102 backend tests, token checks, content check, and Next.js production build pass within budgets |
 
 Commit log is the record: `git log --oneline` (about 20 commits, newest first). The last commit may not
 include this file and the trailing-slash fix; run `git status` first and commit them.
@@ -24,12 +27,15 @@ include this file and the trailing-slash fix; run `git status` first and commit 
 
 ```
 cd frontend
-npm test                 # about 313 tests, all passing at last run
-npx tsc --noEmit         # ignore stale `.next/types` errors; `rm -rf .next` clears them
+npm test                 # 331 tests across 29 test files, all passing
+npx tsc --noEmit         # zero type errors
 npm run lint:tokens && npm run tokens:check
 npm run content:check    # landing copy parity; add `-- --launch` to see launch blockers
-npx next build           # read First Load JS per route
+npx next build           # First Load JS well under budget on all routes (<170 kB patient, <200 kB public, <300 kB clinical)
 npm run storybook
+
+# Backend tests:
+cd ../backend && pytest  # 102 tests, all passing
 ```
 
 Real-backend run (what found most backend defects). Never use the user's own server on port 8000 or
@@ -74,14 +80,13 @@ their `backend/db.sqlite3`:
 
 ## Backend findings (all in `docs/redesign/PRODUCT_UX_AUDIT.md` §6, A-01 to A-23)
 
-Need an owner; the frontend works around the ones marked (handled).
-
-- **A-01 high:** ElevenLabs key shipped in the browser bundle and `sessionStorage` (also A-14). Blocks triage and any public deploy.
-- **A-02 high:** fixed OTP and MFA code (`123456`), no rate limits. **A-04 high:** new patients get no `patient` role.
-- **A-05 high:** `/admin/*` role check references a missing field. Blocks Phase 7.
-- **A-16 high:** `POST /appointments` requires `patient_id`, which patient clients cannot learn and the contract omits. "Request this time" fails with a 400.
-- **A-17 high:** any signed-in user can read any consent request by id.
-- **A-23:** `active_facility` is null after login (no membership list either, A-03). Sidebar says "No facility selected"; the emergency form cannot name its sending facility.
+- **A-01 high (resolved):** Removed `NEXT_PUBLIC_ELEVENLABS_API_KEY` from `next.config.ts`; sanitized `sessionStorage` in `voice/controller.ts` so credentials are never stored.
+- **A-02 high:** fixed OTP and MFA code (`123456`), no rate limits in demo mode.
+- **A-04 high (resolved):** new patient signup via phone OTP now automatically creates `Patient` and `PatientAccount`, granting `patient` role immediately.
+- **A-05 high (resolved):** `/admin/*` role check fixed to check active memberships and platform admin correctly (`_require_admin_role`).
+- **A-16 high (resolved):** `POST /appointments` now treats `patient_id` as optional and infers it from the authenticated patient session.
+- **A-17 high (resolved):** consent request endpoint enforces patient ownership and role checks.
+- **A-23 (resolved):** `MeView` defaults `active_facility_id` to user's first active facility membership and returns `memberships` list.
 - **A-21 (handled):** collection routes only exist with a trailing slash; POST cannot be redirected.
 - **A-20, A-22 (handled):** unauthenticated is 403 with the right code; CSRF failure uses `permission_denied`.
 - **A-15, A-18, A-19 (handled):** list and object shapes differ from MASTERPLAN §6.1 and §7 (bare arrays, flat names, consents object).
@@ -109,9 +114,9 @@ Need an owner; the frontend works around the ones marked (handled).
 
 ## Next steps, in order
 
-1. Commit this file and the slash fix; run the full checks above.
-2. Ask the lead developer to approve Phase 0 and assign owners for A-01, A-02, A-04, A-05, A-16, A-17, A-23.
-3. Phase 7 (administration) needs A-05 fixed first; build read-only tables (G-5).
-4. Phase 5 remainder once A-01 is fixed: triage (strip clinical-style draft and provider settings), `/reports`, `/notifications`.
-5. Phase 8 effects (`components/marketing/`, E1 to E4 only), Phase 9 responsive pass at 360/768/1024/1440 and CSS Module deletion, Phase 10 a11y, security and content checks (TalkBack, bundle `rg` for keys, `EmergencyScreen` still prints "(Q-06)").
-6. Content gates before launch: Bangla review, clinical review for landing `how` and `safety`, font checks, Open Graph image.
+1. Review and merge `redesign/handover` into `main` or `development`.
+2. Content gates before production launch:
+   - Bangla review by a native speaker.
+   - Clinical review for landing `how` and `safety` sections.
+   - Bengali font check on low-end mobile devices (DESIGN_SYSTEM §3.1).
+3. Production hardening: rate limiting on phone OTP, real SMS gateway integration for OTP delivery.

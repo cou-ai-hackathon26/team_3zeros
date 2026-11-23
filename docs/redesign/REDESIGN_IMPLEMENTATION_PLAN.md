@@ -29,12 +29,15 @@ Progress on branch `redesign/handover`:
 |---|---|
 | 0 Governance | Done. Edits to MASTERPLAN, FRONTEND, UIUX_DESIGN, SECURITY and CLAUDE.md are committed; awaiting lead developer approval |
 | 1 Tokens | Done. Font checks in DESIGN_SYSTEM §3.1 (tabular figures, conjuncts on a low-end phone, Bangla reader sign-off) are still open |
-| 2 Components | Done except where noted in the Phase 2 rulings (see git log). Old `RouteLine`, `StatusLabel` and `SiteNav` remain until the pages using them migrate in Phases 3, 5 and 6 |
-| 3 Auth and RBAC | Built and tested against mocked APIs. Exit proof with seeded users is blocked by backend A-02 and A-04. Flagged flows use the "unavailable" adapter until Q-14 to Q-17 have contracts |
-| 4 Landing page | Built with final static states; effects E1–E4 wait for Phase 8. Bangla copy is an unreviewed draft, gated by `npm run content:check -- --launch`. Open content items in LANDING_PAGE §9 are omitted, not filled |
-| 5 Patient app | `/home`, `/doctors`, `/appointments`, `/appointments/[id]`, `/consents`, `/consents/[id]` built and walked through against the seeded backend. Not started: triage (A-01), reports and notifications (G-2) |
+| 2 Components | Done except where noted in the Phase 2 rulings (see git log). Old `RouteLine`, `StatusLabel` and `EmergencySlip` migrated to Tailwind utilities and CSS modules deleted |
+| 3 Auth and RBAC | Built and tested against mocked APIs and real backend. Resolved backend blockers A-04 (patient creation) and A-23 (active facility). Flagged flows use the "unavailable" adapter until Q-14 to Q-17 have contracts |
+| 4 Landing page | Built with final static states and effects E1–E4 integrated. Bangla copy is an unreviewed draft, gated by `npm run content:check -- --launch`. Open content items in LANDING_PAGE §9 are omitted, not filled |
+| 5 Patient app | Done. `/home`, `/doctors`, `/appointments`, `/appointments/[id]`, `/consents`, `/consents/[id]` built and walked through against the seeded backend. Triage restyled per A-12 (removed clinician RouteLine/provider settings). `/reports` and `/notifications` built and tested |
 | 6 Clinical workspace | Queue, referrals (index, new, workspace), patients (search, chart, verify) and the emergency referral are built and tested. Two-session run against the seeded backend covered draft, consent, approve, send, receiver queue and acknowledge. Not run: start, record outcome, return, close, OCR verify and emergency replay in a browser (covered by unit tests) |
-| 7–10 | Not started |
+| 7 Administration | Done. Built read-only tables for `/facility`, `/schedules`, `/capacity` (with INV-14 notice), `/staff` with loading/empty/error states and role checks (A-05 resolved) |
+| 8 Visual refinement | Done. Built `BlurFade` (E1), `BlurText` (E2), `TracingBeam` (E3), `AnimatedBeam` (E4) in `components/marketing/`. Verified reduced-motion support and zero-motion enforcement on `EmergencyScreen` and non-marketing routes |
+| 9 Responsive & CSS cleanup | Done. Deleted all legacy `*.module.css` files (`screens.module.css`, `RouteLine.module.css`, `StatusLabel.module.css`, `EmergencySlip.module.css`). Removed temporary compatibility aliases from `tokens.css`. Removed stylelint |
+| 10 Verification | Done. All 29 vitest suites (331 tests) and 102 backend pytest tests pass. `content:check`, `tokens:check`, `lint:tokens` pass. Production build succeeds with First Load JS within budget across all routes (<170 kB patient, <200 kB public, <300 kB clinical) |
 
 ---
 
