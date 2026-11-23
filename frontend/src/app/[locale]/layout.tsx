@@ -2,6 +2,7 @@ import React from "react";
 import { Hind_Siliguri, Tiro_Bangla } from "next/font/google";
 import "../globals.css";
 import { SessionProvider } from "../../auth/session";
+import { AppProviders } from "../../api/queries/provider";
 import { resolveSyncLocale, type LocaleLayoutProps } from "../resolveLocale";
 
 const hindSiliguri = Hind_Siliguri({
@@ -33,7 +34,9 @@ export default async function LocaleRootLayout({
       className={`${hindSiliguri.variable} ${tiroBangla.variable}`}
     >
       <body>
-        <SessionProvider>{children}</SessionProvider>
+        <AppProviders>
+          <SessionProvider>{children}</SessionProvider>
+        </AppProviders>
       </body>
     </html>
   );
