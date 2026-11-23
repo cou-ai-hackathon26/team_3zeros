@@ -31,8 +31,33 @@ export function PatientShell({ children }: { children: React.ReactNode }) {
   const locale = usePageLocale(undefined, "bn");
   const pathname = usePathname() ?? "";
   const { me } = useMe();
-  const items = visibleNav(me, "patient");
+  const subPath = pathname.replace(/^\/(bn|en)(?=\/|$)/, "") || "/";
+  const isFocus = subPath === "/triage" || subPath.startsWith("/triage/session/");
+  const items = isFocus ? [] : visibleNav(me, "patient");
   const isCurrent = (href: string) => pathname === `/${locale}${href}` || pathname.startsWith(`/${locale}${href}/`);
+
+  if (isFocus) {
+    const exitHref = `/${locale}${me ? "/home" : ""}`;
+    return (
+      <div data-route-group="patient" data-shell="focus" className="flex min-h-dvh flex-col bg-paper">
+        <a href="#main" className="sr-only focus:not-sr-only focus:p-3">{t(locale, "shell.skipToContent")}</a>
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-paper px-4 py-2">
+          <Link href={exitHref} className="no-underline" aria-label="Medi Waypoint">
+            <Wordmark />
+          </Link>
+          <div className="flex items-center gap-2">
+            <LanguageSwitch locale={locale} />
+            <Link href={exitHref} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              {t(locale, "shell.exitFocus")}
+            </Link>
+          </div>
+        </header>
+        <main id="main" className="mx-auto w-full max-w-[760px] flex-1 px-4 py-6">
+          {children}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div data-route-group="patient" className="flex min-h-dvh flex-col bg-paper">
