@@ -14,7 +14,8 @@
     "lint:css": "stylelint \"src/**/*.module.css\"",
     "lint:tokens": "node scripts/lint-tokens.mjs",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "content:check": "node scripts/check-content.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "1.2.1",

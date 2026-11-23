@@ -62,7 +62,7 @@ export function ConsentSheet({
   ];
 
   return (
-    <section className="flex flex-col gap-4 rounded-tile border border-line bg-surface p-5">
+    <section className="flex flex-col gap-4 rounded-tile border border-line bg-surface p-5 text-ink">
       <h2 className="m-0 font-serif text-title">
         {bn ? "চিকিৎসা তথ্য শেয়ারের অনুমতি" : "Permission to share your health record"}
       </h2>

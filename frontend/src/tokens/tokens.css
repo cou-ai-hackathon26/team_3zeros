@@ -157,6 +157,8 @@
   }
 }
 
+/* Base rules live in the base layer so Tailwind utilities (utilities layer) always win over them. */
+@layer base {
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -167,6 +169,8 @@ html, body {
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
 }
+/* Form controls do not inherit the page font or colour by default (the part of Tailwind's reset we need). */
+button, input, select, textarea { font: inherit; color: inherit; }
 ::selection {
   background-color: var(--color-indigo);
   color: var(--color-surface);
@@ -174,6 +178,7 @@ html, body {
 :focus-visible {
   outline: 2px solid var(--color-indigo);
   outline-offset: 2px;
+}
 }
 
 /* TEMPORARY COMPATIBILITY ALIASES (REDESIGN_IMPLEMENTATION_PLAN Phase 1, deleted in Phase 9).

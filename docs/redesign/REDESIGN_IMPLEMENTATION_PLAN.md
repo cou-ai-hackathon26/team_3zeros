@@ -31,7 +31,8 @@ Progress on branch `redesign/handover`:
 | 1 Tokens | Done. Font checks in DESIGN_SYSTEM §3.1 (tabular figures, conjuncts on a low-end phone, Bangla reader sign-off) are still open |
 | 2 Components | Done except where noted in the Phase 2 rulings (see git log). Old `RouteLine`, `StatusLabel` and `SiteNav` remain until the pages using them migrate in Phases 3, 5 and 6 |
 | 3 Auth and RBAC | Built and tested against mocked APIs. Exit proof with seeded users is blocked by backend A-02 and A-04. Flagged flows use the "unavailable" adapter until Q-14 to Q-17 have contracts |
-| 4–10 | Not started |
+| 4 Landing page | Built with final static states; effects E1–E4 wait for Phase 8. Bangla copy is an unreviewed draft, gated by `npm run content:check -- --launch`. Open content items in LANDING_PAGE §9 are omitted, not filled |
+| 5–10 | Not started |
 
 ---
 

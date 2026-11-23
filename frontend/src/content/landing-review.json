@@ -1,0 +1,5 @@
+{
+  "note": "Review status of the landing copy (LANDING_PAGE_ARCHITECTURE §9). The Bangla below was drafted for this build, not written by a fluent writer. `npm run content:check -- --launch` fails until bn is marked reviewed.",
+  "bn": { "status": "draft", "writer": null, "clinicalReviewer": null, "clinicalSections": ["how", "safety"] },
+  "en": { "status": "draft", "writer": null }
+}

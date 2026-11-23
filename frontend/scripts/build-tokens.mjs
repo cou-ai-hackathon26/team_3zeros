@@ -66,6 +66,8 @@ for (const n of motionNames) w(`    --motion-${n}-duration: 0ms;`);
 w("  }", "}", "");
 
 w(
+  "/* Base rules live in the base layer so Tailwind utilities (utilities layer) always win over them. */",
+  "@layer base {",
   "* { box-sizing: border-box; }",
   "html, body {",
   "  margin: 0;",
@@ -76,6 +78,8 @@ w(
   "  font-synthesis: none;",
   "  -webkit-font-smoothing: antialiased;",
   "}",
+  "/* Form controls do not inherit the page font or colour by default (the part of Tailwind's reset we need). */",
+  "button, input, select, textarea { font: inherit; color: inherit; }",
   "::selection {",
   "  background-color: var(--color-indigo);",
   "  color: var(--color-surface);",
@@ -83,6 +87,7 @@ w(
   ":focus-visible {",
   "  outline: 2px solid var(--color-indigo);",
   "  outline-offset: 2px;",
+  "}",
   "}",
   "",
 );

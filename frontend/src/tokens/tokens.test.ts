@@ -81,6 +81,17 @@ describe("Design system tokens (DESIGN_SYSTEM §2, §5)", () => {
     expect(css).toContain("--space-12: 12px;");
   });
 
+  it("keeps base rules in the base layer so utilities win", () => {
+    const base = css.slice(css.indexOf("@layer base {"));
+    expect(base).toContain(":focus-visible {");
+    expect(base.indexOf("button, input, select, textarea")).toBeGreaterThan(0);
+    expect(css.indexOf("@layer base {")).toBeLessThan(css.indexOf("TEMPORARY COMPATIBILITY ALIASES"));
+  });
+
+  it("makes form controls inherit the page font and colour", () => {
+    expect(css).toContain("button, input, select, textarea { font: inherit; color: inherit; }");
+  });
+
   it("does not use faux bold for the serif face", () => {
     expect(css).toContain("font-synthesis: none;");
   });

@@ -410,5 +410,165 @@
   "idle": {
     "title": "Session timeout warning",
     "body": "For patient privacy on shared computers, you will be signed out in {s} seconds."
+  },
+  "landing": {
+    "meta": {
+      "title": "Medi Waypoint: your care, handed over properly",
+      "description": "Describe your problem in Bangla or English, get guided to a suitable doctor, and always see who has your request."
+    },
+    "skip": "Skip to content",
+    "nav": {
+      "how": "How it works",
+      "features": "What it does",
+      "safety": "Safety",
+      "forDoctors": "For doctors",
+      "label": "Page sections"
+    },
+    "hero": {
+      "headline": "Your care, handed over properly.",
+      "text": "Describe your problem in Bangla or English. We guide you to a suitable doctor, and you can always see who has your request.",
+      "sample": "Example with sample data",
+      "sampleDoctor": "Dr. Rahima Khatun",
+      "sampleFacility": "Tangail District Hospital",
+      "samplePurpose": "Referral to a specialist",
+      "sampleCategoryVisit": "Visit summary",
+      "sampleCategoryLabs": "Lab reports"
+    },
+    "problem": {
+      "title": "Where care gets lost",
+      "closing": "Medi Waypoint keeps track at each handover.",
+      "items": {
+        "which": {
+          "h": "Which doctor?",
+          "p": "When you are unwell it is hard to know what kind of doctor you need, or where to find one near you."
+        },
+        "records": {
+          "h": "Records stay behind",
+          "p": "Reports and notes often do not reach the next doctor, so tests and questions are repeated."
+        },
+        "word": {
+          "h": "No word back",
+          "p": "The doctor who refers a patient to a hospital often never learns what happened."
+        }
+      }
+    },
+    "how": {
+      "title": "From first symptom to the right doctor",
+      "alert": "If your answers suggest an emergency, the guide stops and tells you to get emergency care. It does not continue with questions.",
+      "steps": {
+        "tell": {
+          "title": "Tell us what is wrong",
+          "text": "Speak or type in Bangla or English. Switch language whenever you like.",
+          "sample": "Sample caption",
+          "assistant": "What is troubling you today?",
+          "patient": "I have had a fever for three days."
+        },
+        "check": {
+          "title": "Check the summary",
+          "text": "Read back what you said and correct anything before a doctor sees it.",
+          "sample": "Fever for three days"
+        },
+        "choose": {
+          "title": "Choose a doctor and a time",
+          "text": "See doctors by area and specialty, and ask for a time that suits you.",
+          "sampleSpecialty": "Medicine, Tangail",
+          "sampleSlot": "Thu 28 Nov, 10:30"
+        },
+        "decide": {
+          "title": "The doctor decides, and you see it",
+          "text": "The doctor accepts, suggests another time, or declines. Your request shows who has it now."
+        }
+      }
+    },
+    "features": {
+      "title": "What it does",
+      "tiles": {
+        "voice": {
+          "title": "Speak in Bangla or English",
+          "text": "Use your phone's microphone, or type. Captions are always shown."
+        },
+        "typed": {
+          "title": "Type in Bangla or English",
+          "text": "Write what is wrong in your own words. You can switch language whenever you like."
+        },
+        "track": {
+          "title": "Always know who has your request",
+          "text": "Each request shows whether it is with you, the doctor or the hospital."
+        },
+        "consent": {
+          "title": "You decide who sees your record",
+          "text": "A doctor must ask before your record is shared with another hospital. You can say no, and you can withdraw later."
+        },
+        "reports": {
+          "title": "Reports checked by a clinician",
+          "text": "Values read from an uploaded report are marked as drafts until a clinician confirms them."
+        },
+        "loop": {
+          "title": "Referrals that come back",
+          "text": "The receiving hospital acknowledges the referral and records the outcome, and the referring doctor sees it.",
+          "sender": "Sending facility",
+          "receiver": "Receiving facility",
+          "returned": "Outcome returned"
+        },
+        "emergency": {
+          "title": "Emergency referral without internet",
+          "text": "Facility staff can record five essential details offline, print a slip, and the referral is sent when the connection returns."
+        }
+      }
+    },
+    "safety": {
+      "title": "What we do with your information",
+      "doesTitle": "What the system does",
+      "doesNotTitle": "What it does not do",
+      "does": {
+        "automated": "The guide is automated. It does not diagnose, prescribe or decide for a doctor.",
+        "rules": "Danger signs are checked by fixed rules written by clinicians before anything else.",
+        "consent": "Your record is shared with another hospital only after you agree, and you can withdraw.",
+        "audit": "Each time someone opens your record, it is logged.",
+        "approval": "Doctors approve appointments and referrals themselves. A text message can never approve anything.",
+        "code": "You sign in with a code sent to your phone. We do not keep a password for you."
+      },
+      "doesNot": {
+        "emergency": "It is not an emergency service.",
+        "doctor": "It does not replace seeing a doctor.",
+        "training": "It does not use your information to train AI models without your explicit permission."
+      }
+    },
+    "audiences": {
+      "patient": {
+        "title": "For you and your family",
+        "points": {
+          "words": "Explain your problem in your own words",
+          "find": "Find a doctor by area and specialty",
+          "see": "See what is happening with your request",
+          "control": "Control who sees your record"
+        }
+      },
+      "staff": {
+        "title": "For doctors and facility staff",
+        "points": {
+          "queue": "One queue of decisions: requests, referrals, reports to verify",
+          "drafts": "AI drafts are marked and need your approval before anything is sent",
+          "ack": "Know when the receiving facility acknowledges, and get the outcome back",
+          "emergency": "Send an emergency referral in five fields, even offline"
+        },
+        "access": "How do I get access?"
+      }
+    },
+    "final": {
+      "title": "Tell us what is wrong.",
+      "text": "It takes a few minutes. You can stop at any time."
+    },
+    "footer": {
+      "description": "Care that is handed over properly, from the first symptom to the outcome.",
+      "patients": "Patients",
+      "staff": "Doctors and staff",
+      "about": "About",
+      "patientSignIn": "Patient sign in",
+      "bottom": "Language"
+    },
+    "sticky": {
+      "label": "Start"
+    }
   }
 }
