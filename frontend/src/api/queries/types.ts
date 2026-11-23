@@ -79,17 +79,114 @@ export interface DirectoryFacilityEntry {
   latest_capacity: FacilityCapacity | null;
 }
 
+/**
+ * Referral as the backend returns it (referrals/serializers.py). Flat ids and names, unlike the
+ * nested objects in MASTERPLAN §7 (audit A-18). `patient_name` is the given name only (audit A-23).
+ */
 export interface Referral extends Stateful {
-  patient: unknown;
-  encounter: unknown;
-  sender: unknown;
-  receiver: unknown;
+  reference_code: string;
+  provisional_code?: string | null;
   urgency: "routine" | "urgent" | "emergency";
   emergency_mode: boolean;
   reason: string;
+  patient_id: string;
+  patient_name: string;
+  sender_facility_id: string;
+  sender_facility_name: string;
+  sender_practitioner_name?: string | null;
+  receiver_facility_id: string;
+  receiver_facility_name: string;
+  receiver_practitioner_id?: string | null;
+  summary: { sections?: { title?: string; text?: string; source_refs?: string[] }[]; [k: string]: unknown };
+  summary_origin?: string;
+  content_hash?: string;
   consent_state: string;
-  reference_code: string;
+  outcome?: Record<string, unknown>;
+  decline_reason?: string;
+  sent_at?: string | null;
+  acknowledged_at?: string | null;
+  escalated_at?: string | null;
   history: HistoryEntry[];
+}
+
+export interface Patient {
+  id: string;
+  given_name: string;
+  family_name?: string;
+  name_bn?: string;
+  birth_date?: string | null;
+  estimated_age?: number | null;
+  sex: string;
+  phone?: string;
+  area_id?: string | null;
+  identifiers: { id: string; system: string; value: string; verified: boolean }[];
+  version: number;
+}
+
+export interface Observation {
+  id: string;
+  code: string;
+  display_name: string;
+  value_string?: string;
+  value_numeric?: number | null;
+  unit?: string;
+  observed_date?: string | null;
+}
+
+export interface Encounter {
+  id: string;
+  patient_id: string;
+  facility_id: string;
+  facility_name: string;
+  practitioner_name?: string | null;
+  period_start: string;
+  period_end?: string | null;
+  encounter_type: string;
+  reason?: string;
+  observations: Observation[];
+  fhir_sync_status?: string;
+}
+
+export interface Chart {
+  patient_id: string;
+  encounters: Encounter[];
+}
+
+export interface DocumentMeta {
+  id: string;
+  patient_id: string;
+  original_filename: string;
+  content_type: string;
+  size: number;
+  state: string;
+  created_at: string;
+}
+
+export interface ApiExtractedField {
+  id: string;
+  name: string;
+  value: string;
+  unit: string;
+  observed_date: string;
+  lab: string;
+  confidence: number;
+  page: number;
+  bbox: [number, number, number, number];
+  status?: string;
+}
+
+export interface ExtractionResponse {
+  document_id: string;
+  state: string;
+  fields: ApiExtractedField[];
+}
+
+export interface TriageSessionDetail {
+  id: string;
+  state: string;
+  language?: string;
+  mode?: string;
+  summary?: { patient_words?: string; structured_fields?: Record<string, unknown>; guidance_given?: unknown[] } | null;
 }
 
 /** Consent request as returned by `GET /consent-requests/{id}`. Wording comes from the backend, not message files. */

@@ -125,7 +125,7 @@ export function QueueList({ items, selectedId, onSelect, locale }: QueueListProp
                   item.urgency === "emergency" && "text-signal",
                 )}
               >
-                {item.urgency}
+                {t(locale, `queue.urgency.${item.urgency}`)}
               </span>
             </div>
           </div>

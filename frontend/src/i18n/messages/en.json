@@ -380,5 +380,29 @@
     "revoked": "Sharing stopped",
     "until": "Valid until {date}",
     "back": "Back to sharing permissions"
+  },
+  "queue": {
+    "appointmentRequest": "Appointment request",
+    "needs": "Needs you",
+    "incoming": "Incoming referrals",
+    "verify": "To verify",
+    "outgoing": "Outgoing",
+    "empty": "No requests waiting. New requests appear here.",
+    "emptyVerify": "Reports appear here when they finish processing.",
+    "pick": "Choose an item from the queue.",
+    "urgency": {
+      "emergency": "Emergency",
+      "urgent": "Urgent",
+      "routine": "Routine"
+    },
+    "loading": "Loading the queue",
+    "error": "We could not load the queue.",
+    "patientError": "We could not load the patient's record.",
+    "openChart": "Open chart",
+    "openReferral": "Open referral",
+    "triage": "Triage summary",
+    "patient": "Patient",
+    "title": "Queue",
+    "escalatedAt": "Escalated {ago}"
   }
 }

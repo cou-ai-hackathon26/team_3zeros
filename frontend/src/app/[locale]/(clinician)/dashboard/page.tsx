@@ -1,178 +1,109 @@
-﻿"use client";
+"use client";
 
-import React, { useState } from "react";
-import { QueueList, type QueueItem } from "../../../../components/QueueList/QueueList";
-import { RouteLine } from "../../../../components/RouteLine/RouteLine";
-import { ActionBar } from "../../../../components/ActionBar/ActionBar";
-import { Toast } from "../../../../components/Toast/Toast";
+import React, { useEffect, useMemo, useState } from "react";
+import { usePageLocale } from "../../../usePageLocale";
 import { t } from "../../../../i18n/format";
-import { type LocalePageProps } from "../../../resolveLocale";
-import { usePageLocale } from "@/app/usePageLocale";
-import styles from "../../screens.module.css";
-
-const INITIAL_QUEUE: QueueItem[] = [
-  {
-    id: "appt-1",
-    patientName: "Karim Uddin, 54",
-    patientNameBn: "করিম উদ্দিন",
-    reason: "Fever 3d",
-    urgency: "urgent",
-    escalated: false,
-    createdAt: "2026-11-22T23:30:00Z",
-  },
-  {
-    id: "appt-2",
-    patientName: "Nasima Begum, 41",
-    patientNameBn: "নাসিমা বেগম",
-    reason: "Severe chest pain — unacknowledged transfer",
-    urgency: "emergency",
-    escalated: true,
-    escalatedAt: "2026-11-23T01:10:00Z",
-    createdAt: "2026-11-23T00:50:00Z",
-  },
-];
+import { useAppointments, usePatientNames, useReferrals } from "../../../../api/queries/hooks";
+import { hasRole } from "../../../../auth/access";
+import { useMe } from "../../../../auth/me";
+import { buildEntries, countsByTab, entriesForTab, toQueueItem, visibleTabs, type QueueTab } from "../../../../features/clinical/queue";
+import { PatientPane, QueueDetail } from "../../../../components/clinical/QueueDetail";
+import { QueueList } from "../../../../components/QueueList/QueueList";
+import { Button } from "../../../../components/ui/button";
+import { EmptyState, ErrorState, Skeleton } from "../../../../components/ui/states";
+import { PageHeader } from "../../../../components/ui/surfaces";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/selection";
 
 /**
- * UIUX §6.8: Clinician workspace (desktop, three panes: Queue | Detail | Patient context).
- * Counts appear as plain numbers in the queue tabs, never as a grid of stat cards (§3.6).
+ * `/dashboard`: clear decisions quickly (APPLICATION_DESIGN §5.2). Three panes at xl, queue and
+ * detail at lg, one pane at a time below. Tabs really filter; counts are plain numbers.
  */
-export default function ClinicianDashboardPage({ params }: LocalePageProps) {
-  const locale = usePageLocale(params, "en");
-  const [queueItems, setQueueItems] = useState<QueueItem[]>(INITIAL_QUEUE);
-  const [selectedId, setSelectedId] = useState<string>(INITIAL_QUEUE[0].id);
-  const [activeTab, setActiveTab] = useState<"needs_you" | "incoming" | "verify" | "outgoing">("needs_you");
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+export default function DashboardPage() {
+  const locale = usePageLocale(undefined, "en");
+  const { me } = useMe();
+  const clinician = hasRole(me, "clinician");
+  const tabs = visibleTabs(me);
+  const [tab, setTab] = useState<QueueTab>("needs");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [mobileDetail, setMobileDetail] = useState(false);
 
-  const selectedItem = queueItems.find((i) => i.id === selectedId) ?? queueItems[0] ?? null;
+  const appts = useAppointments({ limit: "100", ...(clinician ? { role_view: "clinician" } : {}) });
+  const incoming = useReferrals("incoming");
+  const outgoing = useReferrals("outgoing");
+  // The queries below depend on the user's role, so wait for the session before showing anything.
+  const loading = me === undefined || appts.isLoading || incoming.isLoading || (clinician && outgoing.isLoading);
+  const failed = appts.isError || incoming.isError || (clinician && outgoing.isError);
+
+  const entries = useMemo(
+    () => buildEntries(appts.data?.results ?? [], incoming.data?.results ?? [], clinician ? outgoing.data?.results ?? [] : []),
+    [appts.data, incoming.data, outgoing.data, clinician],
+  );
+  const counts = countsByTab(entries);
+  const visible = entriesForTab(entries, tab);
+  const patients = usePatientNames(visible.map((e) => e.patientId));
+  const items = visible.map((e) => toQueueItem(e, patients, locale));
+  const current = entries.find((e) => e.key === selected) ?? null;
+
+  // Keep a selection inside the current tab: first item by default.
+  useEffect(() => {
+    if (loading) return; // never lock onto a partial list
+    if (visible.length && !visible.some((e) => e.key === selected)) setSelected(visible[0].key);
+    if (!visible.length) setSelected(null);
+  }, [visible, selected, loading]);
+
+  const select = (key: string) => { setSelected(key); setMobileDetail(true); };
+  const L = (k: string) => t(locale, `queue.${k}`);
+
+  /** After a decision the row leaves the list and the next one is selected. */
+  function afterAction() {
+    const idx = visible.findIndex((e) => e.key === selected);
+    const next = visible[idx + 1] ?? visible[idx - 1] ?? null;
+    setSelected(next ? next.key : null);
+    if (!next) setMobileDetail(false);
+  }
 
   return (
-    <main className={styles.clinicianWorkspace}>
-      <aside className={styles.workspacePane} aria-label="Queue navigation">
-        <div className={styles.queueTabs}>
-          <button
-            type="button"
-            className={`${styles.queueTab} ${activeTab === "needs_you" ? styles.queueTabActive : ""}`}
-            onClick={() => setActiveTab("needs_you")}
-          >
-            <span>{t(locale, "clinician.needsYou")}</span>
-            <span className={styles.numeralCell}>({queueItems.length})</span>
-          </button>
-          <button
-            type="button"
-            className={`${styles.queueTab} ${activeTab === "incoming" ? styles.queueTabActive : ""}`}
-            onClick={() => setActiveTab("incoming")}
-          >
-            <span>{t(locale, "clinician.incomingReferrals")}</span>
-            <span className={styles.numeralCell}>(2)</span>
-          </button>
-          <button
-            type="button"
-            className={`${styles.queueTab} ${activeTab === "verify" ? styles.queueTabActive : ""}`}
-            onClick={() => setActiveTab("verify")}
-          >
-            <span>{t(locale, "clinician.verifyReports")}</span>
-            <span className={styles.numeralCell}>(4)</span>
-          </button>
-          <button
-            type="button"
-            className={`${styles.queueTab} ${activeTab === "outgoing" ? styles.queueTabActive : ""}`}
-            onClick={() => setActiveTab("outgoing")}
-          >
-            <span>{t(locale, "clinician.outgoingReferrals")}</span>
-            <span className={styles.numeralCell}>(1)</span>
-          </button>
-        </div>
+    <div className="flex flex-col gap-4">
+      <PageHeader title={L("title")} />
+      {loading ? (
+        <Skeleton label={L("loading")} />
+      ) : failed ? (
+        <ErrorState message={L("error")} locale={locale} onRetry={() => { appts.refetch(); incoming.refetch(); outgoing.refetch(); }} />
+      ) : (
+        <Tabs value={tab} onValueChange={(v) => { setTab(v as QueueTab); setMobileDetail(false); }} className="grid gap-4 lg:grid-cols-[360px_1fr] xl:grid-cols-[360px_1fr_320px]">
+          <div className={mobileDetail ? "hidden lg:block" : ""}>
+            <TabsList className="flex-wrap">
+              {tabs.map((k) => (
+                <TabsTrigger key={k} value={k}>
+                  {L(k)} <span className="ms-1 tabular-nums">{counts[k]}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {tabs.map((k) => (
+              <TabsContent key={k} value={k} className="mt-2">
+                {tab === k && (items.length === 0 ? (
+                  <EmptyState message={k === "verify" ? L("emptyVerify") : L("empty")} />
+                ) : (
+                  <QueueList items={items} selectedId={selected} onSelect={select} locale={locale} />
+                ))}
+              </TabsContent>
+            ))}
+          </div>
 
-        <QueueList
-          items={queueItems}
-          selectedId={selectedItem?.id}
-          onSelect={setSelectedId}
-          locale={locale}
-        />
-      </aside>
+          <div className={mobileDetail ? "" : "hidden lg:block"}>
+            {mobileDetail && <Button variant="quiet" size="sm" className="mb-2 lg:hidden" onClick={() => setMobileDetail(false)}>{t(locale, "common.back")}</Button>}
+            {current ? (
+              <QueueDetail key={current.key} entry={current} patient={patients.get(current.patientId)} locale={locale} onActed={afterAction} />
+            ) : (
+              <p className="m-0 text-dense text-ink-muted">{L("pick")}</p>
+            )}
+          </div>
 
-      <section className={styles.workspacePane} aria-label="Decision detail">
-        {selectedItem ? (
-          <>
-            <header className={styles.topBar}>
-              <div>
-                <h1 className={styles.sectionHeading}>{selectedItem.patientName}</h1>
-                <p className={styles.capacityMeta}>Requested Thu 10:30</p>
-              </div>
-              <div className={styles.chipRow}>
-                <a href={`/${locale}/referrals/ref-0104`} className={styles.filterChip}>
-                  Open referral workspace
-                </a>
-                <a href={`/${locale}/referrals/new`} className={styles.filterChip}>
-                  Create referral draft
-                </a>
-              </div>
-            </header>
-
-            <RouteLine
-              entity="appointment"
-              currentState="REQUESTED"
-              objectId={selectedItem.id}
-              variant="clinician"
-              locale={locale}
-            />
-
-            <div className={styles.formStack}>
-              <h2 className={styles.sectionHeading}>Triage summary</h2>
-              <p style={{ margin: 0 }}>
-                “{selectedItem.reason} — patient reported evening fever spikes.”
-              </p>
-            </div>
-
-            <ActionBar
-              entity="appointment"
-              allowedActions={["decline", "propose_alternate", "accept"]}
-              isPending={false}
-              locale={locale}
-              onAction={(action) => {
-                setQueueItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
-                setToastMsg(t(locale, `toast.appointment.${action}`));
-              }}
-            />
-          </>
-        ) : (
-          <p>{t(locale, "clinician.emptyQueue")}</p>
-        )}
-
-        {toastMsg && <Toast message={toastMsg} onDismiss={() => setToastMsg(null)} />}
-      </section>
-
-      <aside className={styles.workspacePane} aria-label="Patient context">
-        <div className={styles.topBar}>
-          <h2 className={styles.sectionHeading}>Patient context</h2>
-          <a href={`/${locale}/patients/pat-1`} className={styles.filterChip}>
-            Full chart
-          </a>
-        </div>
-        <ul className={styles.plainList}>
-          <li className={styles.plainListRow}>
-            <strong>Allergies:</strong> Penicillin
-          </li>
-          <li className={styles.plainListRow}>
-            <strong>Medicines:</strong> Amlodipine 5mg
-          </li>
-          <li className={styles.plainListRow}>
-            <strong>Last visits:</strong> 14 Sep 2026 — Outpatient Medicine
-          </li>
-          <li className={styles.plainListRow}>
-            <strong>Reports:</strong>{" "}
-            <a href={`/${locale}/patients/pat-1/reports/doc-1/verify`}>
-              CBC Report (Draft ready to check)
-            </a>
-          </li>
-          <li className={styles.plainListRow}>
-            <strong>Emergency transfer:</strong>{" "}
-            <a href={`/${locale}/emergency`}>
-              Open 5-field Emergency Referral Mode
-            </a>
-          </li>
-        </ul>
-      </aside>
-    </main>
+          <aside className="hidden xl:block">
+            {current && <PatientPane patient={patients.get(current.patientId)} patientId={current.patientId} locale={locale} />}
+          </aside>
+        </Tabs>
+      )}
+    </div>
   );
 }

@@ -16,6 +16,8 @@ const ActionDialogs = dynamic(() => import("./ActionDialogs").then((m) => m.Acti
 export interface ActionPayload {
   reason?: string;
   alternateSlotId?: string;
+  /** Free-text outcome for `record_outcome`. The server accepts a JSON object; its shape is not yet in the contract (MASTERPLAN §8.3 G-8). */
+  outcome?: { summary: string };
   idempotencyKey: string;
 }
 
@@ -47,6 +49,8 @@ export function ActionBar({
   const [reasonText, setReasonText] = useState("");
   const [activeSlotAction, setActiveSlotAction] = useState<string | null>(null);
   const [alternateSlotId, setAlternateSlotId] = useState("");
+  const [activeOutcomeAction, setActiveOutcomeAction] = useState<string | null>(null);
+  const [outcomeText, setOutcomeText] = useState("");
   const [intentKeyMap, setIntentKeyMap] = useState<Record<string, string>>({});
 
   if (allowedActions.length === 0) {
@@ -64,11 +68,16 @@ export function ActionBar({
     return key;
   }
 
-  function handleActionClick(action: string, requiresReason: boolean, requiresAlternateSlot?: boolean) {
+  function handleActionClick(action: string, requiresReason: boolean, requiresAlternateSlot?: boolean, requiresOutcome?: boolean) {
     const key = getOrMintIntentKey(action);
     if (requiresReason) {
       setActiveReasonAction(action);
       setReasonText("");
+      return;
+    }
+    if (requiresOutcome) {
+      setActiveOutcomeAction(action);
+      setOutcomeText("");
       return;
     }
     if (requiresAlternateSlot) {
@@ -103,18 +112,28 @@ export function ActionBar({
           key={def.action}
           disabled={isPending}
           variant={def.confirmationStyle === "primary" ? "primary" : "secondary"}
-          onClick={() => handleActionClick(def.action, def.requiresReason, def.requiresAlternateSlot)}
+          onClick={() => handleActionClick(def.action, def.requiresReason, def.requiresAlternateSlot, def.requiresOutcome)}
         >
           {t(locale, def.labelKey)}
         </Button>
       ))}
 
-      {(slotOpen || reasonOpen) && (
+      {(slotOpen || reasonOpen || activeOutcomeAction !== null) && (
         <ActionDialogs
           locale={locale}
           isPending={isPending}
           slotAction={activeSlotAction}
           reasonAction={activeReasonAction}
+          outcomeAction={activeOutcomeAction}
+          outcomeText={outcomeText}
+          setOutcomeText={setOutcomeText}
+          onCloseOutcome={() => setActiveOutcomeAction(null)}
+          onSubmitOutcome={(e) => {
+            e.preventDefault();
+            if (!activeOutcomeAction || !outcomeText.trim()) return;
+            onAction(activeOutcomeAction, { outcome: { summary: outcomeText.trim() }, idempotencyKey: getOrMintIntentKey(activeOutcomeAction) });
+            setActiveOutcomeAction(null);
+          }}
           alternateSlotId={alternateSlotId}
           reasonText={reasonText}
           setAlternateSlotId={setAlternateSlotId}

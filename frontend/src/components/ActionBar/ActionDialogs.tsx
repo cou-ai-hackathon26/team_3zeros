@@ -12,6 +12,11 @@ export interface ActionDialogsProps {
   isPending: boolean;
   slotAction: string | null;
   reasonAction: string | null;
+  outcomeAction: string | null;
+  outcomeText: string;
+  setOutcomeText: (v: string) => void;
+  onCloseOutcome: () => void;
+  onSubmitOutcome: (e: React.FormEvent) => void;
   alternateSlotId: string;
   reasonText: string;
   setAlternateSlotId: (v: string) => void;
@@ -38,6 +43,22 @@ export function ActionDialogs(p: ActionDialogsProps) {
               </Field>
               <div className="flex justify-end gap-2">
                 <Button type="submit">{locale === "bn" ? "প্রস্তাব পাঠান" : "Confirm alternate slot"}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog open={p.outcomeAction !== null} onOpenChange={(open) => !open && p.onCloseOutcome()}>
+        {p.outcomeAction && (
+          <DialogContent title={p.labelOf(p.outcomeAction)} closeLabel={p.closeLabel}>
+            <form className="flex flex-col gap-4" onSubmit={p.onSubmitOutcome}>
+              <Field label={locale === "bn" ? "ফলাফল" : "Outcome"} required locale={locale}>
+                {(f) => <Input {...f} type="text" required value={p.outcomeText} onChange={(e) => p.setOutcomeText(e.target.value)} />}
+              </Field>
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={p.onCloseOutcome}>{t(locale, "common.back")}</Button>
+                <Button type="submit" disabled={!p.outcomeText.trim() || p.isPending}>{p.labelOf(p.outcomeAction)}</Button>
               </div>
             </form>
           </DialogContent>

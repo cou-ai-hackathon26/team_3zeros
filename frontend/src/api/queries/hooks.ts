@@ -1,10 +1,10 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import type { RequestOptions } from "../client";
 import { queryKeys } from "./index";
 import { useApi } from "./provider";
-import type { Appointment, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot } from "./types";
+import type { ApiExtractedField, Appointment, Chart, DocumentMeta, ExtractionResponse, Patient, TriageSessionDetail, ConsentRequest, ConsentsResponse, DirectoryFacilityEntry, DirectoryPractitioner, NotificationItem, Page, QueryFilters, Referral, Slot } from "./types";
 
 /** Builds `?a=1&b=2`, skipping undefined and empty values. */
 export function withQuery(path: string, params?: QueryFilters): string {
@@ -91,7 +91,7 @@ export const useAppointments = (filters?: QueryFilters) =>
 export const useAppointment = (id: string) => useGet<Appointment>(queryKeys.appointment(id), `/appointments/${id}`);
 
 export const useReferrals = (direction?: "incoming" | "outgoing", state?: string) =>
-  useGet<Page<Referral>>(queryKeys.referrals(direction, state), withQuery("/referrals", { direction, state }));
+  useGet<Page<Referral>>(queryKeys.referrals(direction, state), withQuery("/referrals", { direction, state, limit: "100" }));
 export const useReferral = (id: string) => useGet<Referral>(queryKeys.referral(id), `/referrals/${id}`);
 
 // The backend serves this list at `/consents/` with the trailing slash (audit A-21); next.config keeps the slash.
@@ -152,5 +152,114 @@ export function useConsentAction() {
       return (await api.post<unknown>(path, { body: {}, idempotencyKey: v.idempotencyKey })).data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["consents"] }),
+  });
+}
+
+
+// ---- Clinical ----
+
+export const usePatient = (id: string, enabled = true) => useGet<Patient>(["records", "patient", id], `/patients/${id}`, enabled);
+export const useChart = (id: string) => useGet<Chart>(queryKeys.patientChart(id), `/patients/${id}/chart`);
+
+/** Names for the queue rows, fetched in parallel for the patients the user can see. Missing names stay undefined. */
+export function usePatientNames(ids: string[]): Map<string, Patient> {
+  const api = useApi();
+  const unique = [...new Set(ids)];
+  const results = useQueries({
+    queries: unique.map((id) => ({ queryKey: ["records", "patient", id], queryFn: async () => (await api.get<Patient>(`/patients/${id}`)).data, staleTime: 5 * 60_000, retry: false })),
+  });
+  const map = new Map<string, Patient>();
+  results.forEach((r, i) => r.data && map.set(unique[i], r.data));
+  return map;
+}
+
+/** `GET /patients/?q=`. The backend serves this list with a trailing slash (audit A-21). */
+export function usePatientSearch(q: string) {
+  const api = useApi();
+  return useQuery({
+    queryKey: ["records", "search", q],
+    queryFn: async () => asList((await api.get<Page<Patient> | Patient[]>(withQuery("/patients/", { q }))).data),
+    enabled: q.trim().length > 0,
+  });
+}
+
+export const useTriageSession = (id: string | null | undefined) => useGet<TriageSessionDetail>(queryKeys.triageSession(id ?? ""), `/triage/sessions/${id}`, !!id);
+
+const PROCESSING = ["UPLOADED", "OCR_QUEUED", "OCR_RUNNING"];
+
+/** Document metadata; polls every 3 seconds while OCR is still running. */
+export function useDocument(id: string) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.document(id),
+    queryFn: async () => (await api.get<DocumentMeta>(`/documents/${id}`)).data,
+    refetchInterval: (q) => (q.state.data && PROCESSING.includes(q.state.data.state) ? 3000 : false),
+  });
+}
+
+export function useExtraction(id: string, enabled: boolean) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.documentExtraction(id),
+    queryFn: async () => (await api.get<ExtractionResponse>(`/documents/${id}/extraction`)).data,
+    enabled,
+  });
+}
+
+/** Verify, reject or retry OCR. Verification is FHIR-gated: a 202 means "saving", never "done" (INV-12). */
+export function useDocumentAction(id: string) {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { kind: "verify" | "reject" | "retry_ocr"; fields?: ApiExtractedField[]; idempotencyKey: string }) => {
+      const path = v.kind === "retry_ocr" ? `/documents/${id}/actions/retry_ocr` : `/documents/${id}/extraction/${v.kind}`;
+      const res = await api.post<unknown>(path, { body: v.kind === "verify" ? { fields: v.fields } : {}, idempotencyKey: v.idempotencyKey });
+      return { pending: res.status === 202 };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents"] }),
+  });
+}
+
+export interface NewReferral {
+  patient_id: string;
+  receiver_facility_id: string;
+  urgency: "routine" | "urgent" | "emergency";
+  reason: string;
+  encounter_id?: string;
+}
+
+export function useCreateReferral() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { body: NewReferral; idempotencyKey: string }) => (await api.post<Referral>("/referrals", { body: v.body, idempotencyKey: v.idempotencyKey })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["referrals"] }),
+  });
+}
+
+/** Edit draft content (DRAFT only) and ask the server to queue an AI draft summary. */
+export function useReferralDraft(id: string) {
+  const api = useApi();
+  const qc = useQueryClient();
+  const done = () => qc.invalidateQueries({ queryKey: ["referrals"] });
+  const save = useMutation({
+    mutationFn: async (v: { reason?: string; urgency?: string; summary?: Record<string, unknown>; version: number }) =>
+      (await api.patch<Referral>(`/referrals/${id}`, { body: { reason: v.reason, urgency: v.urgency, summary: v.summary }, expectedVersion: v.version })).data,
+    onSuccess: done,
+  });
+  const generate = useMutation({
+    mutationFn: async (idempotencyKey: string) => (await api.post<unknown>(`/referrals/${id}/generate-draft`, { body: {}, idempotencyKey })).data,
+    onSuccess: done,
+  });
+  return { save, generate };
+}
+
+export function useCreateEncounter(patientId: string) {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { body: { facility_id: string; period_start: string; reason?: string; encounter_type?: string }; idempotencyKey: string }) =>
+      (await api.post<unknown>(`/patients/${patientId}/encounters`, { body: v.body, idempotencyKey: v.idempotencyKey })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.patientChart(patientId) }),
   });
 }
