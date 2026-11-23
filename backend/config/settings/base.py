@@ -96,6 +96,7 @@ LOCAL_APPS = [
     "apps.fhir",
     "apps.ai",
     "apps.emergency_dept",
+    "apps.knowledge",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

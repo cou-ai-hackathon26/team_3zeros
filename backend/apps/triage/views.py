@@ -14,6 +14,7 @@ from .serializers import (
     SummaryConfirmSerializer,
 )
 from .services import (
+    attach_triage_result,
     create_triage_session,
     get_triage_session_for_patient_mutation,
     get_triage_session_for_read,
@@ -173,6 +174,7 @@ class TriageFinishView(views.APIView):
             expected_version=_parse_if_match(request),
             request_id=getattr(request, "request_id", ""),
         )
+        attach_triage_result(session)
         return Response(TriageSessionSerializer(session, context={"request": request}).data)
 
 

@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
-from .dialogue import llm_next_reply
+from .dialogue import generate_triage_result, llm_next_reply
 from .models import TriageSession, Turn, TriageSummary
 from .normalizer import normalize_for_matching, normalize_text
 from .policy import (
@@ -162,10 +162,10 @@ def create_triage_session(user, language="bn", mode="text", disclosure_version="
         )
         run_triage_action(session, "connect", request_id=request_id)  # CREATED -> ACTIVE
 
+        # The first message is always Bangla (agent prompt §2).
         greeting = (
-            "Hello, I am the Medi Waypoint automated care guide. What symptoms are you experiencing today?"
-            if language == "en"
-            else "নমস্কার, আমি মেডি ওয়েপয়েন্ট স্বয়ংক্রিয় স্বাস্থ্য নির্দেশিকা। আজ আপনার কী শারীরিক সমস্যা হচ্ছে বলুন?"
+            "আসসালামু আলাইকুম। আমি আপনার স্বাস্থ্যসংক্রান্ত সমস্যাগুলো বুঝতে এবং সঠিক চিকিৎসাসেবা খুঁজে পেতে সাহায্য করব। "
+            "আপনার কী সমস্যা হচ্ছে? কী কারণে আজ আমাদের সাথে যোগাযোগ করেছেন?"
         )
         safe_greeting, policy = validate_assistant_output(greeting, language=language, intended_policy="question")
         Turn.objects.create(
@@ -340,3 +340,13 @@ def process_patient_turn(session: TriageSession, text: str, user=None, request_i
             response_policy=response_policy,
         )
         return assistant_turn
+
+
+def attach_triage_result(session: TriageSession) -> None:
+    """Best-effort: store the structured triage result on the summary (an AI draft the patient still reviews, INV-7)."""
+    result = generate_triage_result(session)
+    if not result:
+        return
+    summary, _ = TriageSummary.objects.get_or_create(session=session)
+    summary.structured_fields = {**summary.structured_fields, "triage_result": result}
+    summary.save(update_fields=["structured_fields", "updated_at"])

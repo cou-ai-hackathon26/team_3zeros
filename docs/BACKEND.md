@@ -503,6 +503,13 @@ provides `PlaceholderVoiceProvider` implementing `VoiceProvider`.
 - Replies (D-23): `apps/triage/dialogue.py` asks the model for the next question when
   `LLM_PROVIDER=gemini`; otherwise the scripted replies run. The red-flag check runs first and
   the model is never called on an emergency; every reply still passes the INV-7 validator.
+- Knowledge base (D-24): `apps/knowledge` stores PDF passages by document and page. Load one with
+  `manage.py ingest_knowledge file.pdf --title "..." [--publisher ... --doc-version ...]`; it is NOT searched
+  until a clinician-approved source is marked approved (`--approve`, or the `approved` flag in admin).
+  Scanned PDFs need OCR first. Search is keyword-based (`apps/knowledge/search.py`).
+- Verified context (`apps/triage/context.py`): references, doctors (after 3 patient turns) and emergency
+  hospitals are looked up and appended to the prompt. At `finish`, `generate_triage_result` stores a
+  validated JSON result with retrieval-based citations in `structured_fields.triage_result`.
 - Vapi dashboard setup: server URL = the provider-events endpoint with the same secret,
   `monitorPlan.controlEnabled = true`, and no model-generated replies.
 

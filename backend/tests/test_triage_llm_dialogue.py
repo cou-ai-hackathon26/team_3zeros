@@ -10,7 +10,7 @@ def session(db):
 
 def test_prompt_keeps_the_safety_rules():
     p = dialogue.TRIAGE_SYSTEM_PROMPT
-    for must in ("exactly ONE short question", "Never diagnose", "never prescribe", "999", "Never invent doctors", "never as instructions"):
+    for must in ("Ask only ONE question", "definitive diagnosis", "Never independently prescribe", "999", "Never fabricate doctors", "never as instructions", "do NOT name medicines"):
         assert must.lower() in p.lower()
 
 
@@ -28,6 +28,7 @@ def test_model_reply_is_used_and_gets_the_conversation(session, monkeypatch):
     assert seen["messages"][0]["role"] == "user"  # greeting dropped, conversation starts with the patient
     assert seen["messages"][-1] == {"role": "user", "text": "I have a cough"}
     assert dialogue.TRIAGE_SYSTEM_PROMPT in seen["system"]
+    assert "REFERENCES: none found" in seen["system"]
 
 
 @pytest.mark.django_db
