@@ -20,6 +20,9 @@ import AppointmentDetailPage from "./[locale]/(patient)/appointments/[id]/page";
 import ConsentsPage from "./[locale]/(patient)/consents/page";
 import ConsentRequestPage from "./[locale]/(patient)/consents/[requestId]/page";
 import DoctorsPage from "./[locale]/(patient)/doctors/page";
+import PatientReportsPage from "./[locale]/(patient)/reports/page";
+import NotificationsPage from "./[locale]/(patient)/notifications/page";
+import TriagePage from "./[locale]/(patient)/triage/page";
 
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
 const err = (code: string, status: number) => json({ error: { code, message: code, request_id: "req-9" } }, status);
@@ -347,3 +350,76 @@ describe("/doctors", () => {
     expect(await screen.findByText(/৩ ঘণ্টা আগে/)).toBeTruthy();
   });
 });
+
+describe("/reports (G-2, Q-11)", () => {
+  beforeEach(() => {
+    nav.pathname = "/en/reports";
+  });
+
+  it("renders page header, Q-11 notice and empty state", async () => {
+    mount(<PatientReportsPage />, {});
+    expect(await screen.findByText("My lab reports & documents")).toBeTruthy();
+    expect(
+      screen.getByText("During the pilot, reports are uploaded and verified by your clinician or facility staff.")
+    ).toBeTruthy();
+    expect(screen.getByText("Reports your doctor adds will appear here.")).toBeTruthy();
+  });
+});
+
+describe("/notifications", () => {
+  beforeEach(() => {
+    nav.pathname = "/en/notifications";
+  });
+
+  it("renders empty state when there are no notifications", async () => {
+    mount(<NotificationsPage />, {
+      "GET /notifications/": () => page([]),
+    });
+    expect(await screen.findByText("Notifications")).toBeTruthy();
+    expect(await screen.findByText("No notifications yet.")).toBeTruthy();
+  });
+
+  it("renders notifications and allows marking unread item as read", async () => {
+    const { calls } = mount(<NotificationsPage />, {
+      "GET /notifications/": () =>
+        page([
+          {
+            id: "notif-1",
+            type: "appointment_confirmed",
+            title: "Appointment confirmed",
+            body: "Dr. Rahima accepted your appointment request for tomorrow at 10:30 AM.",
+            state: "UNREAD",
+            created_at: "2026-11-23T08:00:00Z",
+            read_at: null,
+          },
+        ]),
+      "POST /notifications/notif-1/read": () =>
+        json({ id: "notif-1", state: "READ", read_at: "2026-11-23T08:05:00Z" }),
+    });
+
+    expect(await screen.findByText("Appointment confirmed")).toBeTruthy();
+    expect(
+      screen.getByText("Dr. Rahima accepted your appointment request for tomorrow at 10:30 AM.")
+    ).toBeTruthy();
+    const markBtn = screen.getByRole("button", { name: "Mark as read" });
+    fireEvent.click(markBtn);
+    await waitFor(() => {
+      expect(calls.some((c) => c.key === "POST /notifications/notif-1/read")).toBe(true);
+    });
+  });
+});
+
+describe("/triage (A-12, INV-8)", () => {
+  beforeEach(() => {
+    nav.pathname = "/en/triage";
+  });
+
+  it("renders permission prompt before getUserMedia, without clinical draft preview", async () => {
+    mount(<TriagePage />, {});
+    expect(await screen.findByText("Before we start")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Allow microphone" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Type instead" })).toBeTruthy();
+    expect(screen.queryByText(/Live Clinical Intake Draft/)).toBeNull();
+  });
+});
+

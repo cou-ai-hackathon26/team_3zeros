@@ -17,4 +17,8 @@ export const queryKeys = {
   consents: ["consents", "me"] as const,
   consentRequest: (id: string) => ["consents", "request", id] as const,
   notifications: ["notifications", "list"] as const,
+  adminFacilities: ["admin", "facilities"] as const,
+  adminSchedules: ["admin", "schedules"] as const,
+  adminCapacityReports: ["admin", "capacity-reports"] as const,
+  adminStaff: ["admin", "staff"] as const,
 };

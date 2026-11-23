@@ -557,5 +557,77 @@
     "emergency": "Emergency",
     "urgent": "Urgent",
     "unconfirmed": "Identity not confirmed"
+  },
+  "admin": {
+    "facility": {
+      "title": "Facility directory",
+      "context": "Facility details, active departments and contact points",
+      "empty": "No facilities found.",
+      "loading": "Loading facility details",
+      "error": "Failed to load facility directory.",
+      "name": "Facility Name",
+      "type": "Type",
+      "area": "Area",
+      "phone": "Phone",
+      "address": "Address",
+      "departments": "Active departments"
+    },
+    "schedules": {
+      "title": "Practitioner schedules",
+      "context": "Slot allocations and practitioner schedules",
+      "empty": "No schedules configured for this facility.",
+      "loading": "Loading practitioner schedules",
+      "error": "Failed to load schedules.",
+      "practitioner": "Practitioner",
+      "specialty": "Specialty",
+      "facility": "Facility",
+      "slots": "Total slots",
+      "rules": "Recurrence rules"
+    },
+    "capacity": {
+      "title": "Capacity reports",
+      "context": "Dated service capacity reports (never live per INV-14)",
+      "notice": "Capacity data always displays its timestamp and reporting source. It is never shown as live (INV-14).",
+      "empty": "No capacity reports found for this facility.",
+      "loading": "Loading capacity reports",
+      "error": "Failed to load capacity reports.",
+      "facility": "Facility",
+      "reportedAt": "Reported at",
+      "beds": "Available beds",
+      "summary": "Summary"
+    },
+    "staff": {
+      "title": "Staff & memberships",
+      "context": "Authorized facility staff and system roles",
+      "empty": "No staff memberships found.",
+      "loading": "Loading staff accounts",
+      "error": "Failed to load staff accounts.",
+      "name": "Name",
+      "role": "Role",
+      "contact": "Contact",
+      "permissions": "Permissions",
+      "activeFrom": "Active from"
+    }
+  },
+  "patientReports": {
+    "title": "My lab reports & documents",
+    "context": "Your verified medical documents and laboratory reports",
+    "empty": "Reports your doctor adds will appear here.",
+    "loading": "Loading your reports",
+    "error": "Failed to load reports.",
+    "notice": "During the pilot, reports are uploaded and verified by your clinician or facility staff.",
+    "verified": "Verified",
+    "pending": "Pending verification",
+    "download": "Download document"
+  },
+  "patientNotifications": {
+    "title": "Notifications",
+    "context": "Updates regarding your appointments and referral progress",
+    "empty": "No notifications yet.",
+    "loading": "Loading notifications",
+    "error": "Failed to load notifications.",
+    "markRead": "Mark as read",
+    "read": "Read",
+    "unread": "New"
   }
 }

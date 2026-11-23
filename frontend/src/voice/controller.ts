@@ -494,7 +494,9 @@ export function useTriageSessionController(initialLocale: Locale = "bn") {
       voiceClientRef.current?.updateProviderConfig(next);
       if (typeof window !== "undefined") {
         try {
-          window.sessionStorage.setItem(STORAGE_PROVIDER_KEY, JSON.stringify(next));
+          // Never persist API keys or credentials in sessionStorage (A-14)
+          const safeToStore = { provider: next.provider, speakerEnabled: next.speakerEnabled };
+          window.sessionStorage.setItem(STORAGE_PROVIDER_KEY, JSON.stringify(safeToStore));
         } catch {
           // Ignore
         }

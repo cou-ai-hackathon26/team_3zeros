@@ -1,21 +1,14 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
-import { DraftBlock } from "../../../../../../components/DraftBlock/DraftBlock";
-import { RouteLine } from "../../../../../../components/RouteLine/RouteLine";
 import type { TriageDraftSummary } from "../../../../../../voice/types";
 import { type LocalePageProps } from "../../../../../resolveLocale";
-import { usePageLocale } from "@/app/usePageLocale";
-import styles from "../../../../screens.module.css";
+import { usePageLocale } from "../../../../../usePageLocale";
+import { PageHeader, Panel } from "../../../../../../components/ui/surfaces";
+import { buttonVariants, Button } from "../../../../../../components/ui/button";
 
-/**
- * UIUX §6.4 Patient Intake Summary Review:
- * - Patient's own words preserved verbatim in a quoted paper block.
- * - Extracted structured fields inside a dashed --color-draft block with inline edit inputs.
- * - Cannot attach to appointment until patient clicks Confirm (INV-9).
- * - Syncs with live voice session in sessionStorage and POST /api/v1/triage/sessions/{id}/summary/confirm.
- */
 export default function TriageSummaryReviewPage({ params }: LocalePageProps) {
   const locale = usePageLocale(params, "bn");
   let sessionId = "sess-1";
@@ -40,7 +33,6 @@ export default function TriageSummaryReviewPage({ params }: LocalePageProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Hydrate from live voice session in sessionStorage or Django backend API
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -60,7 +52,7 @@ export default function TriageSummaryReviewPage({ params }: LocalePageProps) {
         }
       }
     } catch {
-      // Ignore storage parse error
+      // Ignore parse error
     }
 
     if (sessionId && sessionId !== "sess-1" && typeof fetch === "function") {
@@ -84,9 +76,7 @@ export default function TriageSummaryReviewPage({ params }: LocalePageProps) {
             }
           }
         })
-        .catch(() => {
-          // Keep hydrated state
-        });
+        .catch(() => {});
     }
   }, [locale, sessionId]);
 
@@ -116,7 +106,7 @@ export default function TriageSummaryReviewPage({ params }: LocalePageProps) {
           }),
         });
       } catch {
-        // Proceed cleanly even if backend is offline
+        // Proceed cleanly
       }
     }
     setSubmitting(false);
@@ -124,95 +114,88 @@ export default function TriageSummaryReviewPage({ params }: LocalePageProps) {
   }
 
   return (
-    <main className={styles.pageShell}>
-      <div className={styles.heroHeader}>
-        <h1 className={styles.pageTitle}>
-          {locale === "bn" ? "সারাংশ যাচাই করুন" : "Review your intake summary"}
-        </h1>
-        <RouteLine
-          entity="triage_session"
-          currentState={confirmed ? "CONFIRMED_BY_PATIENT" : "SUMMARY_PENDING_REVIEW"}
-          objectId={sessionId}
-          variant="clinician"
-          locale={locale}
-        />
-      </div>
-
-      <section className={styles.card}>
-        <h2 className={styles.sectionTitle}>
-          {locale === "bn" ? "আপনার নিজের কথায়" : "In your own words"}
-        </h2>
-        <p className={styles.quoteBlock}>“{patientWords}”</p>
-      </section>
-
-      <DraftBlock
-        title={
+    <main className="flex flex-col gap-6">
+      <PageHeader
+        serif
+        title={locale === "bn" ? "সারাংশ যাচাই করুন" : "Review your intake summary"}
+        context={
           locale === "bn"
-            ? "সংক্ষিপ্ত তথ্য (প্রয়োজনে সংশোধন করুন)"
-            : "Extracted fields (Edit if needed)"
+            ? "ডাক্তারকে দেখানোর আগে আপনার উপসর্গ এবং সমস্যা যাচাই করে নিন"
+            : "Review and edit the summary of your symptoms before requesting a consultation"
         }
-        locale={locale}
-      >
-        <label className={styles.fieldRow}>
-          <span>{locale === "bn" ? "প্রধান উপসর্গ" : "Chief Symptoms"}</span>
-          <input
-            type="text"
-            value={symptoms}
-            onChange={(e) => setSymptoms(e.target.value)}
-            className={styles.input}
-          />
-        </label>
-        <label className={styles.fieldRow}>
-          <span>{locale === "bn" ? "সময়কাল" : "Duration"}</span>
-          <input
-            type="text"
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            className={styles.input}
-          />
-        </label>
-        <label className={styles.fieldRow}>
-          <span>{locale === "bn" ? "তীব্রতা" : "Severity"}</span>
-          <input
-            type="text"
-            value={severity}
-            onChange={(e) => setSeverity(e.target.value)}
-            className={styles.input}
-          />
-        </label>
-        <label className={styles.fieldRow}>
-          <span>{locale === "bn" ? "প্রস্তাবিত বিভাগ" : "Suggested Specialty"}</span>
-          <input
-            type="text"
-            value={specialty}
-            onChange={(e) => setSpecialty(e.target.value)}
-            className={styles.input}
-          />
-        </label>
-      </DraftBlock>
+      />
 
-      <div className={styles.topBar}>
+      <Panel title={locale === "bn" ? "আপনার নিজের কথায়" : "In your own words"}>
+        <blockquote className="m-0 border-l-2 border-indigo pl-4 text-body italic text-ink">
+          “{patientWords}”
+        </blockquote>
+      </Panel>
+
+      <Panel title={locale === "bn" ? "সংক্ষিপ্ত বিবরণ (প্রয়োজনে সংশোধন করুন)" : "Extracted summary (Edit if needed)"}>
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 text-dense font-medium text-ink">
+            <span>{locale === "bn" ? "প্রধান উপসর্গ" : "Chief Symptoms"}</span>
+            <input
+              type="text"
+              value={symptoms}
+              onChange={(e) => setSymptoms(e.target.value)}
+              className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-dense font-medium text-ink">
+            <span>{locale === "bn" ? "সময়কাল" : "Duration"}</span>
+            <input
+              type="text"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-dense font-medium text-ink">
+            <span>{locale === "bn" ? "তীব্রতা" : "Severity"}</span>
+            <input
+              type="text"
+              value={severity}
+              onChange={(e) => setSeverity(e.target.value)}
+              className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-dense font-medium text-ink">
+            <span>{locale === "bn" ? "প্রস্তাবিত বিভাগ" : "Suggested Specialty"}</span>
+            <input
+              type="text"
+              value={specialty}
+              onChange={(e) => setSpecialty(e.target.value)}
+              className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body"
+            />
+          </label>
+        </div>
+      </Panel>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
         {!confirmed ? (
-          <button
-            type="button"
-            className={styles.primaryCta}
+          <Button
+            size="lg"
             disabled={submitting}
             onClick={() => void handleConfirmSummary()}
           >
             {locale === "bn"
               ? "সারাংশ নিশ্চিত করুন ও ডাক্তার খুঁজুন"
               : "Confirm summary & find a doctor"}
-          </button>
+          </Button>
         ) : (
-          <div className={styles.topBar}>
-            <p role="status" className={styles.statusText}>
+          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p role="status" className="m-0 text-dense font-semibold text-pine">
               {locale === "bn"
                 ? "✓ সারাংশ নিশ্চিত হয়েছে। এখন ডাক্তার নির্বাচন করে অ্যাপয়েন্টমেন্টের সাথে যুক্ত করতে পারেন।"
                 : "✓ Summary confirmed. Ready to attach to an appointment request."}
             </p>
-            <a href={`/${locale}/doctors`} className={styles.primaryCta}>
+            <Link
+              href={`/${locale}/doctors`}
+              className={buttonVariants({ variant: "primary", size: "lg" })}
+            >
               {locale === "bn" ? "ডাক্তার ও হাসপাতাল খুঁজুন →" : "Browse doctors & clinics →"}
-            </a>
+            </Link>
           </div>
         )}
       </div>

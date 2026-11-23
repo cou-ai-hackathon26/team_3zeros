@@ -227,6 +227,15 @@ export interface ConsentsResponse {
 
 export interface NotificationItem {
   id: string;
+  type?: string;
+  title: string;
+  body: string;
+  object_ref?: string | null;
+  channel?: "in_app" | "sms" | "email" | string;
+  state?: "PENDING" | "SENT" | "READ" | string;
+  sent_at?: string | null;
+  read_at?: string | null;
+  created_at: string;
   [field: string]: unknown;
 }
 

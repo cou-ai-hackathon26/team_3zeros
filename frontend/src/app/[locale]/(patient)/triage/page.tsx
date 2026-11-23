@@ -1,21 +1,21 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTriageSessionController } from "../../../../voice/controller";
 import { VoicePanel } from "../../../../components/VoicePanel/VoicePanel";
 import { EmergencyScreen } from "../../../../components/EmergencyScreen/EmergencyScreen";
-import { DraftBlock } from "../../../../components/DraftBlock/DraftBlock";
-import { RouteLine } from "../../../../components/RouteLine/RouteLine";
 import { type LocalePageProps } from "../../../resolveLocale";
-import { usePageLocale } from "@/app/usePageLocale";
-import styles from "../../screens.module.css";
+import { usePageLocale } from "../../../usePageLocale";
+import { PageHeader } from "../../../../components/ui/surfaces";
+import { buttonVariants } from "../../../../components/ui/button";
 
 /**
  * UIUX §6.2 & §6.3, FRONTEND §7:
  * Interactive Voice Triage screen with:
  * - Immediate priority interrupt to static EmergencyScreen (INV-8).
- * - Real-time clinical intake draft preview (DraftBlock) that updates turn by turn.
+ * - Focused conversational interface (clinical draft and provider settings stripped from patient view per audit A-12).
  */
 export default function TriagePage({ params }: LocalePageProps) {
   const initialLocale = usePageLocale(params, "bn");
@@ -47,29 +47,21 @@ export default function TriagePage({ params }: LocalePageProps) {
     );
   }
 
-  const triageRouteState =
-    ctrl.phase === "permission_prompt"
-      ? "CREATED"
-      : ctrl.draftSummary.turnCount >= 2
-        ? "SUMMARY_PENDING_REVIEW"
-        : "ACTIVE";
-
   return (
-    <main className={styles.pageShell}>
-      <div className={styles.heroHeader}>
-        <h1 className={styles.pageTitle}>
-          {ctrl.language === "bn"
+    <main className="flex flex-col gap-6">
+      <PageHeader
+        serif
+        title={
+          ctrl.language === "bn"
             ? "কথা বলে আপনার শারীরিক সমস্যার কথা জানান"
-            : "Tell us your symptoms in your own voice"}
-        </h1>
-        <RouteLine
-          entity="triage_session"
-          currentState={triageRouteState}
-          objectId={ctrl.sessionId}
-          variant="clinician"
-          locale={ctrl.language}
-        />
-      </div>
+            : "Tell us your symptoms in your own voice"
+        }
+        context={
+          ctrl.language === "bn"
+            ? "আপনার লক্ষণ অনুযায়ী সঠিক বিশেষজ্ঞ ডাক্তার খুঁজে পেতে সাহায্য করা হবে"
+            : "We will help guide you to a suitable specialist doctor based on your symptoms"
+        }
+      />
 
       <VoicePanel
         phase={ctrl.phase}
@@ -92,58 +84,25 @@ export default function TriagePage({ params }: LocalePageProps) {
         onSendTextTurn={ctrl.sendTextTurn}
       />
 
-      {ctrl.draftSummary.turnCount > 0 && (
-        <DraftBlock
-          title={
-            ctrl.language === "bn"
-              ? "লাইভ খসড়া সারাংশ (কথোপকথনের সাথে স্বয়ংক্রিয়ভাবে আপডেট হচ্ছে)"
-              : "Live Clinical Intake Draft (auto-updating from your voice call)"
-          }
-          locale={ctrl.language}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
+        {ctrl.draftSummary.turnCount > 0 ? (
+          <Link
+            href={`/${ctrl.language}/triage/summary/${ctrl.sessionId}`}
+            className={buttonVariants({ variant: "primary", size: "lg" })}
+          >
+            {ctrl.language === "bn"
+              ? "প্রশ্নোত্তর শেষ — সারাংশ যাচাই করুন →"
+              : "Finish & review summary →"}
+          </Link>
+        ) : (
+          <div />
+        )}
+        <Link
+          href={`/${ctrl.language}/doctors`}
+          className={buttonVariants({ variant: "quiet", size: "md" })}
         >
-          <div className={styles.gridCards}>
-            <div>
-              <strong>
-                {ctrl.language === "bn" ? "প্রধান সমস্যা:" : "Chief complaint:"}
-              </strong>{" "}
-              {ctrl.draftSummary.chiefComplaint}
-            </div>
-            <div>
-              <strong>
-                {ctrl.language === "bn" ? "সময়কাল ও তীব্রতা:" : "Duration & severity:"}
-              </strong>{" "}
-              {ctrl.draftSummary.duration} • {ctrl.draftSummary.severity}
-            </div>
-            <div>
-              <strong>
-                {ctrl.language === "bn" ? "প্রস্তাবিত বিভাগ:" : "Suggested specialty:"}
-              </strong>{" "}
-              {ctrl.language === "bn"
-                ? ctrl.draftSummary.suggestedSpecialtyBn
-                : ctrl.draftSummary.suggestedSpecialtyEn}
-            </div>
-            <div>
-              <strong>
-                {ctrl.language === "bn" ? "জরুরি লক্ষণ যাচাই:" : "Red-flag check:"}
-              </strong>{" "}
-              {ctrl.draftSummary.redFlagStatus}
-            </div>
-          </div>
-        </DraftBlock>
-      )}
-
-      <div className={styles.topBar}>
-        <a
-          href={`/${ctrl.language}/triage/summary/${ctrl.sessionId}`}
-          className={styles.primaryCta}
-        >
-          {ctrl.language === "bn"
-            ? "প্রশ্নোত্তর শেষ — সারাংশ যাচাই করুন →"
-            : "Finish & review summary →"}
-        </a>
-        <a href={`/${ctrl.language}/doctors`} className={styles.secondaryCta}>
           {ctrl.language === "bn" ? "সরাসরি ডাক্তার খুঁজুন" : "Skip to doctor discovery"}
-        </a>
+        </Link>
       </div>
     </main>
   );

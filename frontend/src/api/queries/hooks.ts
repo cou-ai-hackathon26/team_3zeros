@@ -100,6 +100,15 @@ export const useConsents = () => useGet<ConsentsResponse>(queryKeys.consents, "/
 export const useConsentRequest = (id: string) => useGet<ConsentRequest>(queryKeys.consentRequest(id), `/consent-requests/${id}`);
 export const useNotifications = () => useGet<Page<NotificationItem>>(queryKeys.notifications, "/notifications/");
 
+export function useMarkNotificationRead() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.post<unknown>(`/notifications/${id}/read`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+}
+
 export interface TransitionVariables {
   id: string;
   action: string;
@@ -310,3 +319,63 @@ export function useUploadDocument() {
     },
   });
 }
+
+// ---- Administration (Phase 7 / G-5) ----
+
+export interface AdminFacility {
+  id: string;
+  name: string;
+  name_bn: string;
+  type: string;
+  address?: string;
+  phone?: string;
+  area?: { id: string; name_en: string; name_bn: string } | null;
+  departments?: { id: string; name: string; name_bn: string }[];
+}
+
+export interface AdminSchedule {
+  id: string;
+  practitioner_id: string;
+  practitioner_name: string;
+  specialty: string;
+  facility_id: string;
+  facility_name: string;
+  slots_count: number;
+  recurrence_rules?: Record<string, unknown>;
+}
+
+export interface AdminCapacityReport {
+  id: string;
+  facility: string;
+  facility_name?: string;
+  reported_at: string;
+  service_capacities?: Record<string, unknown>;
+  general_medicine_beds?: number;
+  emergency_status?: string;
+}
+
+export interface AdminStaffMember {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  facility_id: string;
+  facility_name: string;
+  role: string;
+  permissions: string[];
+  active_from: string | null;
+  active_to: string | null;
+}
+
+export const useAdminFacilities = () =>
+  useGet<Page<AdminFacility> | AdminFacility[]>(queryKeys.adminFacilities, "/admin/facilities");
+
+export const useAdminSchedules = () =>
+  useGet<Page<AdminSchedule> | AdminSchedule[]>(queryKeys.adminSchedules, "/admin/schedules");
+
+export const useAdminCapacityReports = () =>
+  useGet<Page<AdminCapacityReport> | AdminCapacityReport[]>(queryKeys.adminCapacityReports, "/admin/capacity-reports");
+
+export const useAdminStaff = () =>
+  useGet<Page<AdminStaffMember> | AdminStaffMember[]>(queryKeys.adminStaff, "/admin/staff");

@@ -33,8 +33,6 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_VOICE_PROVIDER:
       process.env.VOICE_PROVIDER ?? process.env.NEXT_PUBLIC_VOICE_PROVIDER ?? "auto",
-    NEXT_PUBLIC_ELEVENLABS_API_KEY:
-      process.env.ELEVENLABS_API_KEY ?? process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY ?? "",
     NEXT_PUBLIC_ELEVENLABS_VOICE_ID:
       process.env.ELEVENLABS_VOICE_ID ??
       process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID ??
