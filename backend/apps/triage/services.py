@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
+from .dialogue import llm_next_reply
 from .models import TriageSession, Turn, TriageSummary
 from .normalizer import normalize_for_matching, normalize_text
 from .policy import (
@@ -186,6 +187,36 @@ def create_triage_session(user, language="bn", mode="text", disclosure_version="
         return session
 
 
+def _scripted_reply(session, turn_count: int, latest_text: str, specialty: dict) -> str:
+    """Fixed fallback dialogue, used when no language model is configured or it fails."""
+    if turn_count == 1:
+        reply = (
+            f"I heard: \"{latest_text}\". How many days have you had this symptom, and is the discomfort mild, moderate, or severe?"
+            if session.language == "en"
+            else f"আমি শুনেছি: \"{latest_text}\"। এই সমস্যাটি কতদিন ধরে হচ্ছে এবং তীব্রতা কেমন—হালকা, মাঝারি, নাকি বেশি?"
+        )
+    elif turn_count == 2:
+        reply = (
+            "Got it. Do you also have fever, nausea, dizziness, or any long-term conditions like diabetes or high blood pressure?"
+            if session.language == "en"
+            else "বুঝেছি। এর সাথে কি জ্বর, বমি ভাব, মাথা ঘোরা কিংবা ডায়াবেটিস বা উচ্চ রক্তচাপের মতো কোনো পূর্ববর্তী সমস্যা আছে?"
+        )
+    elif turn_count == 3:
+        reply = (
+            f"Thank you. Based on your answers, an outpatient visit with {specialty['en']} is appropriate. Are you taking any medicines right now, or would you like to review your summary?"
+            if session.language == "en"
+            else f"ধন্যবাদ। আপনার লক্ষণ অনুযায়ী {specialty['bn']} বিভাগের ডাক্তার দেখানো উপযুক্ত হবে। আপনি কি বর্তমানে কোনো ওষুধ খাচ্ছেন, নাকি এখনই খসড়া সারাংশ যাচাই করতে চান?"
+        )
+    else:
+        reply = (
+            f"Your intake summary for {specialty['en']} is ready. You can share any additional detail, or tap 'Finish & review summary' below."
+            if session.language == "en"
+            else f"{specialty['bn']} ডাক্তারের জন্য আপনার খসড়া সারাংশ প্রস্তুত। আরও কিছু যোগ করতে চাইলে জানান, অথবা নিচে 'সারাংশ যাচাই করুন' বাটনে চাপুন।"
+        )
+
+    return reply
+
+
 def _build_clinical_dialogue_and_summary(session: TriageSession, latest_text: str):
     """
     Multi-turn grounded clinical intake progression and TriageSummary draft builder.
@@ -235,30 +266,7 @@ def _build_clinical_dialogue_and_summary(session: TriageSession, latest_text: st
     )
     summary.save()
 
-    if turn_count == 1:
-        reply = (
-            f"I heard: \"{latest_text}\". How many days have you had this symptom, and is the discomfort mild, moderate, or severe?"
-            if session.language == "en"
-            else f"আমি শুনেছি: \"{latest_text}\"। এই সমস্যাটি কতদিন ধরে হচ্ছে এবং তীব্রতা কেমন—হালকা, মাঝারি, নাকি বেশি?"
-        )
-    elif turn_count == 2:
-        reply = (
-            "Got it. Do you also have fever, nausea, dizziness, or any long-term conditions like diabetes or high blood pressure?"
-            if session.language == "en"
-            else "বুঝেছি। এর সাথে কি জ্বর, বমি ভাব, মাথা ঘোরা কিংবা ডায়াবেটিস বা উচ্চ রক্তচাপের মতো কোনো পূর্ববর্তী সমস্যা আছে?"
-        )
-    elif turn_count == 3:
-        reply = (
-            f"Thank you. Based on your answers, an outpatient visit with {specialty['en']} is appropriate. Are you taking any medicines right now, or would you like to review your summary?"
-            if session.language == "en"
-            else f"ধন্যবাদ। আপনার লক্ষণ অনুযায়ী {specialty['bn']} বিভাগের ডাক্তার দেখানো উপযুক্ত হবে। আপনি কি বর্তমানে কোনো ওষুধ খাচ্ছেন, নাকি এখনই খসড়া সারাংশ যাচাই করতে চান?"
-        )
-    else:
-        reply = (
-            f"Your intake summary for {specialty['en']} is ready. You can share any additional detail, or tap 'Finish & review summary' below."
-            if session.language == "en"
-            else f"{specialty['bn']} ডাক্তারের জন্য আপনার খসড়া সারাংশ প্রস্তুত। আরও কিছু যোগ করতে চাইলে জানান, অথবা নিচে 'সারাংশ যাচাই করুন' বাটনে চাপুন।"
-        )
+    reply = llm_next_reply(session) or _scripted_reply(session, turn_count, latest_text, specialty)
 
     return validate_assistant_output(reply, language=session.language, intended_policy="question")
 

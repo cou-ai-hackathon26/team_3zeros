@@ -500,6 +500,9 @@ provides `PlaceholderVoiceProvider` implementing `VoiceProvider`.
 - The browser starts the call with `metadata.session_ref`, which is how the webhook finds the session.
 - `POST /triage/sessions/{id}/translate` returns a machine translation of one caption
   (`apps/ai/translate.py`, Gemini when `LLM_PROVIDER=gemini`; otherwise `text: null`).
+- Replies (D-23): `apps/triage/dialogue.py` asks the model for the next question when
+  `LLM_PROVIDER=gemini`; otherwise the scripted replies run. The red-flag check runs first and
+  the model is never called on an emergency; every reply still passes the INV-7 validator.
 - Vapi dashboard setup: server URL = the provider-events endpoint with the same secret,
   `monitorPlan.controlEnabled = true`, and no model-generated replies.
 
