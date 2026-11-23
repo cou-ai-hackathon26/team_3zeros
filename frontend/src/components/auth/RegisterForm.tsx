@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { ApiError } from "../../api/client";
 import { usePageLocale } from "../../app/usePageLocale";
 import { t } from "../../i18n/format";
@@ -10,6 +9,7 @@ import { useAuth } from "../../auth/me";
 import { useSignInRedirect } from "../../auth/useSignInRedirect";
 import { Button } from "../ui/button";
 import { Field, Input, PasswordInput } from "../ui/field";
+import { AuthSwitch } from "./AuthSwitch";
 import { FormAlert, StepHeading } from "./FormParts";
 
 /** Patient self-registration (MASTERPLAN D-18): name, email or username, password. Signs the patient in on success. */
@@ -47,6 +47,7 @@ export function RegisterForm() {
   }
 
   return (
+    <>
     <form onSubmit={submit} className="flex flex-col gap-6" noValidate>
       <div className="flex flex-col gap-2">
         <StepHeading>{t(locale, "auth.register.title")}</StepHeading>
@@ -59,10 +60,8 @@ export function RegisterForm() {
         {(p) => <PasswordInput {...p} autoComplete="new-password" showLabel={t(locale, "auth.patient.show")} hideLabel={t(locale, "auth.patient.hide")} value={password} readOnly={busy} onChange={(e) => setPassword(e.target.value)} />}
       </Field>
       <Button type="submit" size="lg" loading={busy} loadingLabel={t(locale, "auth.register.creating")}>{t(locale, "auth.register.create")}</Button>
-      <p className="m-0 text-dense text-ink-muted">
-        {t(locale, "auth.register.haveAccount")}{" "}
-        <Link href={`/${locale}/login`} className="text-indigo underline underline-offset-2">{t(locale, "auth.register.signInLink")}</Link>
-      </p>
     </form>
+      <AuthSwitch current="register" />
+    </>
   );
 }

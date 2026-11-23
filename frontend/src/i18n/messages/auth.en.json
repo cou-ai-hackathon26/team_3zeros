@@ -137,5 +137,8 @@
   "admin": {
     "title": "Administrator sign in",
     "help": "Enter your email or username and password, then your verification code."
+  },
+  "switch": {
+    "title": "Other ways in"
   }
 }

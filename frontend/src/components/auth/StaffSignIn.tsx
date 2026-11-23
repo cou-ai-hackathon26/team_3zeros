@@ -12,6 +12,7 @@ import { useSignInRedirect } from "../../auth/useSignInRedirect";
 import { FEATURES } from "../../features/flags";
 import { Button } from "../ui/button";
 import { CodeInput, Field, Input, PasswordInput } from "../ui/field";
+import { AuthSwitch } from "./AuthSwitch";
 import { FormAlert, StepHeading } from "./FormParts";
 
 /** Staff sign-in: identifier and password, then MFA on the same route (AUTH_RBAC §4.2). */
@@ -130,17 +131,7 @@ export function StaffSignIn({ admin = false }: { admin?: boolean }) {
           </Link>
         )}
       </form>
-      {!admin && (
-        <>
-          <hr className="m-0 border-0 border-t border-line" />
-          <p className="m-0 flex flex-col gap-2 text-dense text-ink-muted">
-            {t(locale, "auth.staff.orPatient")}
-            <Link href={`/${locale}/login`} className="text-indigo underline underline-offset-2">
-              {t(locale, "auth.staff.patientLink")}
-            </Link>
-          </p>
-        </>
-      )}
+      {!admin && <AuthSwitch current="staff" />}
     </>
   );
 }

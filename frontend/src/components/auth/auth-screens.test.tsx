@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const nav = { replace: vi.fn(), push: vi.fn(), search: "", pathname: "/bn/login" };
 vi.mock("next/navigation", () => ({
@@ -196,6 +196,33 @@ describe("staff sign-in (AUTH_RBAC §4.2)", () => {
     await click("Verify");
     expect((await screen.findByRole("alert")).textContent).toBe("Please sign in again.");
     expect(screen.getByRole("heading", { name: "Staff sign in" })).toBeTruthy();
+  });
+});
+
+describe("switching between ways in", () => {
+  const hrefs = () => within(screen.getByRole("navigation", { name: /Other ways in|অন্যান্য উপায়/ })).getAllByRole("link").map((a) => a.getAttribute("href"));
+  it("patient sign-in offers staff sign-in and create-account as buttons", () => {
+    nav.pathname = "/en/login";
+    mount(<PatientSignIn />, {});
+    expect(hrefs()).toEqual(["/en/login/staff", "/en/register"]);
+  });
+  it("staff sign-in offers patient sign-in and create-account", () => {
+    nav.pathname = "/en/login/staff";
+    mount(<StaffSignIn />, {});
+    expect(hrefs()).toEqual(["/en/login", "/en/register"]);
+  });
+  it("register offers patient sign-in and staff sign-in", () => {
+    nav.pathname = "/en/register";
+    mount(<RegisterForm />, {});
+    expect(hrefs()).toEqual(["/en/login", "/en/login/staff"]);
+  });
+  it("never offers the admin entrance from any page", () => {
+    for (const [path, ui] of [["/en/login", <PatientSignIn key="a" />], ["/en/login/staff", <StaffSignIn key="b" />], ["/en/register", <RegisterForm key="c" />]] as const) {
+      nav.pathname = path;
+      const { container, unmount } = mount(ui, {});
+      expect(container.innerHTML).not.toContain("admin/login");
+      unmount();
+    }
   });
 });
 

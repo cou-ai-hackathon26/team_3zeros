@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { usePageLocale } from "../../app/usePageLocale";
 import { t } from "../../i18n/format";
 import { authErrorKey } from "../../auth/errors";
@@ -9,6 +8,7 @@ import { useAuth } from "../../auth/me";
 import { useSignInRedirect } from "../../auth/useSignInRedirect";
 import { Button } from "../ui/button";
 import { Field, Input, PasswordInput } from "../ui/field";
+import { AuthSwitch } from "./AuthSwitch";
 import { FormAlert, StepHeading } from "./FormParts";
 
 /** Patient sign-in: email or username and a password (MASTERPLAN D-18). There are no one-time codes. */
@@ -69,13 +69,8 @@ export function PatientSignIn() {
           )}
         </Field>
         <Button type="submit" size="lg" loading={busy} loadingLabel={t(locale, "auth.patient.signingIn")}>{t(locale, "auth.patient.signIn")}</Button>
-        <Link href={`/${locale}/register`} className="text-dense text-indigo underline underline-offset-2">{t(locale, "auth.patient.createLink")}</Link>
       </form>
-      <hr className="m-0 border-0 border-t border-line" />
-      <p className="m-0 flex flex-col gap-2 text-dense text-ink-muted">
-        {t(locale, "auth.patient.orStaff")}
-        <Link href={`/${locale}/login/staff`} className="text-indigo underline underline-offset-2">{t(locale, "auth.patient.staffLink")}</Link>
-      </p>
+      <AuthSwitch current="patient" />
     </>
   );
 }
