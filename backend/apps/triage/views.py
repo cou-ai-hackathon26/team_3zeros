@@ -1,7 +1,10 @@
 from rest_framework import views, permissions, status
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import TriageSession, TriageSummary
+from apps.common.exceptions import NotAuthenticatedError, ValidationError
+from apps.common.pagination import CursorPagination
+from .models import TriageSummary
+from .providers.placeholder import get_voice_provider
 from .serializers import (
     TriageSessionSerializer,
     TriageSessionCreateSerializer,
@@ -9,12 +12,43 @@ from .serializers import (
     TurnSerializer,
     SummaryConfirmSerializer,
 )
-from .services import create_triage_session, process_patient_turn, run_triage_action
-from apps.common.exceptions import NotFoundError, TransitionNotAllowedError
-from apps.audit.services import record_audit_event
+from .services import (
+    create_triage_session,
+    get_triage_session_for_patient_mutation,
+    get_triage_session_for_read,
+    list_patient_triage_sessions,
+    process_patient_turn,
+    run_triage_action,
+)
+
+
+def _parse_if_match(request):
+    raw = request.headers.get("If-Match")
+    if not raw:
+        return None
+    try:
+        return int(raw.strip('"'))
+    except ValueError:
+        raise ValidationError("Invalid If-Match version header.")
+
 
 class TriageSessionCreateView(views.APIView):
+    """
+    GET /triage/sessions: authenticated patient's own sessions (resolves G-6).
+    POST /triage/sessions: create a new triage session (AllowAny per Q-03).
+    """
     permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        if not request.user or not request.user.is_authenticated:
+            raise NotAuthenticatedError("Authentication required to list triage sessions.")
+        state_param = request.query_params.get("state")
+        states = [s.strip() for s in state_param.split(",") if s.strip()] if state_param else None
+        qs = list_patient_triage_sessions(request.user, states=states)
+        paginator = CursorPagination()
+        page = paginator.paginate_queryset(qs, request)
+        serializer = TriageSessionSerializer(page, many=True, context={"request": request})
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
         serializer = TriageSessionCreateSerializer(data=request.data)
@@ -27,27 +61,30 @@ class TriageSessionCreateView(views.APIView):
             disclosure_version=serializer.validated_data["triage_disclosure_version"],
             request_id=request_id,
         )
-        return Response(TriageSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+        return Response(
+            TriageSessionSerializer(session, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class TriageSessionDetailView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, public_id):
-        session = TriageSession.objects.filter(public_id=public_id).prefetch_related("turns").first()
-        if not session:
-            raise NotFoundError("Triage session not found.")
-        return Response(TriageSessionSerializer(session).data)
+        session, is_clinician_view = get_triage_session_for_read(request.user, public_id)
+        return Response(
+            TriageSessionSerializer(
+                session,
+                context={"request": request, "clinician_view": is_clinician_view},
+            ).data
+        )
 
 
 class TriageTurnCreateView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, public_id):
-        session = TriageSession.objects.filter(public_id=public_id).first()
-        if not session:
-            raise NotFoundError("Triage session not found.")
-
+        session = get_triage_session_for_patient_mutation(request.user, public_id)
         serializer = TurnCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -61,26 +98,65 @@ class TriageTurnCreateView(views.APIView):
         return Response(TurnSerializer(reply_turn).data)
 
 
+class TriagePauseView(views.APIView):
+    """Patient pauses an ACTIVE session (§5.3 pause)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, public_id):
+        session = get_triage_session_for_patient_mutation(request.user, public_id)
+        run_triage_action(
+            session,
+            "pause",
+            request.user,
+            expected_version=_parse_if_match(request),
+            request_id=getattr(request, "request_id", ""),
+        )
+        return Response(TriageSessionSerializer(session, context={"request": request}).data)
+
+
+class TriageResumeView(views.APIView):
+    """Patient resumes a PAUSED session (§5.3 resume)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, public_id):
+        session = get_triage_session_for_patient_mutation(request.user, public_id)
+        run_triage_action(
+            session,
+            "resume",
+            request.user,
+            expected_version=_parse_if_match(request),
+            request_id=getattr(request, "request_id", ""),
+        )
+        return Response(TriageSessionSerializer(session, context={"request": request}).data)
+
+
 class TriageSummaryConfirmView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, public_id):
-        session = TriageSession.objects.filter(public_id=public_id).first()
-        if not session:
-            raise NotFoundError("Triage session not found.")
-
+        session = get_triage_session_for_patient_mutation(request.user, public_id)
         serializer = SummaryConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         session.ended_at = timezone.now()
-        run_triage_action(session, "confirm_summary", request.user, request_id=getattr(request, "request_id", ""))
+        run_triage_action(
+            session,
+            "confirm_summary",
+            request.user,
+            expected_version=_parse_if_match(request),
+            request_id=getattr(request, "request_id", ""),
+        )
 
         summary, _ = TriageSummary.objects.get_or_create(session=session)
         summary.patient_confirmed_at = timezone.now()
-        summary.patient_edits = serializer.validated_data.get("edits", {})
+        edits = serializer.validated_data.get("edits", {})
+        if edits:
+            merged_edits = dict(summary.patient_edits or {})
+            merged_edits.update(edits)
+            summary.patient_edits = merged_edits
         summary.save()
 
-        return Response(TriageSessionSerializer(session).data)
+        return Response(TriageSessionSerializer(session, context={"request": request}).data)
 
 
 class TriageFinishView(views.APIView):
@@ -88,24 +164,32 @@ class TriageFinishView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, public_id):
-        session = TriageSession.objects.filter(public_id=public_id).first()
-        if not session:
-            raise NotFoundError("Triage session not found.")
-        run_triage_action(session, "finish_questions", request.user, request_id=getattr(request, "request_id", ""))
-        return Response(TriageSessionSerializer(session).data)
+        session = get_triage_session_for_patient_mutation(request.user, public_id)
+        run_triage_action(
+            session,
+            "finish_questions",
+            request.user,
+            expected_version=_parse_if_match(request),
+            request_id=getattr(request, "request_id", ""),
+        )
+        return Response(TriageSessionSerializer(session, context={"request": request}).data)
 
 
 class TriageEndView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, public_id):
-        session = TriageSession.objects.filter(public_id=public_id).first()
-        if not session:
-            raise NotFoundError("Triage session not found.")
-
+        session = get_triage_session_for_patient_mutation(request.user, public_id)
         session.ended_at = timezone.now()
-        run_triage_action(session, "end", request.user, request_id=getattr(request, "request_id", ""))
-        return Response(TriageSessionSerializer(session).data)
+        run_triage_action(
+            session,
+            "end",
+            request.user,
+            expected_version=_parse_if_match(request),
+            request_id=getattr(request, "request_id", ""),
+        )
+        get_voice_provider().end_session(session.provider_session_ref)
+        return Response(TriageSessionSerializer(session, context={"request": request}).data)
 
 
 class TriageVoiceCredentialsView(views.APIView):
@@ -113,17 +197,9 @@ class TriageVoiceCredentialsView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, public_id):
-        import uuid
-        session = TriageSession.objects.filter(public_id=public_id).first()
-        if not session:
-            raise NotFoundError("Triage session not found.")
-        expires_at = timezone.now() + timezone.timedelta(minutes=5)
-        return Response({
-            "session_ref": session.provider_session_ref or uuid.uuid4().hex,
-            "provider": "adapter_pending_q05",  # Q-05
-            "token": uuid.uuid4().hex,
-            "expires_at": expires_at.isoformat(),
-        })
+        session = get_triage_session_for_patient_mutation(request.user, public_id)
+        creds = get_voice_provider().create_session(session.provider_session_ref, session.language)
+        return Response(creds.to_dict())
 
 
 class TriageProviderEventsView(views.APIView):
@@ -131,7 +207,5 @@ class TriageProviderEventsView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        event_type = request.data.get("type", "noop")
-        return Response({"received": True, "type": event_type})
-
-
+        event = get_voice_provider().verify_webhook(request)
+        return Response({"received": True, "type": event.event_type})

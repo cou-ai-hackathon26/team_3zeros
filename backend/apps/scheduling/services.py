@@ -20,6 +20,15 @@ def create_appointment_request(user, patient_id, slot_id, triage_session_id=None
         if slot.state != "AVAILABLE":
             raise SlotUnavailableError("Requested appointment slot is no longer available.")
 
+        if triage_session_id:
+            from apps.triage.services import validate_and_claim_triage_session
+            validate_and_claim_triage_session(
+                triage_session_id,
+                patient=patient,
+                actor=user,
+                request_id=request_id,
+            )
+
         # Hold the slot
         slot.state = "HELD"
         slot.save()

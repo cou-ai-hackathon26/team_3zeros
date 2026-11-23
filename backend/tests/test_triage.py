@@ -151,3 +151,139 @@ def test_placeholder_voice_provider_issues_pii_free_credentials():
     assert creds.expires_at
     assert creds.status == "placeholder"
 
+
+@pytest.mark.django_db
+def test_list_own_triage_sessions_and_state_filter(django_user_model):
+    from rest_framework.test import APIClient
+    from apps.accounts.models import PatientAccount
+    from apps.identity.models import Patient
+
+    owner = django_user_model.objects.create_user(phone="+8801833333331", password="x")
+    PatientAccount.objects.create(user=owner, patient=Patient.objects.create(given_name="Owner", family_name="One"))
+    other = django_user_model.objects.create_user(phone="+8801833333332", password="x")
+    PatientAccount.objects.create(user=other, patient=Patient.objects.create(given_name="Other", family_name="Two"))
+
+    s_active = create_triage_session(user=owner, language="bn", disclosure_version="v1.0")
+    s_ended = create_triage_session(user=owner, language="en", disclosure_version="v1.0")
+    run_triage_action(s_ended, "end", owner)
+    create_triage_session(user=other, language="bn", disclosure_version="v1.0")
+
+    client = APIClient()
+    # Unauthenticated list must be rejected
+    unauth = client.get("/api/v1/triage/sessions")
+    assert unauth.status_code in (401, 403)
+
+    # Authenticated patient lists only own sessions
+    client.force_authenticate(user=owner)
+    all_resp = client.get("/api/v1/triage/sessions")
+    assert all_resp.status_code == 200
+    assert {r["id"] for r in all_resp.data["results"]} == {str(s_active.public_id), str(s_ended.public_id)}
+
+    open_resp = client.get("/api/v1/triage/sessions?state=ACTIVE,PAUSED")
+    assert open_resp.status_code == 200
+    assert [r["id"] for r in open_resp.data["results"]] == [str(s_active.public_id)]
+
+
+@pytest.mark.django_db
+def test_triage_pause_resume_endpoints(django_user_model):
+    from rest_framework.test import APIClient
+    from apps.accounts.models import PatientAccount
+    from apps.identity.models import Patient
+
+    owner = django_user_model.objects.create_user(phone="+8801833333333", password="x")
+    PatientAccount.objects.create(user=owner, patient=Patient.objects.create(given_name="Pause", family_name="Test"))
+    session = create_triage_session(user=owner, language="en", disclosure_version="v1.0")
+
+    client = APIClient()
+    client.force_authenticate(user=owner)
+
+    p_resp = client.post(f"/api/v1/triage/sessions/{session.public_id}/pause")
+    assert p_resp.status_code == 200
+    assert p_resp.data["state"] == "PAUSED"
+    assert "resume" in p_resp.data["allowed_actions"]
+
+    r_resp = client.post(f"/api/v1/triage/sessions/{session.public_id}/resume")
+    assert r_resp.status_code == 200
+    assert r_resp.data["state"] == "ACTIVE"
+    assert "pause" in r_resp.data["allowed_actions"]
+
+
+@pytest.mark.django_db
+def test_triage_read_scoping_patient_clinician_stranger(django_user_model):
+    from datetime import timedelta
+    from django.utils import timezone
+    from rest_framework.test import APIClient
+    from apps.accounts.models import Membership, PatientAccount
+    from apps.directory.models import Specialty
+    from apps.identity.models import Patient
+    from apps.organizations.models import Facility, Practitioner, PractitionerRole
+    from apps.scheduling.models import Appointment, Schedule, Slot
+
+    owner_user = django_user_model.objects.create_user(phone="+8801833333334", password="x")
+    owner_patient = Patient.objects.create(given_name="Scoped", family_name="Patient")
+    PatientAccount.objects.create(user=owner_user, patient=owner_patient)
+
+    stranger = django_user_model.objects.create_user(phone="+8801833333335", password="x")
+    PatientAccount.objects.create(user=stranger, patient=Patient.objects.create(given_name="Stranger", family_name="P"))
+
+    clinician = django_user_model.objects.create_user(email="clin-triage@demo.com", password="x")
+    unrelated_clinician = django_user_model.objects.create_user(email="other-clin@demo.com", password="x")
+    fac1 = Facility.objects.create(name="Clinic A", type="clinic")
+    fac2 = Facility.objects.create(name="Clinic B", type="clinic")
+    spec = Specialty.objects.create(code="general_medicine", name_en="General Medicine", name_bn="মেডিসিন")
+    prac = Practitioner.objects.create(name="Dr A", registration_number="BMDC-9991", user=clinician)
+    role = PractitionerRole.objects.create(practitioner=prac, facility=fac1, specialty=spec)
+    Membership.objects.create(user=clinician, facility=fac1, role="clinician")
+    Membership.objects.create(user=unrelated_clinician, facility=fac2, role="clinician")
+
+    session = create_triage_session(user=owner_user, language="en", disclosure_version="v1.0")
+    process_patient_turn(session, "Fever and headache for 3 days", user=owner_user)
+    run_triage_action(session, "finish_questions", owner_user)
+    run_triage_action(session, "confirm_summary", owner_user)
+
+    sched = Schedule.objects.create(practitioner_role=role)
+    start = timezone.now() + timedelta(days=1)
+    slot = Slot.objects.create(schedule=sched, start=start, end=start + timedelta(minutes=30), state="HELD")
+    Appointment.objects.create(
+        patient=owner_patient,
+        practitioner=prac,
+        facility=fac1,
+        slot=slot,
+        state="REQUESTED",
+        triage_session_id=session.public_id,
+    )
+
+    client = APIClient()
+
+    # Owner can read full session with turns
+    client.force_authenticate(user=owner_user)
+    r_owner = client.get(f"/api/v1/triage/sessions/{session.public_id}")
+    assert r_owner.status_code == 200
+    assert len(r_owner.data["turns"]) >= 2
+
+    # Stranger patient gets 404 (no existence leak)
+    client.force_authenticate(user=stranger)
+    assert client.get(f"/api/v1/triage/sessions/{session.public_id}").status_code == 404
+
+    # Unrelated clinician gets 404
+    client.force_authenticate(user=unrelated_clinician)
+    assert client.get(f"/api/v1/triage/sessions/{session.public_id}").status_code == 404
+
+    # Care-relationship clinician gets 200 with summary and empty turns
+    client.force_authenticate(user=clinician)
+    r_clin = client.get(f"/api/v1/triage/sessions/{session.public_id}")
+    assert r_clin.status_code == 200
+    assert r_clin.data["summary"]["patient_words"] == "Fever and headache for 3 days"
+    assert r_clin.data["turns"] == []
+
+
+@pytest.mark.django_db
+def test_triage_summary_has_specialty_code_and_sources():
+    session = create_triage_session(user=None, language="en", disclosure_version="v1.0")
+    process_patient_turn(session, "My child has fever for 2 days")
+    session.refresh_from_db()
+    sf = session.summary.structured_fields
+    assert sf["suggested_specialty_code"] == "pediatrics"
+    assert isinstance(sf.get("guidance_sources"), list) and len(sf["guidance_sources"]) >= 1
+
+
