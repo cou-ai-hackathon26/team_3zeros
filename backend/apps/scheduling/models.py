@@ -68,6 +68,8 @@ class Appointment(TimeStamped):
     )
     state = models.CharField(max_length=30, choices=STATE_CHOICES, default="REQUESTED", db_index=True)
     triage_session_id = models.UUIDField(null=True, blank=True)
+    # Snapshot of the AI triage level when the request was made (an AI draft, never a diagnosis); null = not assessed.
+    triage_level = models.CharField(max_length=10, null=True, blank=True)
     decline_reason = models.TextField(blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     fhir_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)

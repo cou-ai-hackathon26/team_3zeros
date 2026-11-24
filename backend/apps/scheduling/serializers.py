@@ -45,6 +45,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "slot",
             "original_slot",
             "triage_session_id",
+            "triage_level",
             "decline_reason",
             "expires_at",
             "version",

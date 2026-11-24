@@ -118,7 +118,7 @@ def test_the_model_never_receives_patient_identity(monkeypatch):
     monkeypatch.setattr(dialogue, "generate_text", lambda m, **k: seen.update(body=m[0]["text"]) or None)
     attach_consultation_report(s)
     body = json.loads(seen["body"])
-    assert set(body) == {"consultation_id", "language", "transcript", "structured_symptom_history", "red_flag_results", "retrieved_passages", "suggested_specialty"}
+    assert set(body) == {"consultation_id", "language", "transcript", "structured_symptom_history", "red_flag_results", "retrieved_passages", "suggested_specialty", "specialty_codes"}
 
 
 @pytest.mark.django_db

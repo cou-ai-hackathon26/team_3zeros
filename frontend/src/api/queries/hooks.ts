@@ -222,8 +222,16 @@ export function usePatientSearch(q: string) {
   });
 }
 
-export const useTriageSession = (id: string | null | undefined) =>
-  useGet<TriageSessionDetail>(queryKeys.triageSession(id ?? ""), `/triage/sessions/${id}`, !!id);
+/** While the report is being drafted in the background (`report_status` pending) the session is refetched every 2 s. */
+export const useTriageSession = (id: string | null | undefined) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.triageSession(id ?? ""),
+    queryFn: async () => (await api.get<TriageSessionDetail>(`/triage/sessions/${id}`)).data,
+    enabled: !!id,
+    refetchInterval: (q) => (q.state.data?.summary?.structured_fields?.report_status === "pending" ? 2000 : false),
+  });
+};
 
 export const useTriageSessions = (filters?: QueryFilters, enabled = true) =>
   useGet<Page<TriageSessionDetail>>(

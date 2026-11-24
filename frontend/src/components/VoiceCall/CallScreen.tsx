@@ -8,6 +8,7 @@ import { t } from "../../i18n/format";
 import type { TriageCaptionEvent, VoiceSessionState } from "../../voice/types";
 import { CallBlob } from "./CallBlob";
 import { CallCaptions } from "./CallCaptions";
+import { InterviewProgress } from "./InterviewProgress";
 import { cn } from "../../lib/cn";
 
 export interface CallScreenProps {
@@ -19,6 +20,11 @@ export interface CallScreenProps {
   onMute: (muted: boolean) => void;
   onEnd: () => void;
   onSwitchToText: () => void;
+  /** Finish now and go to the summary (the patient has answered at least once). */
+  onFinish: () => void;
+  answered: number;
+  target: number;
+  max: number;
 }
 
 const STATUS_KEY: Partial<Record<VoiceSessionState, string>> = {
@@ -40,7 +46,7 @@ function clock(total: number) {
  * Desktop: 2-column studio (presence & controls left, scrollable Q&A dialogue right).
  * Mobile: compact status header + presence orb + live dialogue + thumb-zone call dock.
  */
-export function CallScreen({ phase, language, turns, level, seconds, onMute, onEnd, onSwitchToText }: CallScreenProps) {
+export function CallScreen({ phase, language, turns, level, seconds, onMute, onEnd, onSwitchToText, onFinish, answered, target, max }: CallScreenProps) {
   const [muted, setMuted] = useState(false);
   const T = (k: string) => t(language, `call.${k}`);
   const inCall = phase !== "ringing" && phase !== "connected" && phase !== "connection_lost";
@@ -79,6 +85,8 @@ export function CallScreen({ phase, language, turns, level, seconds, onMute, onE
           <CallBlob phase={phase} level={level} />
         </div>
 
+        <InterviewProgress answered={answered} target={target} max={max} language={language} />
+
         {/* Floating Pill Call Dock */}
         <div className="flex w-full max-w-sm items-center justify-around rounded-[24px] border border-line/80 bg-surface px-3 py-3.5 shadow-raised">
           <CallButton
@@ -99,6 +107,12 @@ export function CallScreen({ phase, language, turns, level, seconds, onMute, onE
             <Keyboard aria-hidden className="size-5" />
           </CallButton>
         </div>
+
+        {answered > 0 && (
+          <button type="button" onClick={onFinish} className="h-11 rounded-control border border-line-strong bg-surface px-4 text-dense font-semibold text-ink hover:bg-sunken">
+            {T("finishNow")}
+          </button>
+        )}
       </div>
 
       {/* Right Live Doctor-Style Q&A Dialogue Panel */}

@@ -74,15 +74,21 @@ class VapiVoiceProvider:
             raw={"type": mtype},  # never keep the full payload
         )
 
-    def speak(self, session_ref: str, text: str, language: str) -> None:
+    def speak(self, session_ref: str, text: str, language: str, end_after: bool = False) -> bool:
+        """Say `text` on the call; with `end_after` Vapi hangs up once it has been spoken in full. Returns whether it was sent."""
         url = cache.get(_control_key(session_ref))
         if not url:
             logger.warning("vapi speak: no control URL for session")
-            return
+            return False
+        body = {"type": "say", "content": text}
+        if end_after:
+            body["endCallAfterSpoken"] = True
         try:
-            requests.post(url, json={"type": "say", "content": text}, timeout=10).raise_for_status()
+            requests.post(url, json=body, timeout=10).raise_for_status()
+            return True
         except requests.RequestException as exc:
             logger.error("vapi speak failed: %s", exc)
+            return False
 
     def end_session(self, session_ref: str) -> None:
         url = cache.get(_control_key(session_ref))

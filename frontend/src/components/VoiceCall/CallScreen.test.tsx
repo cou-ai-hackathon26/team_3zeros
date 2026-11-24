@@ -14,6 +14,10 @@ const base = {
   onMute: vi.fn(),
   onEnd: vi.fn(),
   onSwitchToText: vi.fn(),
+  onFinish: vi.fn(),
+  answered: 2,
+  target: 7,
+  max: 10,
 };
 
 describe("CallScreen", () => {
@@ -46,5 +50,23 @@ describe("CallScreen", () => {
   it("disables mute until the call is connected", () => {
     render(<CallScreen {...base} phase="ringing" />);
     expect(screen.getByRole("button", { name: "Mute" })).toBeDisabled();
+  });
+});
+
+describe("CallScreen interview controls", () => {
+  it("shows the question progress and lets the patient finish and see the summary", async () => {
+    const user = userEvent.setup();
+    render(<CallScreen {...base} phase="listening" />);
+    expect(screen.getByText("Question 3 of about 7")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Finish and see summary" }));
+    expect(base.onFinish).toHaveBeenCalled();
+  });
+
+  it("offers no finish button before the first answer, and never counts past the maximum", () => {
+    const { rerender } = render(<CallScreen {...base} phase="listening" answered={0} />);
+    expect(screen.queryByRole("button", { name: "Finish and see summary" })).toBeNull();
+    expect(screen.getByText("Question 1 of about 7")).toBeInTheDocument();
+    rerender(<CallScreen {...base} phase="listening" answered={25} />);
+    expect(screen.getByText("Question 10 of about 7")).toBeInTheDocument();
   });
 });

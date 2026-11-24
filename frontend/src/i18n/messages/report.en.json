@@ -18,5 +18,10 @@
   "missing": "What we did not know",
   "review": "A clinician should review this report.",
   "emergencyTitle": "Emergency: get help now",
-  "clinicianNote": "AI draft from the patient's conversation. It is not a diagnosis."
+  "clinicianNote": "AI draft from the patient's conversation. It is not a diagnosis.",
+  "preparing": "Preparing your summary and assessment. This takes a few seconds.",
+  "unavailable": "The AI assessment is not available right now. You can still review and confirm your summary.",
+  "routeUrgent": "Please be seen today. Do not wait for a routine appointment.",
+  "routeWatch": "Watch for the warning signs above and see a doctor if they appear or the problem continues.",
+  "routeEmergency": "This may be an emergency. Do not book an appointment."
 }

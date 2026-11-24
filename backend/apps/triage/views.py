@@ -14,7 +14,7 @@ from .serializers import (
     SummaryConfirmSerializer,
 )
 from .services import (
-    attach_consultation_report,
+    request_report,
     create_triage_session,
     get_triage_session_for_patient_mutation,
     get_triage_session_for_read,
@@ -97,7 +97,8 @@ class TriageTurnCreateView(views.APIView):
             user=request.user,
             request_id=request_id,
         )
-        return Response(TurnSerializer(reply_turn).data)
+        session.refresh_from_db()
+        return Response({**TurnSerializer(reply_turn).data, "session_state": session.state})
 
 
 class TriagePauseView(views.APIView):
@@ -174,7 +175,7 @@ class TriageFinishView(views.APIView):
             expected_version=_parse_if_match(request),
             request_id=getattr(request, "request_id", ""),
         )
-        attach_consultation_report(session)
+        request_report(session)
         return Response(TriageSessionSerializer(session, context={"request": request}).data)
 
 
@@ -218,9 +219,11 @@ class TriageProviderEventsView(views.APIView):
             session = TriageSession.objects.filter(provider_session_ref=event.session_ref).first()
             if session and session.state in ("ACTIVE", "PAUSED"):
                 reply = process_patient_turn(session, event.transcript, request_id=getattr(request, "request_id", ""))
-                provider.speak(event.session_ref, reply.text, session.language)
-                if reply.response_policy == "emergency":
-                    provider.end_session(event.session_ref)  # INV-16
+                # Emergency instruction and closing line are spoken in full, then the call ends (INV-16).
+                ends = reply.response_policy in ("emergency", "closing")
+                spoken = provider.speak(event.session_ref, reply.text, session.language, end_after=ends)
+                if ends and not spoken:
+                    provider.end_session(event.session_ref)  # could not speak: never leave an emergency call open
         return Response({"received": True, "type": event.event_type})
 
 

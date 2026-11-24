@@ -22,6 +22,10 @@ export interface QueueEntry {
   needsYou: boolean;
 }
 
+/** An appointment request carries the patient's AI triage level: HIGH sorts as urgent, EMERGENCY as emergency (D-30). */
+const levelUrgency = (level: Appointment["triage_level"]): QueueEntry["urgency"] =>
+  level === "EMERGENCY" ? "emergency" : level === "HIGH" ? "urgent" : "routine";
+
 const FINISHED = ["CLOSED", "DECLINED", "CANCELLED", "EXPIRED"];
 // Appointment states that wait on a clinician's decision. CONFIRMED is visit management, not a decision.
 const APPOINTMENT_DECISION = ["REQUESTED", "PATIENT_ACCEPTED"];
@@ -33,7 +37,7 @@ const APPOINTMENT_DECISION = ["REQUESTED", "PATIENT_ACCEPTED"];
 export function buildEntries(appointments: Appointment[], incoming: Referral[], outgoing: Referral[]): QueueEntry[] {
   const entries: QueueEntry[] = appointments.map((a) => ({
     key: `appt:${a.id}`, kind: "appointment", appointment: a, patientId: a.patient_id, createdAt: a.created_at,
-    urgency: "routine", escalated: false, needsYou: APPOINTMENT_DECISION.includes(a.state),
+    urgency: levelUrgency(a.triage_level), escalated: false, needsYou: APPOINTMENT_DECISION.includes(a.state),
   }));
   const referral = (r: Referral, direction: "incoming" | "outgoing"): QueueEntry => {
     const holder = holderOf("referral", r.state);

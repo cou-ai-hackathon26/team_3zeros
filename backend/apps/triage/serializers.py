@@ -37,6 +37,7 @@ class TriageSessionSerializer(serializers.ModelSerializer):
     turns = serializers.SerializerMethodField()
     summary = TriageSummarySerializer(read_only=True)
     allowed_actions = serializers.SerializerMethodField()
+    interview = serializers.SerializerMethodField()
 
     class Meta:
         model = TriageSession
@@ -49,11 +50,16 @@ class TriageSessionSerializer(serializers.ModelSerializer):
             "mode",
             "triage_disclosure_version",
             "ruleset_version",
+            "interview",
             "turns",
             "summary",
             "started_at",
             "ended_at",
         ]
+
+    def get_interview(self, obj):
+        from .dialogue import MAX_ANSWERS, TARGET_ANSWERS
+        return {"target": TARGET_ANSWERS, "max": MAX_ANSWERS}
 
     def get_turns(self, obj):
         if self.context.get("clinician_view"):

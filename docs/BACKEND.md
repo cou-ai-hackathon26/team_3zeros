@@ -526,6 +526,15 @@ provides `PlaceholderVoiceProvider` implementing `VoiceProvider`.
   retrieval only, no explanations without retrieved evidence, unsafe lines dropped and flagged
   `requires_clinician_review`, emergency never downgraded (fixed instruction), fixed disclaimer, and no
   patient identity sent to the model.
+- Interview (D-27): `dialogue.py` holds `MIN_ANSWERS=4`, `TARGET_ANSWERS=7`, `MAX_ANSWERS=10` and `budget_directive()`.
+  `process_patient_turn` locks the session row, runs the red-flag rules, then asks the model; `[DONE]` closes
+  (ignored before four answers), the tenth answer closes without a model call, and the fixed closing line plus
+  system `finish_questions` and `request_report` follow. Webhook replies that close or escalate are spoken with
+  `end_after=True` so Vapi hangs up after the words; if speaking fails the call is ended anyway.
+- Report (D-28): `request_report` sets `report_status: pending` and writes `triage.report_requested`;
+  `apps/triage/tasks.py::generate_triage_report` fills the report and summary fields. It is idempotent.
+- Model spend (D-31): `apps/ai/usage.py` records tokens per purpose (`LLMUsageDay`) and enforces
+  `LLM_DAILY_BUDGET_USD`; prices are `LLM_PRICE_IN_PER_M` and `LLM_PRICE_OUT_PER_M`.
 - Vapi dashboard setup: server URL = the provider-events endpoint with the same secret,
   `monitorPlan.controlEnabled = true`, and no model-generated replies.
 

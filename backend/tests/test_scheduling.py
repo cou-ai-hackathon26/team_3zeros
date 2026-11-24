@@ -175,3 +175,29 @@ def test_appointment_rejects_unconfirmed_or_other_patient_triage_session(api_cli
     assert resp_other.status_code in (400, 404)
 
 
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("level,expected", [("HIGH", "HIGH"), (None, None), ("nonsense", None)])
+def test_the_triage_level_is_snapshotted_on_the_appointment(api_client, scheduling_setup, level, expected):
+    from apps.accounts.models import PatientAccount
+    from apps.triage.models import TriageSummary
+    from apps.triage.services import create_triage_session, process_patient_turn, run_triage_action
+
+    data = scheduling_setup
+    patient_user = User.objects.create_user(phone="+8801755555570", display_name="Level Booker")
+    PatientAccount.objects.create(user=patient_user, patient=data["patient"])
+    session = create_triage_session(user=None, language="en", disclosure_version="v1.0")
+    process_patient_turn(session, "Fever for 2 days")
+    run_triage_action(session, "finish_questions")
+    run_triage_action(session, "confirm_summary")
+    summary = TriageSummary.objects.get(session=session)
+    summary.structured_fields = {**summary.structured_fields, "triage_level": level}
+    summary.save()
+
+    api_client.force_authenticate(user=patient_user)
+    resp = api_client.post("/api/v1/appointments", {"slot_id": str(data["slot1"].public_id), "triage_session_id": str(session.public_id)})
+    assert resp.status_code == 201 and resp.data["triage_level"] == expected
+    # read-only: it cannot be set by the client
+    resp2 = api_client.post("/api/v1/appointments", {"slot_id": str(data["slot2"].public_id), "triage_level": "HIGH"})
+    assert resp2.status_code in (201, 400) and (resp2.data.get("triage_level") is None if resp2.status_code == 201 else True)

@@ -41,9 +41,9 @@ class PlaceholderVoiceProvider:
             raw=dict(data) if isinstance(data, dict) else {},
         )
 
-    def speak(self, session_ref: str, text: str, language: str) -> None:
+    def speak(self, session_ref: str, text: str, language: str, end_after: bool = False) -> bool:
         # TODO(teammate/vapi): Push server-authored assistant text to Vapi TTS stream.
-        return None
+        return False
 
     def end_session(self, session_ref: str) -> None:
         # TODO(teammate/vapi): Terminate active Vapi call immediately (required on emergency).
