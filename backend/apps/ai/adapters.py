@@ -327,14 +327,44 @@ class TesseractOCRAdapter:
         return extracted if extracted else MockOCRAdapter().extract(file_bytes)
 
 
+class ChatLLMAdapter:
+    """Structured-draft adapter over the shared text helper (`apps/ai/chat.py`), used for Cerebras. Asks for JSON,
+    parses it and validates it like every other adapter (INV-7)."""
+    name = "chat"
+
+    def __init__(self):
+        self.model = getattr(settings, "LLM_MODEL", "")
+
+    def generate(self, schema: Dict[str, Any], messages: List[Dict[str, str]], max_tokens: int = 1500) -> Dict[str, Any]:
+        from .chat import generate_text
+
+        system = "\n\n".join(m["content"] for m in messages if m.get("role") == "system")
+        system += "\n\nReturn only a JSON object: {\"sections\": [{\"name\": str, \"statements\": [{\"text\": str, \"source_refs\": [str]}]}]}."
+        turns = [{"role": "user", "text": m["content"]} for m in messages if m.get("role") != "system"]
+        raw = generate_text(turns, system=system, max_tokens=max_tokens, temperature=0, timeout=60, purpose="referral")
+        if not raw:
+            raise ValidationError("The language model did not return a draft.")
+        try:
+            draft = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.M).strip())
+        except ValueError:
+            raise ValidationError("The language model returned an unreadable draft.")
+        validate_referral_draft_schema(draft)
+        return draft
+
+
 def get_llm_adapter() -> LLMAdapter:
-    """Factory returning configured LLM adapter based on settings.LLM_PROVIDER."""
+    """Factory returning the configured adapter. The mock is returned only when LLM_PROVIDER is "mock":
+    an unknown or unsupported provider fails loudly instead of quietly producing canned text."""
     provider = getattr(settings, "LLM_PROVIDER", "mock").lower()
     if provider == "gemini":
         return GeminiLLMAdapter()
-    elif provider == "openai":
+    if provider == "openai":
         return OpenAILLMAdapter()
-    return MockLLMAdapter()
+    if provider == "cerebras":
+        return ChatLLMAdapter()
+    if provider == "mock":
+        return MockLLMAdapter()
+    raise ValidationError(f"Unknown LLM_PROVIDER '{provider}'.")
 
 
 def get_ocr_adapter() -> OCRAdapter:

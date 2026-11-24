@@ -57,6 +57,7 @@ def test_red_flag_never_reaches_the_model(session, monkeypatch):
     assert session.state == "EMERGENCY_PATHWAY"
 
 
+@pytest.mark.django_db
 def test_cerebras_call_turns_reasoning_off_and_maps_roles(settings, monkeypatch):
     from apps.ai import chat
 

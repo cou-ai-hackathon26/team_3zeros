@@ -51,7 +51,7 @@ class Referral(TimeStamped):
 
     patient = models.ForeignKey("identity.Patient", on_delete=models.CASCADE, related_name="referrals")
     encounter = models.ForeignKey("records.Encounter", on_delete=models.SET_NULL, null=True, blank=True, related_name="referrals")
-    sender_practitioner = models.ForeignKey("organizations.Practitioner", on_delete=models.CASCADE, related_name="sent_referrals")
+    sender_practitioner = models.ForeignKey("organizations.Practitioner", on_delete=models.CASCADE, null=True, blank=True, related_name="sent_referrals")  # empty for emergency referrals sent by staff
     sender_facility = models.ForeignKey("organizations.Facility", on_delete=models.CASCADE, related_name="sent_referrals")
     receiver_facility = models.ForeignKey("organizations.Facility", on_delete=models.CASCADE, related_name="received_referrals")
     receiver_practitioner = models.ForeignKey(

@@ -1,6 +1,8 @@
 import uuid
 import pytest
 from django.utils import timezone
+from apps.records.models import Encounter
+from django.utils import timezone
 from apps.accounts.models import User, Membership
 from apps.identity.models import Patient
 from apps.organizations.models import Facility, Practitioner
@@ -24,7 +26,9 @@ def referral_setup(db):
     Membership.objects.create(user=user_sender, facility=facility_sender, role="clinician")
     Membership.objects.create(user=user_receiver, facility=facility_receiver, role="clinician")
 
+    Practitioner.objects.create(user=user_sender, name="Dr Sender", registration_number="BMDC-S-2")
     patient = Patient.objects.create(given_name="Anisur", family_name="Rahman", phone="+8801811111111")
+    Encounter.objects.create(patient=patient, facility=facility_sender, period_start=timezone.now())
 
     return {
         "user_sender": user_sender,

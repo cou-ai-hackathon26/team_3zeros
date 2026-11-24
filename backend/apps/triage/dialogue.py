@@ -51,7 +51,7 @@ def llm_next_reply(session) -> Optional[str]:
     context, _ = build_context(session, specialty, patient_turns)
     hint = f"Session language: {'English' if session.language == 'en' else 'Bangla'} (follow the patient's language if it differs)."
     system = "\n\n".join([TRIAGE_SYSTEM_PROMPT, hint, context])
-    return generate_text(messages, system=system, max_tokens=260)
+    return generate_text(messages, system=system, max_tokens=150, purpose="dialogue")  # one short spoken question
 
 
 DISCLAIMER = {
@@ -107,8 +107,8 @@ def generate_consultation_report(session) -> Optional[Dict]:
     Returns None when no model is configured or its answer is unusable. Safety is enforced here, not trusted to the model."""
     turns = list(session.turns.filter(role__in=("patient", "assistant")).order_by("at")[:MAX_TURNS * 2])
     patient_said = [t.text for t in turns if t.role == "patient"]
-    if not patient_said:
-        return None
+    if len(patient_said) < 2:
+        return None  # too little said to assess; spare the model call
     language = "en" if session.language == "en" else "bn"
 
     # Facts the report may rest on: fixed red-flag rules, and passages found by retrieval (never by the model).
@@ -128,12 +128,12 @@ def generate_consultation_report(session) -> Optional[Dict]:
         "transcript": [{"role": "patient" if t.role == "patient" else "agent", "text": t.text} for t in turns],
         "structured_symptom_history": history,
         "red_flag_results": [h["rule_id"] for h in hits] or "none triggered",
-        "retrieved_passages": passages,
+        "retrieved_passages": [{**p, "relevant_information": p["relevant_information"][:500]} for p in passages],  # shorter input, lower cost
         "suggested_specialty": specialty["en"],
     }
     raw = generate_text(
         [{"role": "user", "text": json.dumps(payload, ensure_ascii=False)}],
-        system=REPORT_PROMPT, max_tokens=3000, temperature=0, timeout=45,
+        system=REPORT_PROMPT, max_tokens=1800, temperature=0, timeout=45, purpose="report",
     )
     if not raw:
         return None

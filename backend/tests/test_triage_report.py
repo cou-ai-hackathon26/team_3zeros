@@ -33,6 +33,9 @@ def _session(monkeypatch, said="fever and headache", approved=True):
     s = create_triage_session(user=None, language="en", disclosure_version="v1.0")
     monkeypatch.setattr(dialogue, "generate_text", lambda *a, **k: "How long?")
     process_patient_turn(s, said)
+    s.refresh_from_db()
+    if s.state == "ACTIVE":  # a report needs at least two answers
+        process_patient_turn(s, "about three days now")
     return s
 
 
@@ -82,7 +85,8 @@ def test_unsafe_live_agent_advice_is_flagged_not_repeated(monkeypatch):
 
 @pytest.mark.django_db
 def test_emergency_is_never_downgraded_when_a_fixed_rule_fired(monkeypatch):
-    s = _session(monkeypatch, said="I have fever and my neck is stiff")  # fixed rule RF-MENING-01
+    s = _session(monkeypatch, said="I have fever for two days")
+    process_patient_turn(s, "now my neck is stiff")  # fixed rule RF-MENING-01 fires across the two answers
     r = _report(s, monkeypatch, _raw(level="LOW", emergency_instructions="Rest at home"))
     ha = r["health_assessment"]
     assert ha["triage_level"] == "EMERGENCY" and "999" in ha["emergency_instructions"] and "Rest" not in ha["emergency_instructions"]

@@ -41,7 +41,7 @@ def reference_passages(session) -> List[Dict]:
 def references_block(passages: List[Dict]) -> str:
     if not passages:
         return "REFERENCES: none found. Do not state medical facts as if they came from a reference."
-    lines = [f'[{p["document_name"]}, page {p["page_number"]}] {p["relevant_information"]}' for p in passages]
+    lines = [f'[{p["document_name"]}, page {p["page_number"]}] {p["relevant_information"][:450]}' for p in passages[:2]]  # fewer, shorter passages: lower cost
     return "REFERENCES (cite document name and page if you use one; never cite anything not listed):\n" + "\n".join(lines)
 
 

@@ -235,3 +235,9 @@ CELERY_BEAT_SCHEDULE = {
     "abandon-idle-triage-sessions": {"task": "apps.workflow.tasks.abandon_idle_triage_sessions", "schedule": 60.0},
     "expire-appointment-requests": {"task": "apps.workflow.tasks.expire_appointment_requests", "schedule": 300.0},
 }
+
+# Model spend guard (apps/ai/usage.py). Budget 0 = no limit. Prices are USD per million tokens (third-party listing for
+# qwen-3.8-27b on Cerebras; check your provider's own page and override).
+LLM_DAILY_BUDGET_USD = env.float("LLM_DAILY_BUDGET_USD", default=0)
+LLM_PRICE_IN_PER_M = env.float("LLM_PRICE_IN_PER_M", default=0.99)
+LLM_PRICE_OUT_PER_M = env.float("LLM_PRICE_OUT_PER_M", default=1.49)
