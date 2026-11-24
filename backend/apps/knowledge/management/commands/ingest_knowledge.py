@@ -1,45 +1,41 @@
+from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
-from pypdf import PdfReader
 
-from apps.knowledge.models import KnowledgeChunk, KnowledgeDocument
-from apps.knowledge.search import chunk_text
+from apps.common.exceptions import ValidationError
+from apps.knowledge.ingest import ingest_document, store_upload
 
 
 class Command(BaseCommand):
-    help = "Load a PDF into the medical knowledge base. Add --approve only after a clinician has approved the source."
+    help = (
+        "Load a PDF into the medical knowledge base and embed it. For very large books or a first load; the platform admin "
+        "page does the same through the browser. It is NOT searchable until approved (page, or --approve with --reviewer)."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument("pdf")
         parser.add_argument("--title", required=True)
         parser.add_argument("--publisher", default="")
         parser.add_argument("--doc-version", default="")
-        parser.add_argument("--approve", action="store_true")
+        parser.add_argument("--language", default="en")
+        parser.add_argument("--rights", default="", help="Rights statement for the book")
+        parser.add_argument("--approve", action="store_true", help="Approve right away (needs --reviewer: the named clinical reviewer)")
+        parser.add_argument("--reviewer", default="")
 
-    def handle(self, *args, pdf, title, publisher, doc_version, approve, **opts):
+    def handle(self, *args, pdf, title, publisher, doc_version, language, rights, approve, reviewer, **opts):
+        if approve and not reviewer:
+            raise CommandError("--approve needs --reviewer: the clinical reviewer who approved this source.")
         try:
-            reader = PdfReader(pdf)
-        except Exception as exc:
-            raise CommandError(f"Cannot read PDF: {exc}")
-        doc = KnowledgeDocument.objects.create(title=title, publisher=publisher, version=doc_version, approved=approve)
-        total, batch, skipped = 0, [], []
-        for number, page in enumerate(reader.pages, start=1):
-            try:
-                text = page.extract_text() or ""
-            except Exception as exc:  # e.g. image-heavy pages that exceed pypdf's safety limits
-                skipped.append(number)
-                self.stderr.write(f"  skipped page {number}: {exc}")
-                continue
-            for piece in chunk_text(text):
-                batch.append(KnowledgeChunk(document=doc, page=number, text=piece))
-            if len(batch) >= 500:
-                KnowledgeChunk.objects.bulk_create(batch)
-                total, batch = total + len(batch), []
-            if number % 200 == 0:
-                self.stdout.write(f"  page {number}/{len(reader.pages)}")
-        KnowledgeChunk.objects.bulk_create(batch)
-        total += len(batch)
-        self.stdout.write(f"Loaded {total} passages from {len(reader.pages)} pages. approved={approve}")
-        if skipped:
-            self.stdout.write(f"Skipped {len(skipped)} pages that could not be read: {skipped[:20]}")
-        if total == 0:
-            self.stdout.write("Warning: no text found (scanned PDF?). OCR it first.")
+            with open(pdf, "rb") as f:
+                doc = store_upload(File(f), title=title, publisher=publisher, version=doc_version, language=language, rights_statement=rights)
+        except (OSError, ValidationError) as exc:
+            raise CommandError(str(exc))
+        self.stdout.write(f"Stored {doc.title}; embedding passages (resumable, this can take a while)...")
+        doc = ingest_document(doc)
+        self.stdout.write(f"{doc.status}: {doc.page_count} pages, {doc.chunk_count} passages, {doc.embedded_count} embedded.")
+        if doc.status == "FAILED":
+            raise CommandError(doc.error)
+        if approve:
+            from django.utils import timezone
+            doc.approved, doc.reviewer_name, doc.approved_at = True, reviewer, timezone.now()
+            doc.save(update_fields=["approved", "reviewer_name", "approved_at"])
+            self.stdout.write("Approved: now searchable.")

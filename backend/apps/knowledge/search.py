@@ -1,91 +1,75 @@
-"""Keyword search over approved reference chunks (TF-IDF style, inverted index kept in memory).
-Citations come from the stored document name and page, never from the model (D-24)."""
-import math
+"""Hybrid search over approved reference passages (MASTERPLAN D-28): pgvector cosine distance and Postgres full-text rank,
+merged by reciprocal rank fusion. Citations come from the stored document title and page, never from the model (D-24, D-25).
+
+A passage counts as evidence only if it is similar enough (KNOWLEDGE_MIN_SIMILARITY). If the embedding call fails, only the
+full-text side runs; nothing found means the caller's "REFERENCES: none found" path."""
 import re
-from collections import Counter, defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-from django.db.models import Count, Max
+from django.conf import settings
+from django.contrib.postgres.search import SearchQuery, SearchRank
+from django.db.models import F
+from pgvector.django import CosineDistance
 
-from .models import KnowledgeChunk, KnowledgeDocument
+from apps.ai.embeddings import embed_query
+from .models import KnowledgeChunk
 
-_WORD = re.compile(r"\w+", re.UNICODE)
-MIN_SCORE = 0.05
-
-
-def tokens(text: str) -> List[str]:
-    return [w for w in _WORD.findall(text.lower()) if len(w) > 2 or not w.isascii()]
-
-
-def chunk_text(text: str, size: int = 900) -> List[str]:
-    """Split a page into pieces of about `size` characters on sentence-ish boundaries."""
-    parts, cur = [], ""
-    for piece in re.split(r"(?<=[.!?।])\s+", text.strip()):
-        if cur and len(cur) + len(piece) > size:
-            parts.append(cur.strip())
-            cur = ""
-        cur += piece + " "
-    if cur.strip():
-        parts.append(cur.strip())
-    return parts
+CANDIDATES = 20
+RRF_K = 60
 
 
-class _Index:
-    def __init__(self, signature: Tuple):
-        self.signature = signature
-        rows = list(KnowledgeChunk.objects.filter(document__approved=True).values_list("document__title", "page", "text"))
-        self.rows = rows
-        self.lengths: List[int] = []
-        self.postings: Dict[str, List[Tuple[int, int]]] = defaultdict(list)
-        for i, (_, _, text) in enumerate(rows):
-            counts = Counter(tokens(text))
-            self.lengths.append(sum(counts.values()) or 1)
-            for term, tf in counts.items():
-                self.postings[term].append((i, tf))
+def _terms(text: str) -> List[str]:
+    return list(dict.fromkeys(w for w in re.findall(r"\w+", text.lower()) if len(w) > 2))[:40]
 
 
-_index: Optional[_Index] = None
+def _scope(approved_only: bool, document: Optional[str]):
+    qs = KnowledgeChunk.objects.select_related("document").filter(document__status="READY")
+    if approved_only:
+        qs = qs.filter(document__approved=True)
+    if document:
+        qs = qs.filter(document__public_id=document)
+    return qs
 
 
-def _signature() -> Tuple:
-    approved = tuple(KnowledgeDocument.objects.filter(approved=True).order_by("id").values_list("id", flat=True))
-    agg = KnowledgeChunk.objects.filter(document__approved=True).aggregate(n=Count("id"), top=Max("id"))
-    return approved, agg["n"], agg["top"]
-
-
-def reset_index() -> None:
-    global _index
-    _index = None
-
-
-def _current_index() -> _Index:
-    """Rebuilt only when the set of approved documents or their passages changes."""
-    global _index
-    sig = _signature()
-    if _index is None or _index.signature != sig:
-        _index = _Index(sig)
-    return _index
-
-
-def search(query: str, limit: int = 3) -> List[Dict]:
-    """Best matching approved passages: [{document_name, page_number, relevant_information}]."""
-    q = Counter(tokens(query))
-    if not q:
+def search(query: str, limit: int = 3, *, approved_only: bool = True, document: Optional[str] = None) -> List[Dict]:
+    """Best matching passages: [{id, document_name, page_number, relevant_information, score}]."""
+    if not query.strip():
         return []
-    idx = _current_index()
-    n = len(idx.rows)
-    if not n:
-        return []
-    scores: Dict[int, float] = defaultdict(float)
-    for term, qc in q.items():
-        posts = idx.postings.get(term)
-        if not posts:
-            continue
-        weight = math.log(1 + n / len(posts)) * (1 + math.log(qc))
-        for i, tf in posts:
-            scores[i] += (tf / idx.lengths[i]) ** 0.5 * weight
-    best = sorted(((s, i) for i, s in scores.items() if s >= MIN_SCORE), reverse=True)[:limit]
+    scope = _scope(approved_only, document)
+    ranked: Dict[int, Dict] = {}
+
+    vec = embed_query(query)
+    similarity: Dict[int, float] = {}
+    if vec is not None:
+        near = scope.filter(embedding__isnull=False).annotate(dist=CosineDistance("embedding", vec)).order_by("dist")[:CANDIDATES]
+        for rank, chunk in enumerate(near):
+            sim = 1.0 - float(chunk.dist)
+            if sim < settings.KNOWLEDGE_MIN_SIMILARITY:
+                break  # ordered by distance: every later one is less similar still
+            similarity[chunk.pk] = sim
+            ranked[chunk.pk] = {"chunk": chunk, "score": 1.0 / (RRF_K + rank + 1)}
+
+    terms = _terms(query)
+    if terms:
+        # OR the words together: a patient's question is long and an AND would match nothing.
+        fts = SearchQuery(" | ".join(terms), config="english", search_type="raw")
+        hits = scope.filter(search_vector__isnull=False).annotate(rank=SearchRank(F("search_vector"), fts)).filter(search_vector=fts).order_by("-rank")[:CANDIDATES]
+        for rank, chunk in enumerate(hits):
+            # With vectors available, full-text may only re-rank passages that already passed the similarity bar;
+            # without them (embedding unavailable) it stands alone.
+            if vec is not None and chunk.pk not in similarity:
+                continue
+            entry = ranked.setdefault(chunk.pk, {"chunk": chunk, "score": 0.0})
+            entry["score"] += 1.0 / (RRF_K + rank + 1)
+
+    best = sorted(ranked.values(), key=lambda e: e["score"], reverse=True)[:limit]
     return [
-        {"document_name": idx.rows[i][0], "page_number": idx.rows[i][1], "relevant_information": idx.rows[i][2]}
-        for _, i in best
+        {
+            "id": e["chunk"].pk,
+            "document_name": e["chunk"].document.title,
+            "page_number": e["chunk"].page,
+            "relevant_information": e["chunk"].text,
+            "score": round(e["score"], 5),
+        }
+        for e in best
     ]

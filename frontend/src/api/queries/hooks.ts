@@ -1,7 +1,7 @@
 "use client";
 
 import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
-import type { RequestOptions } from "../client";
+import { createIntentIdempotencyKey, type RequestOptions } from "../client";
 import { queryKeys } from "./index";
 import { useApi } from "./provider";
 import type {
@@ -711,6 +711,77 @@ export function useRecordClinicalEntry(encounterId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}
+
+
+// ---- Knowledge base administration (MASTERPLAN D-29, platform admin only) ----
+
+export interface KnowledgeDocument {
+  id: string;
+  title: string;
+  publisher: string;
+  version: string;
+  language: string;
+  rights_statement: string;
+  status: "PROCESSING" | "READY" | "FAILED";
+  error: string;
+  size: number;
+  page_count: number;
+  chunk_count: number;
+  embedded_count: number;
+  approved: boolean;
+  approved_by_name: string | null;
+  reviewer_name: string;
+  approved_at: string | null;
+  retired_at: string | null;
+  created_at: string;
+}
+export interface KnowledgeHit { document_name: string; page_number: number; relevant_information: string; score: number }
+
+/** The list refreshes every 3 s while any book is still being processed. */
+export function useKnowledgeDocuments() {
+  const api = useApi();
+  return useQuery({
+    queryKey: ["admin", "knowledge"],
+    queryFn: async () => (await api.get<{ results: KnowledgeDocument[] }>("/admin/knowledge/documents")).data.results,
+    refetchInterval: (q) => (q.state.data?.some((d) => d.status === "PROCESSING") ? 3000 : false),
+  });
+}
+
+export function useKnowledgeActions() {
+  const api = useApi();
+  const qc = useQueryClient();
+  const done = () => qc.invalidateQueries({ queryKey: ["admin", "knowledge"] });
+  const key = () => createIntentIdempotencyKey();
+  const approve = useMutation({
+    mutationFn: async (v: { id: string; reviewer_name: string; rights_confirmed: boolean }) =>
+      (await api.post<KnowledgeDocument>(`/admin/knowledge/documents/${v.id}/approve`, { body: { reviewer_name: v.reviewer_name, rights_confirmed: v.rights_confirmed }, idempotencyKey: key() })).data,
+    onSuccess: done,
+  });
+  const retire = useMutation({
+    mutationFn: async (id: string) => (await api.post<KnowledgeDocument>(`/admin/knowledge/documents/${id}/retire`, { body: {}, idempotencyKey: key() })).data,
+    onSuccess: done,
+  });
+  const retry = useMutation({
+    mutationFn: async (id: string) => (await api.post<KnowledgeDocument>(`/admin/knowledge/documents/${id}/retry`, { body: {}, idempotencyKey: key() })).data,
+    onSuccess: done,
+  });
+  const remove = useMutation({
+    mutationFn: async (id: string) => { await api.delete(`/admin/knowledge/documents/${id}`, { idempotencyKey: key() }); },
+    onSuccess: done,
+  });
+  return { approve, retire, retry, remove };
+}
+
+export function useKnowledgeSearch() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: async (v: { q: string; document?: string }) => {
+      const params = new URLSearchParams({ q: v.q });
+      if (v.document) params.set("document", v.document);
+      return (await api.get<{ results: KnowledgeHit[] }>(`/admin/knowledge/search?${params}`)).data.results;
     },
   });
 }

@@ -192,7 +192,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
         languageRef.current = lang;
         const isVoice = data.mode === "voice";
         setTextMode(!isVoice);
-        setVoicePlaceholderActive(isVoice);
+        setVoicePlaceholderActive(false);
         const hydrated = toCaptionTurns(data.turns, lang);
         setTurns(hydrated);
 

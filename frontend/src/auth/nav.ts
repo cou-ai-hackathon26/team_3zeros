@@ -3,7 +3,7 @@ import type { UserMe } from "./types";
 
 export type NavIcon =
   | "home" | "stethoscope" | "calendar" | "file" | "inbox" | "users" | "arrows" | "siren"
-  | "building" | "clock" | "gauge" | "badge";
+  | "building" | "clock" | "gauge" | "badge" | "book";
 
 export interface NavItem {
   id: string;
@@ -57,6 +57,8 @@ const NAV: Record<Area, NavItem[]> = {
     { id: "schedules", labelKey: "nav.schedules", href: "/schedules", icon: "clock" },
     { id: "capacity", labelKey: "nav.capacity", href: "/capacity", icon: "gauge" },
     { id: "staff", labelKey: "nav.staff", href: "/staff", icon: "badge" },
+    // Reference books for triage (D-29): platform admins only.
+    { id: "knowledge", labelKey: "nav.knowledge", href: "/knowledge", icon: "book", visible: (me) => hasRole(me, "platform_admin") },
   ],
 };
 

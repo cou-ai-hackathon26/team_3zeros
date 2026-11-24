@@ -210,6 +210,7 @@ export function createApiClient(options?: ApiClientOptions) {
     get: <T = unknown>(path: string, opts?: RequestOptions) => request<T>("GET", path, opts),
     post: <T = unknown>(path: string, opts?: RequestOptions) => request<T>("POST", path, opts),
     patch: <T = unknown>(path: string, opts?: RequestOptions) => request<T>("PATCH", path, opts),
+    delete: <T = unknown>(path: string, opts?: RequestOptions) => request<T>("DELETE", path, opts),
   };
 }
 

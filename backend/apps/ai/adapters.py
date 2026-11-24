@@ -185,7 +185,7 @@ class GeminiLLMAdapter:
 
         import requests
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"  # the key goes in a header, not the URL, so it cannot leak into logs
 
         # Build contents from messages
         contents = []
@@ -211,7 +211,7 @@ class GeminiLLMAdapter:
             payload["system_instruction"] = system_instruction
 
         try:
-            resp = requests.post(url, json=payload, timeout=30)
+            resp = requests.post(url, json=payload, headers={"x-goog-api-key": self.api_key}, timeout=30)
             resp.raise_for_status()
             data = resp.json()
             raw_text = data["candidates"][0]["content"]["parts"][0]["text"]

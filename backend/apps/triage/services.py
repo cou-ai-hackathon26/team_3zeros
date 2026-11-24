@@ -1,5 +1,7 @@
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from apps.knowledge.versioning import kb_version
 from .dialogue import DONE_MARKER, EMERGENCY_MARKER, MAX_ANSWERS, MIN_ANSWERS, TARGET_ANSWERS, generate_consultation_report, llm_next_reply
 from .models import TriageSession, Turn, TriageSummary
 from .normalizer import normalize_for_matching, normalize_text
@@ -159,6 +161,8 @@ def create_triage_session(user, language="bn", mode="text", disclosure_version="
             mode=mode,
             triage_disclosure_version=disclosure_version,
             triage_disclosure_accepted_at=timezone.now(),
+            kb_version=kb_version(),
+            model_version=getattr(settings, "LLM_MODEL", "") or "v1",
         )
         run_triage_action(session, "connect", request_id=request_id)  # CREATED -> ACTIVE
 
@@ -372,6 +376,7 @@ def process_patient_turn(session: TriageSession, text: str, user=None, request_i
             text=next_reply,
             language_detected=session.language,
             response_policy=response_policy,
+            passage_ids=getattr(session, "_passage_ids", []),
         )
         return assistant_turn
 

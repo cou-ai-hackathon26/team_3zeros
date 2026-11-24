@@ -15,6 +15,17 @@ class MockStatefulModel(TimeStamped):
     class Meta:
         app_label = "workflow"
 
+@pytest.fixture(autouse=True)
+def _mock_table(django_db_setup, django_db_blocker):
+    """The mock model is defined in this file, so it has no migration: create its table for the test session."""
+    from django.db import connection
+    with django_db_blocker.unblock():
+        if MockStatefulModel._meta.db_table not in connection.introspection.table_names():
+            with connection.schema_editor() as editor:
+                editor.create_model(MockStatefulModel)
+    yield
+
+
 MOCK_TRANSITIONS = {
     "submit": Transition(
         source={"DRAFT"},

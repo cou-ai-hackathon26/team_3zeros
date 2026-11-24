@@ -54,7 +54,11 @@ def get_voice_provider():
     """Factory returning the configured VoiceProvider (settings.VOICE_PROVIDER, Q-05)."""
     from django.conf import settings
 
-    if getattr(settings, "VOICE_PROVIDER", "placeholder").lower() == "vapi":
+    raw = getattr(settings, "VOICE_PROVIDER", "placeholder")
+    if isinstance(raw, str):
+        raw = raw.split("#")[0].strip().lower()
+
+    if raw == "vapi":
         from .vapi import VapiVoiceProvider
 
         return VapiVoiceProvider()

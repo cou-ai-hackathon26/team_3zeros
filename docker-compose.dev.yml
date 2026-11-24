@@ -1,0 +1,23 @@
+# Local development database (MASTERPLAN D-32): Postgres with pgvector on localhost:5432.
+#   docker compose -f docker-compose.dev.yml up -d
+# The full stack (docker-compose.yml) keeps its own private postgres service.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medi_waypoint
+      POSTGRES_USER: medi
+      POSTGRES_PASSWORD: medi_secret
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medi -d medi_waypoint"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres_dev:

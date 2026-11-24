@@ -63,7 +63,8 @@ def llm_next_reply(session) -> Optional[str]:
         return None
     patient_turns = sum(1 for m in messages if m["role"] == "user")
     specialty = infer_specialty(_patient_text(session))["code"]
-    context, _ = build_context(session, specialty, patient_turns)
+    context, passages = build_context(session, specialty, patient_turns)
+    session._passage_ids = [p["id"] for p in passages]  # stored on the assistant turn for audit
     hint = f"Session language: {'English' if session.language == 'en' else 'Bangla'} (follow the patient's language if it differs)."
     system = "\n\n".join([TRIAGE_SYSTEM_PROMPT, hint, budget_directive(patient_turns), context])
     return generate_text(messages, system=system, max_tokens=150, purpose="dialogue")  # one short spoken question
@@ -139,7 +140,7 @@ def generate_consultation_report(session) -> Optional[Dict]:
         or any(t.response_policy == "emergency" for t in turns)
     )
     specialty = infer_specialty(" ".join(patient_said))
-    _, passages = build_context(session, specialty["code"], 0)
+    _, passages = build_context(session, specialty["code"], 0, all_answers=True)
     summary = getattr(session, "summary", None)
     history = {k: v for k, v in (summary.structured_fields if summary else {}).items() if k in ("chief_complaint", "duration", "severity", "additional_notes")}
     payload = {

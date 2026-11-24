@@ -1,17 +1,9 @@
 import json
 import pytest
-from apps.knowledge.models import KnowledgeChunk, KnowledgeDocument
-from apps.knowledge.search import reset_index
+from tests.kb import make_doc
 from apps.triage import dialogue
 from apps.triage.models import Turn, TriageSummary
 from apps.triage.services import attach_consultation_report, create_triage_session, process_patient_turn
-
-
-@pytest.fixture(autouse=True)
-def _fresh_index():
-    reset_index()
-    yield
-    reset_index()
 
 
 def _raw(level="MODERATE", **ha):
@@ -28,8 +20,7 @@ def _raw(level="MODERATE", **ha):
 
 
 def _session(monkeypatch, said="fever and headache", approved=True):
-    d = KnowledgeDocument.objects.create(title="Fever Guide", approved=approved)
-    KnowledgeChunk.objects.create(document=d, page=12, text="Fever with headache is often caused by viral infection and needs assessment.")
+    make_doc(title="Fever Guide", approved=approved, text="Fever with headache is often caused by viral infection and needs assessment.")
     s = create_triage_session(user=None, language="en", disclosure_version="v1.0")
     monkeypatch.setattr(dialogue, "generate_text", lambda *a, **k: "How long?")
     process_patient_turn(s, said)

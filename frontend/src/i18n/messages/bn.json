@@ -262,7 +262,8 @@
     "capacity": "ধারণক্ষমতা",
     "staff": "কর্মী",
     "consents": "শেয়ারের অনুমতি",
-    "notifications": "নোটিফিকেশন"
+    "notifications": "নোটিফিকেশন",
+    "knowledge": "জ্ঞানভাণ্ডার"
   },
   "shell": {
     "signIn": "সাইন ইন",

@@ -19,6 +19,8 @@ dependencies = [
     "requests>=2.31.0",
     "jsonschema>=4.20.0",
     "pypdf>=5.0.0",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
 ]
 
 [project.optional-dependencies]
@@ -30,7 +32,7 @@ dev = [
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra -q --nomigrations"
+addopts = "-ra -q"
 testpaths = ["tests", "apps"]
 python_files = ["test_*.py", "*_test.py"]
 DJANGO_SETTINGS_MODULE = "config.settings.local"

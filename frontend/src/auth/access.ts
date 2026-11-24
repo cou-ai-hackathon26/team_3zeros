@@ -31,7 +31,7 @@ const AREA_HOME: Record<Area, string> = { patient: "/home", clinical: "/dashboar
 const AREA_PREFIXES: Record<Area, readonly string[]> = {
   patient: ["home", "triage", "doctors", "appointments", "consents", "reports", "notifications"],
   clinical: ["dashboard", "patients", "referrals", "emergency", "ed"],
-  admin: ["facility", "schedules", "capacity", "staff"],
+  admin: ["facility", "schedules", "capacity", "staff", "knowledge"],
 };
 
 // Q-03 is open: triage and doctor discovery stay reachable without an account.

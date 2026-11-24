@@ -35,6 +35,10 @@ def dispatch_outbox_events(batch_size: int = 50) -> int:
                 from apps.ai.tasks import generate_referral_draft_task
                 generate_referral_draft_task.delay(str(event.aggregate_id))
 
+            elif event.event_type == "knowledge.document_uploaded":
+                from apps.knowledge.tasks import ingest_knowledge_document
+                ingest_knowledge_document.delay(str(event.aggregate_id))
+
             elif event.event_type == "triage.report_requested":
                 from apps.triage.tasks import generate_triage_report
                 generate_triage_report.delay(str(event.aggregate_id))
