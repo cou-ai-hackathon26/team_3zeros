@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "medi-waypoint-backend"
 version = "0.1.0"
 description = "Medi Waypoint — Django + DRF backend for Bangladesh healthcare referral & triage"
-readme = "../README.md"
 requires-python = ">=3.11"
 dependencies = [
     "django>=5.0",
@@ -21,6 +20,8 @@ dependencies = [
     "pypdf>=5.0.0",
     "psycopg[binary]>=3.2",
     "pgvector>=0.3",
+    "channels-redis>=4.2",
+    "redis>=5.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,9 @@ dev = [
     "pytest-django>=4.8.0",
     "factory-boy>=3.3.0",
 ]
+
+[tool.uv]
+package = false
 
 [tool.pytest.ini_options]
 minversion = "8.0"
