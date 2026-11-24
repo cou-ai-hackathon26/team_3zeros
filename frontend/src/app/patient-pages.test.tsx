@@ -445,6 +445,52 @@ describe("/reports (G-2, Q-11)", () => {
     expect(await screen.findByText(/Access logged/i)).toBeTruthy();
     expect(calls.some((c) => c.key === "POST /documents/doc-1/download-link")).toBe(true);
   });
+
+  it("lets a patient upload a PDF/image report and renders AI + RAG summary with positive/negative findings", async () => {
+    const aiReport = {
+      summary: "Extracted 2 tests: Dengue NS1 Antigen positive and Hemoglobin normal.",
+      tests_performed: ["Dengue NS1 Antigen", "Hemoglobin"],
+      positive_or_abnormal_findings: [{ test: "Dengue NS1 Antigen", value: "Positive", status: "positive" }],
+      negative_or_normal_findings: [{ test: "Hemoglobin", value: "13.8 g/dL", status: "normal" }],
+      rag_references: [{ document: "Clinical Lab Handbook", page: 42, relevant_information: "Monitor hydration." }],
+      questions_for_doctor: ["Ask your doctor to review the Dengue NS1 Antigen result."],
+      missing_information: [],
+      requires_clinician_review: true,
+      verified: false,
+      disclaimer: "AI draft only.",
+    };
+    let uploaded = false;
+    const { calls } = mount(<PatientReportsPage />, {
+      "GET /auth/me": () => json({ ...ME, patient_id: "pat-1" }),
+      "GET /patients/pat-1/chart": () =>
+        json({
+          patient_id: "pat-1",
+          encounters: [],
+          documents: uploaded
+            ? [{ id: "doc-new", patient_id: "pat-1", original_filename: "my_lab.pdf", content_type: "application/pdf", size: 1200, state: "EXTRACTED_UNVERIFIED", ai_report: aiReport, positive_count: 1, created_at: "2026-11-24T09:00:00Z" }]
+            : [],
+        }),
+      "POST /documents/": () => {
+        uploaded = true;
+        return json({ id: "doc-new", patient_id: "pat-1", original_filename: "my_lab.pdf", content_type: "application/pdf", size: 1200, state: "EXTRACTED_UNVERIFIED", ai_report: aiReport, created_at: "2026-11-24T09:00:00Z" }, 201);
+      },
+      "GET /documents/doc-new/extraction": () =>
+        json({ document_id: "doc-new", state: "EXTRACTED_UNVERIFIED", fields: [{ id: "f1", name: "Dengue NS1 Antigen", value: "Positive", unit: "", interpretation: "positive", observed_date: "2026-11-24", lab: "Lab", confidence: 0.95, page: 1, bbox: [0, 0, 0, 0] }], ai_report: aiReport }),
+    });
+
+    const input = await screen.findByLabelText("Choose PDF or image");
+    const file = new File(["%PDF-1.4"], "my_lab.pdf", { type: "application/pdf" });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+
+    expect(calls.some((c) => c.key === "POST /documents/")).toBe(true);
+    expect(await screen.findByText("my_lab.pdf")).toBeTruthy();
+    // Newly uploaded report shows AI + Medical Book RAG summary immediately and auto-expands extracted values
+    expect(await screen.findByText("AI + Medical Book Report Summary")).toBeTruthy();
+    expect(screen.getByText(/Clinical Lab Handbook/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hide values" })).toBeTruthy();
+  });
 });
 
 describe("PatientShell unread/pending indicators", () => {

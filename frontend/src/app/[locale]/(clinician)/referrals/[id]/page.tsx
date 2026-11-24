@@ -18,6 +18,7 @@ import { holderOf } from "../../../../../state/routes";
 import { ActionBar } from "../../../../../components/ActionBar/ActionBar";
 import { DraftBlock } from "../../../../../components/DraftBlock/DraftBlock";
 import { HandoverTracker } from "../../../../../components/HandoverTracker/HandoverTracker";
+import { PatientReportHistoryCard } from "../../../../../components/reports/ReportAnalysisPanels";
 import { QueryBoundary } from "../../../../../components/QueryBoundary";
 import { StatusBadge } from "../../../../../components/StatusBadge/StatusBadge";
 import { SyncBadge } from "../../../../../components/SyncBadge/SyncBadge";
@@ -160,6 +161,9 @@ export default function ReferralWorkspacePage() {
 
               <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
                 <section aria-label={L("summary")} className="flex min-w-0 flex-col gap-3">
+                  {ref.report_history && ref.report_history.reports_count > 0 && (
+                    <PatientReportHistoryCard history={ref.report_history} locale={locale} />
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="m-0 text-heading font-semibold">{L("summary")}</h2>
                     {isDraft && (

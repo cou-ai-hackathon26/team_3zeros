@@ -489,9 +489,10 @@ export function useResolveDuplicate(patientId: string) {
   });
 }
 
-/** Report upload (multipart). The server starts OCR; the verify page polls the document. */
+/** Report upload (multipart). The server runs OCR + AI + RAG analysis; invalidates chart and documents queries. */
 export function useUploadDocument() {
   const api = useApi();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (v: { patientId: string; file: File; encounterId?: string; idempotencyKey: string }) => {
       const form = new FormData();
@@ -499,6 +500,10 @@ export function useUploadDocument() {
       form.set("file", v.file);
       if (v.encounterId) form.set("encounter_id", v.encounterId);
       return (await api.post<DocumentMeta>("/documents/", { body: form, idempotencyKey: v.idempotencyKey })).data;
+    },
+    onSuccess: (_doc, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.patientChart(v.patientId) });
+      qc.invalidateQueries({ queryKey: ["documents"] });
     },
   });
 }

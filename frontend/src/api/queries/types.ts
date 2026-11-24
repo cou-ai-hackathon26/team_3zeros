@@ -114,6 +114,7 @@ export interface Referral extends Stateful {
   receiver_practitioner_id?: string | null;
   /** Draft summary: sections of statements, each with source references (ai/adapters.py). */
   summary: { sections?: { name: string; statements: { text: string; source_refs: string[] }[] }[]; [k: string]: unknown };
+  report_history?: PatientReportHistory | null;
   summary_origin?: string;
   content_hash?: string;
   consent_state: string;
@@ -192,12 +193,69 @@ export interface Chart {
   active_medications?: ActiveMedication[];
   active_problems?: ActiveProblem[];
   documents?: DocumentMeta[];
+  report_history?: PatientReportHistory | null;
 }
 
 export interface DocumentDownloadLinkResponse {
   document_id: string;
   url: string;
   expires_at: string;
+}
+
+export type FieldInterpretation = "normal" | "abnormal" | "positive" | "negative" | "high" | "low" | "unknown";
+
+export interface DocumentAiFinding {
+  test: string;
+  value: string;
+  status: FieldInterpretation | string;
+  reference_range?: string;
+  lab?: string;
+}
+
+export interface DocumentAiReport {
+  summary: string;
+  tests_performed: string[];
+  positive_or_abnormal_findings: DocumentAiFinding[];
+  negative_or_normal_findings: DocumentAiFinding[];
+  rag_references: Array<{ document: string; page: number | null; relevant_information: string }>;
+  questions_for_doctor: string[];
+  missing_information: string[];
+  requires_clinician_review: boolean;
+  verified: boolean;
+  disclaimer: string;
+}
+
+export interface ReportHistoryFinding {
+  name: string;
+  value: string;
+  unit: string;
+  reference_range?: string;
+  interpretation: FieldInterpretation | string;
+  lab?: string;
+  date?: string | null;
+  document_id: string;
+  filename: string;
+  page: number;
+  verified: boolean;
+}
+
+export interface PatientReportHistory {
+  reports_count: number;
+  verified_reports_count: number;
+  concise_summary: string;
+  positive_or_abnormal: ReportHistoryFinding[];
+  negative_or_normal: ReportHistoryFinding[];
+  tests_performed: ReportHistoryFinding[];
+  documents: Array<{
+    id: string;
+    filename: string;
+    state: string;
+    verified: boolean;
+    uploaded_at: string | null;
+    summary: string;
+    fields_count: number;
+  }>;
+  disclaimer: string;
 }
 
 export interface DocumentMeta {
@@ -207,6 +265,10 @@ export interface DocumentMeta {
   content_type: string;
   size: number;
   state: string;
+  ai_report?: DocumentAiReport | null;
+  fields_count?: number;
+  positive_count?: number;
+  uploaded_by_role?: "patient" | "clinician" | "system" | string;
   created_at: string;
 }
 
@@ -215,6 +277,8 @@ export interface ApiExtractedField {
   name: string;
   value: string;
   unit: string;
+  reference_range?: string;
+  interpretation?: FieldInterpretation | string;
   observed_date: string;
   lab: string;
   confidence: number;
@@ -227,6 +291,8 @@ export interface ExtractionResponse {
   document_id: string;
   state: string;
   fields: ApiExtractedField[];
+  raw_text?: string;
+  ai_report?: DocumentAiReport | null;
 }
 
 /** `POST /triage/sessions/{id}/turns` reply: the assistant turn plus the session state, so the client knows when the interview closed. */

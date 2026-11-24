@@ -165,7 +165,43 @@ def create_referral_draft(user, validated_data, request_id="", idempotency_key=N
 
     urgency = validated_data.get("urgency", "routine")
     reason = validated_data["reason"]
-    summary = validated_data.get("summary", {})
+    summary = validated_data.get("summary") or {}
+    summary_origin = "manual"
+    if not summary.get("sections"):
+        from apps.ai.report_analysis import get_or_build_patient_report_history
+
+        report_history = get_or_build_patient_report_history(patient)
+        if report_history["reports_count"] > 0:
+            doc_refs = [f"document:{d['id']}" for d in report_history["documents"]]
+            statements = []
+            if report_history["concise_summary"]:
+                statements.append({"text": report_history["concise_summary"], "source_refs": doc_refs})
+            if report_history["positive_or_abnormal"]:
+                pos_refs = list({f"document:{x['document_id']}#page={x['page']}" for x in report_history["positive_or_abnormal"]})
+                pos_text = "Positive / abnormal findings: " + "; ".join(
+                    f"{x['name']}: {x['value']}{(' ' + x['unit']) if x['unit'] else ''} ({x['interpretation']})"
+                    for x in report_history["positive_or_abnormal"][:8]
+                )
+                statements.append({"text": pos_text, "source_refs": pos_refs})
+            if report_history["negative_or_normal"]:
+                neg_refs = list({f"document:{x['document_id']}#page={x['page']}" for x in report_history["negative_or_normal"]})
+                neg_text = "Negative / normal findings: " + "; ".join(
+                    f"{x['name']}: {x['value']}{(' ' + x['unit']) if x['unit'] else ''} ({x['interpretation']})"
+                    for x in report_history["negative_or_normal"][:8]
+                )
+                statements.append({"text": neg_text, "source_refs": neg_refs})
+            if statements:
+                summary = {
+                    **summary,
+                    "sections": [
+                        {
+                            "name": "Prior Tests & Report History",
+                            "statements": statements,
+                        }
+                    ],
+                }
+                summary_origin = "ai_draft_edited"
+
     canonical_input = _canonical_referral_payload(
         patient.public_id,
         receiver_facility.public_id,
@@ -238,7 +274,7 @@ def create_referral_draft(user, validated_data, request_id="", idempotency_key=N
                 state="DRAFT",
                 summary=summary,
                 content_hash=content_hash,
-                summary_origin="manual",
+                summary_origin=summary_origin,
                 provisional_code=provisional_code,
                 idempotency_key=effective_key,
             )

@@ -339,6 +339,37 @@ describe("/referrals/[id] workspace", () => {
     mount(<ReferralWorkspacePage />, { "GET /auth/me": () => json(ME(["clinician"])), "GET /referrals/r1": () => err("not_found", 404) });
     expect(await screen.findByText("We could not find that referral, or you do not have access to it.")).toBeTruthy();
   });
+
+  it("shows the Patient Report History Summary with positive and negative findings for the receiving senior doctor", async () => {
+    mount(
+      <ReferralWorkspacePage />,
+      routes(
+        referral("r1", "SENT", {
+          report_history: {
+            reports_count: 1,
+            verified_reports_count: 1,
+            concise_summary: "History compiled from 1 analyzed report(s): Dengue NS1 positive; Hemoglobin normal.",
+            positive_or_abnormal: [
+              { name: "Dengue NS1 Antigen", value: "Positive", unit: "", interpretation: "positive", document_id: "d1", filename: "lab.pdf", page: 1, verified: true },
+            ],
+            negative_or_normal: [
+              { name: "Hemoglobin", value: "13.8", unit: "g/dL", interpretation: "normal", document_id: "d1", filename: "lab.pdf", page: 1, verified: true },
+            ],
+            tests_performed: [
+              { name: "Dengue NS1 Antigen", value: "Positive", unit: "", interpretation: "positive", document_id: "d1", filename: "lab.pdf", page: 1, verified: true },
+              { name: "Hemoglobin", value: "13.8", unit: "g/dL", interpretation: "normal", document_id: "d1", filename: "lab.pdf", page: 1, verified: true },
+            ],
+            documents: [{ id: "d1", filename: "lab.pdf", state: "VERIFIED", verified: true, uploaded_at: "2026-11-24T08:00:00Z", summary: "Summary", fields_count: 2 }],
+            disclaimer: "For clinical reference.",
+          },
+        }),
+      ),
+    );
+    expect(await screen.findByText("Patient Report History Summary")).toBeTruthy();
+    expect(screen.getAllByText(/Dengue NS1 Antigen/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Positive").length).toBeGreaterThan(0);
+    expect(screen.getByText("Normal")).toBeTruthy();
+  });
 });
 
 describe("/patients", () => {

@@ -1,3 +1,4 @@
+import sys
 from .base import *
 
 DEBUG = True
@@ -28,3 +29,9 @@ FHIR_SYNC_MODE = "stub"
 
 # Fixed OTP and MFA code for local development only (audit A-02).
 DEV_FIXED_CODES = True
+
+# In local dev without a separate Celery worker, process OCR + AI + RAG and referral drafts inline.
+# Stay asynchronous under pytest so contract tests can assert OCR_QUEUED and outbox behaviour.
+_IN_TEST = "pytest" in sys.modules
+DOCUMENTS_PROCESS_INLINE = not _IN_TEST
+REFERRAL_DRAFT_INLINE = not _IN_TEST

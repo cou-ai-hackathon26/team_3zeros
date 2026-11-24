@@ -6,10 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { usePageLocale } from "../../../../usePageLocale";
 import { ApiError, createIntentIdempotencyKey } from "../../../../../api/client";
 import { formatDhakaDateTime, formatTimeAgo, t } from "../../../../../i18n/format";
-import { useChart, useCreateReferral, useFacilityDirectory, usePatient, usePatientSearch } from "../../../../../api/queries/hooks";
+import { useChart, useCreateReferral, useFacilityDirectory, usePatient, usePatientSearch, useUploadDocument } from "../../../../../api/queries/hooks";
 import { useMe } from "../../../../../auth/me";
 import { pickName } from "../../../../../features/patient/display";
 import { patientDisplayName } from "../../../../../components/clinical/QueueDetail";
+import { PatientReportHistoryCard } from "../../../../../components/reports/ReportAnalysisPanels";
 import { ReferralSlip } from "../../../../../components/chw/ReferralSlip";
 import { unifiedOfflineStore } from "../../../../../offline/store";
 import type { DecryptedUnifiedItem, OfflinePatientPayload } from "../../../../../offline/unifiedQueue";
@@ -73,7 +74,26 @@ export default function NewReferralPage() {
   const chart = useChart(patientId && !offlinePatientQueueId ? patientId : "");
   const facilities = useFacilityDirectory();
   const create = useCreateReferral();
+  const uploadDoc = useUploadDocument();
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const encounters = patientId && !offlinePatientQueueId ? chart.data?.encounters ?? [] : [];
+  const reportHistory = patientId && !offlinePatientQueueId ? chart.data?.report_history ?? null : null;
+
+  async function onAttachReport(file: File | undefined) {
+    if (!file || !patientId || offlinePatientQueueId) return;
+    setUploadError(null);
+    try {
+      await uploadDoc.mutateAsync({
+        patientId,
+        file,
+        encounterId: encounterId || encounters[0]?.id,
+        idempotencyKey: createIntentIdempotencyKey(),
+      });
+      await chart.refetch();
+    } catch {
+      setUploadError(t(locale, "patients.uploadError"));
+    }
+  }
 
   // Load any offline-created patients for the signed-in user so CHWs can link a referral to them
   useEffect(() => {
@@ -373,6 +393,23 @@ export default function NewReferralPage() {
                   </option>
                 ))}
               </select>
+            )}
+          </Field>
+        )}
+        {patientId && !offlinePatientQueueId && reportHistory && reportHistory.reports_count > 0 && (
+          <PatientReportHistoryCard history={reportHistory} locale={locale} />
+        )}
+        {patientId && !offlinePatientQueueId && (
+          <Field label={t(locale, "patients.upload")} help={t(locale, "patients.uploadHelp")} error={uploadError ?? undefined} locale={locale}>
+            {(f) => (
+              <input
+                {...f}
+                type="file"
+                accept="application/pdf,image/*"
+                disabled={uploadDoc.isPending}
+                onChange={(e) => void onAttachReport(e.target.files?.[0])}
+                className="text-dense"
+              />
             )}
           </Field>
         )}

@@ -1,5 +1,7 @@
 import uuid
 import hashlib
+from django.conf import settings
+from django.db import models, transaction
 from rest_framework import views, permissions, status
 from rest_framework.response import Response
 from django.http import HttpResponse, Http404
@@ -15,8 +17,11 @@ from apps.audit.services import record_audit_event
 from apps.workflow.models import OutboxEvent
 from apps.workflow.engine import execute_transition
 from apps.fhir.sync import complete_fhir_transition
-from django.db import transaction
 from .transitions import DOCUMENT_TRANSITIONS
+
+ALLOWED_UPLOAD_EXTENSIONS = (".pdf", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".gif")
+ALLOWED_CONTENT_PREFIXES = ("application/pdf", "image/")
+
 
 class DocumentUploadView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -36,6 +41,14 @@ class DocumentUploadView(views.APIView):
         if file_obj.size > 20 * 1024 * 1024:
             raise ValidationError("File size exceeds 20MB limit.")
 
+        ct = (file_obj.content_type or "").lower()
+        fname_lower = (file_obj.name or "").lower()
+        if not (
+            ct.startswith(ALLOWED_CONTENT_PREFIXES)
+            or fname_lower.endswith(ALLOWED_UPLOAD_EXTENSIONS)
+        ):
+            raise ValidationError("Only PDF or image reports (PDF, PNG, JPG, WEBP) are supported.")
+
         content = file_obj.read()
         sha256 = hashlib.sha256(content).hexdigest()
         storage_key = f"documents/{uuid.uuid4()}"
@@ -44,7 +57,7 @@ class DocumentUploadView(views.APIView):
         encounter = None
         encounter_id = request.data.get("encounter_id")
         if encounter_id:
-            encounter = Encounter.objects.filter(public_id=encounter_id).first()
+            encounter = Encounter.objects.filter(public_id=encounter_id, patient=patient).first()
 
         doc = Document.objects.create(
             patient=patient,
@@ -72,12 +85,24 @@ class DocumentUploadView(views.APIView):
         doc.TRANSITIONS = DOCUMENT_TRANSITIONS
         execute_transition(doc, "queue_ocr", None, request_id=getattr(request, "request_id", ""))
 
-        OutboxEvent.objects.create(
+        outbox = OutboxEvent.objects.create(
             aggregate_type="document",
             aggregate_id=doc.public_id,
             event_type="document.uploaded",
             payload={"id": str(doc.public_id), "patient_id": str(patient.public_id)},
         )
+
+        # In local dev without a separate Celery worker, run OCR + AI + RAG inline so uploads complete immediately.
+        if getattr(settings, "DOCUMENTS_PROCESS_INLINE", False):
+            from apps.ai.tasks import process_document_ocr
+
+            try:
+                process_document_ocr(str(doc.public_id))
+                outbox.dispatched_at = timezone.now()
+                outbox.save(update_fields=["dispatched_at"])
+                doc.refresh_from_db()
+            except Exception:
+                doc.refresh_from_db()
 
         return Response(DocumentSerializer(doc).data, status=status.HTTP_201_CREATED)
 
@@ -108,6 +133,8 @@ class DocumentExtractionView(views.APIView):
             "document_id": str(doc.public_id),
             "state": doc.state,
             "fields": ExtractedFieldSerializer(fields, many=True).data,
+            "raw_text": job.raw_text if job else "",
+            "ai_report": (job.ai_report or None) if job else None,
         })
 
 
@@ -141,10 +168,79 @@ class DocumentVerifyView(views.APIView):
             # Only a clinician may verify, and only from EXTRACTED_UNVERIFIED (engine checks).
             execute_transition(doc, "verify", request.user, request_id=request_id)
 
-            if doc.encounter:
+            from apps.ai.report_analysis import (
+                VALID_INTERPRETATIONS,
+                generate_document_ai_rag_report,
+                infer_interpretation,
+                refresh_patient_report_history,
+            )
+
+            job = doc.extraction_jobs.order_by("-created_at").first()
+            if job is None and fields:
+                job = ExtractionJob.objects.create(
+                    document=doc,
+                    engine="clinician-verified",
+                    engine_version="1.0.0",
+                    finished_at=timezone.now(),
+                )
+
+            verified_field_dicts = []
+            if job:
+                existing_by_id = {str(ef.public_id): ef for ef in job.fields.all()}
+                existing_by_name = {ef.name.lower(): ef for ef in job.fields.all()}
+                now = timezone.now()
+                for f in fields:
+                    name = str(f.get("name") or "Lab Result").strip()[:100]
+                    val = str(f.get("value", "")).strip()[:255]
+                    unit = str(f.get("unit") or "").strip()[:50]
+                    ref_range = str(f.get("reference_range") or "").strip()[:100]
+                    interp = str(f.get("interpretation") or "").strip().lower()
+                    inferred_interp, inferred_ref = infer_interpretation(name, val, ref_range)
+                    if interp not in VALID_INTERPRETATIONS or interp == "unknown":
+                        interp = inferred_interp
+                    ref_range = ref_range or inferred_ref
+
+                    target = existing_by_id.get(str(f.get("id") or "")) or existing_by_name.get(name.lower())
+                    if target:
+                        changed = target.value != val or target.unit != unit or target.interpretation != interp
+                        target.name = name
+                        target.value = val
+                        target.unit = unit
+                        target.reference_range = ref_range
+                        target.interpretation = interp
+                        target.status = "corrected" if changed else "accepted"
+                        target.verified_by = request.user
+                        target.verified_at = now
+                        target.save(update_fields=["name", "value", "unit", "reference_range", "interpretation", "status", "verified_by", "verified_at", "updated_at"])
+                        lab_name = target.lab
+                    else:
+                        lab_name = str(f.get("lab") or "").strip()[:255]
+                        ExtractedField.objects.create(
+                            job=job,
+                            name=name,
+                            value=val,
+                            unit=unit,
+                            reference_range=ref_range,
+                            interpretation=interp,
+                            lab=lab_name,
+                            status="accepted",
+                            verified_by=request.user,
+                            verified_at=now,
+                        )
+                    verified_field_dicts.append({
+                        "name": name,
+                        "value": val,
+                        "unit": unit,
+                        "reference_range": ref_range,
+                        "interpretation": interp,
+                        "lab": lab_name,
+                    })
+
+            target_encounter = doc.encounter or Encounter.objects.filter(patient=doc.patient).order_by("-period_start").first()
+            if target_encounter:
                 for f in fields:
                     ClinicalObservation.objects.create(
-                        encounter=doc.encounter,
+                        encounter=target_encounter,
                         patient=doc.patient,
                         code=f.get("name", "UNSPECIFIED"),
                         display_name=f.get("name", "Lab Result"),
@@ -164,6 +260,11 @@ class DocumentVerifyView(views.APIView):
 
         # INV-12: VERIFIED only after the FHIR write succeeds; otherwise 202 and a worker retries.
         complete_fhir_transition(doc, actor=request.user, request_id=request_id, extra={"fields": fields})
+        if doc.state == "VERIFIED" and job and verified_field_dicts:
+            job.ai_report = generate_document_ai_rag_report(doc, job.raw_text, verified_field_dicts)
+            job.save(update_fields=["ai_report", "updated_at"])
+        if doc.state == "VERIFIED":
+            refresh_patient_report_history(doc.patient)
         http_status = status.HTTP_202_ACCEPTED if doc.pending_action else status.HTTP_200_OK
         return Response(DocumentSerializer(doc).data, status=http_status)
 
@@ -172,6 +273,8 @@ class DocumentRejectView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, public_id):
+        from apps.ai.report_analysis import refresh_patient_report_history
+
         with transaction.atomic():
             doc = _get_document_for_clinician(request, public_id)
             execute_transition(
@@ -179,6 +282,7 @@ class DocumentRejectView(views.APIView):
                 payload={"reason": "Clinician rejected extraction"},
                 request_id=getattr(request, "request_id", ""),
             )
+        refresh_patient_report_history(doc.patient)
         return Response(DocumentSerializer(doc).data)
 
 
@@ -267,6 +371,39 @@ class PatientPriorResultsView(views.APIView):
             }
             for obs in qs
         ]
+        seen_keys = {(r["display_name"].lower(), r["value"]) for r in results}
+        verified_fields = (
+            ExtractedField.objects.filter(
+                job__document__patient=patient,
+                job__document__state="VERIFIED",
+            )
+            .exclude(status="rejected")
+            .select_related("job__document")
+            .order_by("-verified_at", "-created_at")
+        )
+        if test_filter:
+            verified_fields = verified_fields.filter(name__icontains=test_filter)
+        for ef in verified_fields:
+            k = (ef.name.lower(), ef.value)
+            if k in seen_keys:
+                continue
+            seen_keys.add(k)
+            results.append({
+                "id": str(ef.public_id),
+                "code": ef.name,
+                "display_name": ef.name,
+                "value": ef.value,
+                "unit": ef.unit,
+                "interpretation": ef.interpretation,
+                "reference_range": ef.reference_range,
+                "observed_date": (
+                    ef.observed_date.isoformat()
+                    if ef.observed_date
+                    else (ef.verified_at.isoformat() if ef.verified_at else ef.created_at.isoformat())
+                ),
+                "lab": ef.lab or ef.job.document.original_filename,
+                "verified": True,
+            })
         timeline = {}
         for r in results:
             key = r["display_name"]

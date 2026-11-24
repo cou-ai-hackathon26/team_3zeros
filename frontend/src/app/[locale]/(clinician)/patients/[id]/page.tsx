@@ -22,6 +22,7 @@ import { DescriptionList, ListRow, PageHeader } from "../../../../../components/
 import { Dialog, DialogContent } from "../../../../../components/ui/overlays";
 import { useToast } from "../../../../../components/Toast/Toast";
 import { PatientHeldSummary } from "../../../../../components/patient/PatientHeldSummary";
+import { PatientReportHistoryCard } from "../../../../../components/reports/ReportAnalysisPanels";
 import { Printer, FlaskConical, AlertTriangle, ShieldCheck } from "lucide-react";
 
 const ConfirmDialog = dynamic(() => import("../../../../../components/ConfirmDialog").then((m) => m.ConfirmDialog), { ssr: false });
@@ -62,7 +63,12 @@ export default function PatientChartPage() {
     if (!file) return;
     setUploadError(null);
     try {
-      const doc = await upload.mutateAsync({ patientId: id, file, idempotencyKey: createIntentIdempotencyKey() });
+      const doc = await upload.mutateAsync({
+        patientId: id,
+        file,
+        encounterId: latestEncounter?.id,
+        idempotencyKey: createIntentIdempotencyKey(),
+      });
       router.push(`/${locale}/patients/${id}/reports/${doc.id}/verify`);
     } catch {
       setUploadError(L("uploadError"));
@@ -222,6 +228,10 @@ export default function PatientChartPage() {
                         )}
                       </div>
 
+                      {c.report_history && c.report_history.reports_count > 0 && (
+                        <PatientReportHistoryCard history={c.report_history} locale={locale} />
+                      )}
+
                       {c.encounters[0] ? (
                         <section className="mt-2 pt-2 border-t border-line">
                           <h2 className="m-0 text-subheading font-semibold">{L("latest")}</h2>
@@ -292,12 +302,78 @@ export default function PatientChartPage() {
                   )}
                 </QueryBoundary>
               </TabsContent>
-              <TabsContent value="reports" className="mt-4 flex flex-col gap-3">
-                {/* No endpoint lists documents (MASTERPLAN §8.3 G-1/G-2): reports open from the upload that creates them. */}
-                <EmptyState message={L("reportsNone")} />
+              <TabsContent value="reports" className="mt-4 flex flex-col gap-4">
                 <Field label={L("upload")} help={L("uploadHelp")} error={uploadError ?? undefined} locale={locale}>
                   {(f) => <input {...f} type="file" accept="application/pdf,image/*" disabled={upload.isPending} onChange={(e) => onFile(e.target.files?.[0])} className="text-dense" />}
                 </Field>
+                <QueryBoundary query={chart} locale={locale} loadingLabel={L("loading")} errorMessage={L("error")}>
+                  {(c) => {
+                    const docs = c.documents ?? [];
+                    if (docs.length === 0) {
+                      return <EmptyState message={L("reportsNone")} />;
+                    }
+                    return (
+                      <div className="flex flex-col gap-3">
+                        {c.report_history && c.report_history.reports_count > 0 && (
+                          <PatientReportHistoryCard history={c.report_history} locale={locale} />
+                        )}
+                        <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+                          {docs.map((doc) => {
+                            const isVerified = doc.state === "VERIFIED";
+                            return (
+                              <li
+                                key={doc.id}
+                                className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-4"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="m-0 text-body font-semibold text-ink">{doc.original_filename}</p>
+                                    <p className="m-0 text-caption text-ink-muted">
+                                      {formatDhakaDateTime(doc.created_at, locale)}
+                                      {doc.uploaded_by_role === "patient"
+                                        ? ` · ${t(locale, "reportAnalysis.uploadedByPatient")}`
+                                        : doc.uploaded_by_role === "clinician"
+                                          ? ` · ${t(locale, "reportAnalysis.uploadedByClinician")}`
+                                          : ""}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {doc.positive_count && doc.positive_count > 0 ? (
+                                      <span className="inline-flex rounded-pill bg-signal-wash px-2.5 py-0.5 text-caption font-semibold text-signal">
+                                        {t(locale, "reportAnalysis.flagsFound").replace("{count}", String(doc.positive_count))}
+                                      </span>
+                                    ) : null}
+                                    <StatusBadge
+                                      entity="document"
+                                      state={doc.state}
+                                      tone={isVerified ? "positive" : "draft"}
+                                      locale={locale}
+                                    />
+                                  </div>
+                                </div>
+                                {doc.ai_report?.summary && (
+                                  <p className="m-0 rounded-control bg-paper px-3 py-2 text-dense leading-relaxed text-ink">
+                                    {doc.ai_report.summary}
+                                  </p>
+                                )}
+                                <div>
+                                  <Link
+                                    href={`/${locale}/patients/${id}/reports/${doc.id}/verify`}
+                                    className={buttonVariants({ variant: isVerified ? "secondary" : "primary", size: "sm" })}
+                                  >
+                                    {isVerified
+                                      ? t(locale, "reportAnalysis.openDetails")
+                                      : t(locale, "reportAnalysis.reviewAndVerify")}
+                                  </Link>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  }}
+                </QueryBoundary>
               </TabsContent>
               <TabsContent value="referrals" className="mt-4">
                 {referrals.length === 0 ? <EmptyState message={L("noReferrals")} /> : (

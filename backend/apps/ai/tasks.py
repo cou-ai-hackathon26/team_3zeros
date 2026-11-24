@@ -36,30 +36,47 @@ def process_document_ocr(document_id: str):
 
     job = None
     try:
+        from apps.ai.report_analysis import (
+            extract_document_fields_and_text,
+            generate_document_ai_rag_report,
+            refresh_patient_report_history,
+        )
+
         adapter = get_ocr_adapter()
         file_bytes = b""
         if default_storage.exists(doc.storage_key):
             with default_storage.open(doc.storage_key, "rb") as f:
                 file_bytes = f.read()
 
-        fields = adapter.extract(file_bytes)
+        fields, raw_text, engine_name = extract_document_fields_and_text(
+            file_bytes=file_bytes,
+            content_type=doc.content_type,
+            filename=doc.original_filename,
+            adapter=adapter,
+        )
+
+        ai_report = generate_document_ai_rag_report(doc, raw_text, fields)
 
         job = ExtractionJob.objects.create(
             document=doc,
-            engine=getattr(adapter, "name", "mock-ocr"),
+            engine=engine_name[:50],
             engine_version=getattr(adapter, "version", "1.0.0"),
+            raw_text=raw_text,
+            ai_report=ai_report,
         )
 
         for field in fields:
             ExtractedField.objects.create(
                 job=job,
-                name=field.get("name", "Unknown"),
-                value=str(field.get("value", "")),
-                unit=field.get("unit", ""),
+                name=field.get("name", "Unknown")[:100],
+                value=str(field.get("value", ""))[:255],
+                unit=field.get("unit", "")[:50],
+                reference_range=field.get("reference_range", "")[:100],
+                interpretation=field.get("interpretation", "unknown")[:20],
                 confidence=float(field.get("confidence", 1.0)),
                 page=int(field.get("page", 1)),
                 bbox=field.get("bbox", {}),
-                lab=field.get("lab", ""),
+                lab=field.get("lab", "")[:255],
                 status="candidate",
             )
 
@@ -67,6 +84,7 @@ def process_document_ocr(document_id: str):
         job.save(update_fields=["finished_at"])
 
         execute_transition(doc, "ocr_succeeded", None)
+        refresh_patient_report_history(doc.patient)
 
         OutboxEvent.objects.create(
             aggregate_type="document",
@@ -107,9 +125,12 @@ def generate_referral_draft_task(referral_id: str):
     context_lines, _refs = build_referral_context(referral)
 
     system_prompt = (
-        "You are a clinical referral summarization assistant. "
+        "You are a clinical referral summarization assistant helping a referring doctor hand over a patient "
+        "to a senior specialist. Base your summary strictly on the provided clinical records and analyzed "
+        "diagnostic reports. Include a concise section listing prior tests performed, which findings were "
+        "positive/abnormal/high/low, and which were negative/normal. "
         "Every clinical statement must include valid source_refs taken only from the [bracketed] references in the input. "
-        "Do not invent medical facts. Do not use placeholder strings like N/A. "
+        "Do not invent medical facts or diagnose. Do not use placeholder strings like N/A. "
         "If information is missing, place it in the 'Missing or Uncertain Information' section with empty source_refs."
     )
     user_prompt = "Generate structured referral summary sections for:\n" + "\n".join(context_lines)

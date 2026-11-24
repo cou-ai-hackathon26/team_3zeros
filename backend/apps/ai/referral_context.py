@@ -26,10 +26,25 @@ def build_referral_context(referral) -> Tuple[List[str], List[str]]:
         value = obs.value_string or (f"{obs.value_numeric} {obs.unit}".strip() if obs.value_numeric is not None else "")
         lines.append(f"[{ref}] {obs.display_name}: {value}")
 
-    for doc in patient.documents.filter(state="VERIFIED")[:10]:
-        ref = f"document:{doc.public_id}"
+    from apps.ai.report_analysis import build_patient_report_history
+
+    history = build_patient_report_history(patient, include_unverified=True)
+    for doc_entry in history["documents"]:
+        ref = f"document:{doc_entry['id']}"
         refs.append(ref)
-        lines.append(f"[{ref}] verified report ({doc.original_filename})")
+        status_label = "verified report" if doc_entry["verified"] else "unverified OCR draft report"
+        summary_line = f" — {doc_entry['summary']}" if doc_entry["summary"] else ""
+        lines.append(f"[{ref}] {status_label} ({doc_entry['filename']}){summary_line}")
+
+    for item in history["tests_performed"][:30]:
+        ref = f"document:{item['document_id']}#page={item['page']}"
+        refs.append(ref)
+        verify_tag = "verified" if item["verified"] else "unverified draft"
+        val_unit = f"{item['value']} {item['unit']}".strip()
+        ref_range = f" (ref: {item['reference_range']})" if item["reference_range"] else ""
+        lines.append(
+            f"[{ref}] Test ({verify_tag}): {item['name']} = {val_unit} [{item['interpretation']}]{ref_range}"
+        )
 
     from apps.triage.models import TriageSession
     session = TriageSession.objects.filter(patient=patient, state="CONFIRMED_BY_PATIENT").select_related("summary").order_by("-ended_at", "-id").first()

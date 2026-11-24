@@ -10,6 +10,7 @@ import { useDocument, useDocumentAction, useExtraction, usePriorResults } from "
 import type { ApiExtractedField } from "@/api/queries/types";
 import { QueryBoundary } from "@/components/QueryBoundary";
 import { ReportViewer, type ExtractedCandidateField, type PriorTestResult } from "@/components/ReportViewer/ReportViewer";
+import { DocumentAiReportPanel } from "@/components/reports/ReportAnalysisPanels";
 import { SyncBadge } from "@/components/SyncBadge/SyncBadge";
 import { Button } from "@/components/ui/button";
 import { Alert, ErrorState, Skeleton } from "@/components/ui/states";
@@ -64,22 +65,35 @@ export default function VerifyReportPage() {
           }
           if (d.state === "REJECTED") return <Alert tone="attention" title={L("rejected")} />;
           if (d.state === "QUARANTINED") return <Alert tone="attention" title={L("quarantined")} />;
-          if (d.state === "VERIFIED") return <Alert tone="positive" title={L("verified")} />;
+          if (d.state === "VERIFIED") {
+            const verifiedReport = extraction.data?.ai_report ?? d.ai_report ?? null;
+            return (
+              <div className="flex flex-col gap-4">
+                <Alert tone="positive" title={L("verified")} />
+                {verifiedReport && <DocumentAiReportPanel report={verifiedReport} locale={locale} />}
+              </div>
+            );
+          }
           return (
             <>
               {(submitted || action.isPending) && <SyncBadge fhirSyncStatus="PENDING" pendingAction="verify" locale={locale} />}
               {error && <Alert tone="attention" title={error} />}
               <QueryBoundary query={extraction} locale={locale} loadingLabel={L("processing")} errorMessage={L("error")}>
                 {(x) => (
-                  <ReportViewer
-                    documentUrl=""
-                    filename={d.original_filename}
-                    fields={x.fields.map(toViewer)}
-                    priorResults={priorFor(x.fields)}
-                    locale={locale}
-                    onVerify={(edited) => run("verify", edited.map((e) => ({ ...(x.fields.find((f) => f.id === e.id) as ApiExtractedField), value: e.value })))}
-                    onReject={() => run("reject")}
-                  />
+                  <div className="flex flex-col gap-4">
+                    <ReportViewer
+                      documentUrl={`/api/v1/documents/${docId}/content`}
+                      filename={d.original_filename}
+                      fields={x.fields.map(toViewer)}
+                      priorResults={priorFor(x.fields)}
+                      locale={locale}
+                      onVerify={(edited) => run("verify", edited.map((e) => ({ ...(x.fields.find((f) => f.id === e.id) as ApiExtractedField), value: e.value })))}
+                      onReject={() => run("reject")}
+                    />
+                    {(x.ai_report ?? d.ai_report) && (
+                      <DocumentAiReportPanel report={(x.ai_report ?? d.ai_report)!} locale={locale} />
+                    )}
+                  </div>
                 )}
               </QueryBoundary>
               {submitted && <Button variant="quiet" size="sm" onClick={() => doc.refetch()}>{t(locale, "common.tryAgain")}</Button>}

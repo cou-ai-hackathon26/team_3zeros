@@ -23,6 +23,7 @@ class ReferralSerializer(serializers.ModelSerializer):
     consent_state = serializers.SerializerMethodField()
     allowed_actions = serializers.SerializerMethodField()
     history = serializers.SerializerMethodField()
+    report_history = serializers.SerializerMethodField()
 
     class Meta:
         model = Referral
@@ -54,6 +55,7 @@ class ReferralSerializer(serializers.ModelSerializer):
             "receiver_facility_name",
             "receiver_practitioner_id",
             "summary",
+            "report_history",
             "content_hash",
             "summary_origin",
             "consent_state",
@@ -97,6 +99,11 @@ class ReferralSerializer(serializers.ModelSerializer):
             aggregate_id=obj.public_id,
         )
         return HistoryEntrySerializer(entries, many=True).data
+
+    def get_report_history(self, obj):
+        from apps.ai.report_analysis import get_or_build_patient_report_history
+
+        return get_or_build_patient_report_history(obj.patient)
 
 
 class ReferralCreateSerializer(serializers.Serializer):

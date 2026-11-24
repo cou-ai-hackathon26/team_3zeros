@@ -168,18 +168,34 @@ class ReferralGenerateDraftView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, public_id):
+        from django.conf import settings
+        from django.utils import timezone
         from apps.workflow.models import OutboxEvent
         referral = get_referral_by_public_id(request.user, public_id)
         if not is_sender_clinician(request.user, referral, None):
             raise PermissionDeniedError("Only a clinician at the sending facility can request an AI draft.")
         if referral.state != "DRAFT":
             raise ValidationError("AI draft can only be generated while referral is in DRAFT state.")
-        OutboxEvent.objects.create(
+        outbox = OutboxEvent.objects.create(
             aggregate_type="referral",
             aggregate_id=referral.public_id,
             event_type="referral.draft_requested",
             payload={"id": str(referral.public_id)},
         )
+        if getattr(settings, "REFERRAL_DRAFT_INLINE", False):
+            from apps.ai.tasks import generate_referral_draft_task
+
+            try:
+                generate_referral_draft_task(str(referral.public_id))
+                outbox.dispatched_at = timezone.now()
+                outbox.save(update_fields=["dispatched_at"])
+                referral.refresh_from_db()
+                return Response(
+                    ReferralSerializer(referral, context={"request": request}).data,
+                    status=status.HTTP_200_OK,
+                )
+            except Exception:
+                pass
         return Response(
             {"referral_id": str(referral.public_id), "status": "queued"},
             status=status.HTTP_202_ACCEPTED,
