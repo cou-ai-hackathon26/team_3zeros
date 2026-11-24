@@ -10,7 +10,7 @@
 !.env.example
 
 # --- Node.js & Next.js (Frontend) ---
-node_modules/
+node_modules
 .next/
 out/
 dist/
