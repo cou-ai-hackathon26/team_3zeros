@@ -1,0 +1,16 @@
+{
+  "services": {
+    "backend": {
+      "root": "backend",
+      "framework": "django"
+    },
+    "frontend": {
+      "root": "frontend",
+      "framework": "nextjs"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
+  ]
+}
