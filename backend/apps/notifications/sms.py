@@ -1,5 +1,5 @@
 """
-SMS notification provider (MASTERPLAN §4.9, SECURITY §7, PRODUCT_PLAN §Phase F).
+SMS notification provider (MASTERPLAN §4.9, SECURITY §7, D-21).
 SECURITY §7: SMS body contains no clinical details.
 SMS messages must be strictly non-clinical transactional notifications.
 """

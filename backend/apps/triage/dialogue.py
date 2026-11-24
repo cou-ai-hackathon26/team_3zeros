@@ -26,7 +26,7 @@ REPORT_PROMPT = (_DIR / "report_prompt.md").read_text(encoding="utf-8")
 
 MAX_TURNS = 24
 
-# Interview length (TRIAGE_RAG_REFERRAL_PLAN §3; checklist and numbers are placeholders until Q-06 sign-off):
+# Interview length (D-27; checklist and numbers are placeholders until Q-06 sign-off):
 # at least MIN answers, aim for TARGET (about three to four minutes), never more than MAX.
 MIN_ANSWERS, TARGET_ANSWERS, MAX_ANSWERS = 4, 7, 10
 DONE_MARKER = "[DONE]"  # the model starts its reply with this when it has enough to summarise

@@ -65,5 +65,3 @@ npm run lint:tokens
 
 ## Architecture & Specifications
 - [`MASTERPLAN.md`](MASTERPLAN.md) — Canonical product, RBAC, workflow state machine, and API contract ledger.
-- [`MEDI_WAYPOINT_WORKFLOW_DESIGN.md`](MEDI_WAYPOINT_WORKFLOW_DESIGN.md) — UX and interoperability design for phone-less referrals and offline continuity.
-- [`MEDI_WAYPOINT_FINAL_DELIVERY_REPORT.md`](MEDI_WAYPOINT_FINAL_DELIVERY_REPORT.md) — End-to-end MVP delivery summary and verification results.

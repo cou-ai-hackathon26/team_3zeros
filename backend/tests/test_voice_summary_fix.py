@@ -1,4 +1,4 @@
-"""VOICE_SUMMARY_FIX_PLAN: one claim per outbox event, fail closed without a webhook secret, no empty summary."""
+"""Voice summary fix (D-22, D-28): one claim per outbox event, fail closed without a webhook secret, no empty summary."""
 import threading
 
 import pytest

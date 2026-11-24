@@ -555,7 +555,7 @@ describe("Routing by triage level (D-30)", () => {
 });
 
 
-describe("A voice call that saved no answers (VOICE_SUMMARY_FIX_PLAN)", () => {
+describe("A voice call that saved no answers (D-22)", () => {
   const open = (turns: unknown[]) => {
     nav.pathname = "/en/triage/summary/sess-empty-1";
     nav.params = { locale: "en", id: "sess-empty-1" };
@@ -584,7 +584,7 @@ describe("A voice call that saved no answers (VOICE_SUMMARY_FIX_PLAN)", () => {
 });
 
 
-describe("Voice not configured (VOICE_SUMMARY_FIX_PLAN step 2)", () => {
+describe("Voice not configured (D-22: fail closed without a webhook secret)", () => {
   it("when the server refuses the call, the patient sees why and can type instead", async () => {
     nav.pathname = "/en/triage";
     const fakeStream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream;

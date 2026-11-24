@@ -1,4 +1,4 @@
-"""Interview length, closing and the background report (TRIAGE_RAG_REFERRAL_PLAN §3, §5)."""
+"""Interview length, closing and the background report (D-27, D-28)."""
 import json
 
 import pytest

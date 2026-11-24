@@ -1,4 +1,4 @@
-"""Knowledge base: ingestion, hybrid search, approval gate (TRIAGE_RAG_REFERRAL_PLAN §4)."""
+"""Knowledge base: ingestion, hybrid search, approval gate (D-33, D-34)."""
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 
