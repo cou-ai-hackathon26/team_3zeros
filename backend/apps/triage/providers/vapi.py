@@ -58,7 +58,11 @@ class VapiVoiceProvider:
 
         message = (getattr(request, "data", None) or {}).get("message") or {}
         call = message.get("call") or {}
-        session_ref = str((call.get("metadata") or {}).get("session_ref", ""))
+        session_ref = str(
+            ((call.get("assistantOverrides") or {}).get("metadata") or {}).get("session_ref")
+            or (call.get("metadata") or {}).get("session_ref")
+            or ""
+        )
         control_url = (call.get("monitor") or {}).get("controlUrl")
         if session_ref and control_url:
             cache.set(_control_key(session_ref), control_url, CONTROL_TTL)

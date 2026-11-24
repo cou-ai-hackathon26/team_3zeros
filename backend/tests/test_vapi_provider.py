@@ -18,10 +18,27 @@ def vapi(settings):
 
 def _body(session_ref, text, role="user", ttype="final", control="https://control.example/c1"):
     return {"message": {"type": "transcript", "role": role, "transcriptType": ttype, "transcript": text,
-                        "call": {"metadata": {"session_ref": session_ref}, "monitor": {"controlUrl": control}}}}
+                        "call": {"assistantOverrides": {"metadata": {"session_ref": session_ref}}, "monitor": {"controlUrl": control}}}}
+
+
+@pytest.mark.django_db
+def test_webhook_reads_session_ref_from_direct_metadata_or_overrides(vapi):
+    client = APIClient()
+    body_direct = {
+        "message": {
+            "type": "transcript",
+            "role": "user",
+            "transcriptType": "final",
+            "transcript": "Hello",
+            "call": {"metadata": {"session_ref": "ref-direct"}, "monitor": {"controlUrl": "https://c.example/1"}},
+        }
+    }
+    r = client.post("/api/v1/triage/provider-events", body_direct, format="json", HTTP_X_VAPI_SECRET="whsec")
+    assert r.status_code == 200
 
 
 def test_factory_follows_setting(vapi):
+
     assert isinstance(get_voice_provider(), VapiVoiceProvider)
     vapi.VOICE_PROVIDER = "placeholder"
     assert get_voice_provider().provider_name == "vapi_placeholder"

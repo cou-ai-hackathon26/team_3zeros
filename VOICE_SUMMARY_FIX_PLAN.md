@@ -1,6 +1,6 @@
 # Plan: fix the empty summary and frozen hang-up after a voice call
 
-Status: steps 2 to 4 built with option A (recommended). Step 1 still needs the webhook secret, a tunnel and the Vapi server URL (§3 A). Step 5 is a manual retest.
+Status: steps 2 to 4 built with option A (recommended). Step 1 is not working yet: the retest at 11:43 still stored no answers; causes and remaining work are in §6. Step 5 is a manual retest after §6.
 
 ## 1. Symptoms (2026-11-24, session `eba0a3ce-a196-4c31-93ab-b3f587f4e828`)
 
@@ -64,3 +64,47 @@ Not included: running a real Celery worker in local dev. Without it, hang-up sti
 - Frontend tests: the summary page with zero patient answers shows the new state and no confirm button (`triage-pages.test.tsx`).
 - `pytest -q`, `npm test`, `tsc`, `lint:tokens`.
 - Manual: a real call of at least two answers. Check that patient turns are stored, hang-up returns promptly, `report_status` becomes `ready`, the fields are filled, and confirm works on the first click.
+
+## 6. Retest with the webhook and tunnel (2026-11-24 11:43, session `63e1a9c1-3718-4e07-a66c-64ac4d549573`)
+
+Result: the summary page showed "We didn't capture your answers" (the step 4 state, working as intended). The session again holds only the greeting.
+
+Evidence: the last 125 requests in the ngrok inspector (`http://127.0.0.1:4040`), including the `end-of-call-report` payload, which carries the assistant's configuration.
+
+### 6.1 Causes
+
+| # | Cause | Where | Evidence |
+|---|---|---|---|
+| 1 | Vapi sends no secret | Vapi dashboard | Every webhook during the call (11:43 to 11:47) had an empty `x-vapi-secret` and got `401`. The assistant's `server` has a URL and timeout only. A test request with the `.env` secret at 11:42 got `200`, so the backend side is correct |
+| 2 | Vapi sends no transcripts | Vapi dashboard | `serverMessages` is unset. Only `speech-update`, `conversation-update`, `status-update`, `assistant.started` and `end-of-call-report` arrived. The webhook acts only on `transcript` |
+| 3 | The webhook reads `session_ref` from the wrong place | Our code, `backend/apps/triage/providers/vapi.py` `verify_webhook` | The browser passes it as an assistant override (`vapiClient.ts`: `vapi.start(id, { metadata })`), so Vapi delivers it at `call.assistantOverrides.metadata`. `call.metadata` is absent. With 1 and 2 fixed, no event would match a session and no control URL would be cached |
+| 4 | The assistant runs its own interview | Vapi dashboard | Model `openai / gpt-4.1`, a 4,022-character system prompt and a first message; the call transcript shows seven bot questions. D-22 and D-08 require every sentence to come from our orchestrator. Once the webhook works, both would speak |
+| 5 | Transcriber is English only | Vapi dashboard | `soniox`, `language: en`. Bangla answers (INV-3) will be transcribed poorly |
+
+Confirmed working: the tunnel reaches Django, and `call.monitor.controlUrl` is present, so `speak` and `end_session` can work once `session_ref` is read correctly.
+
+### 6.2 Steps
+
+Code:
+
+1. **Read `session_ref` where Vapi puts it.** In `verify_webhook`, take it from `call.assistantOverrides.metadata`. No contract change: the browser already sends it this way and D-22 only says a random `session_ref` reaches Vapi.
+2. **Test with the real payload shape.** A signed `transcript` event carrying `call.assistantOverrides.metadata.session_ref` and `call.monitor.controlUrl` creates a patient turn and caches the control URL. A request with an empty secret is rejected.
+3. **Correct the setup note** in the `vapi.py` module docstring and DEPLOYMENT: the assistant needs the server secret, `transcript` in `serverMessages`, and no replies of its own.
+
+Vapi dashboard (owner; cannot be done or verified from the repo):
+
+4. Set the server secret to the value of `VAPI_WEBHOOK_SECRET`.
+5. Add `transcript` to the server messages.
+6. Stop the assistant producing its own replies and first message. The exact setting has to be confirmed in Vapi; the backend greeting is already stored as the first turn but is not spoken on the call today (open point below).
+7. Set the transcriber to one that handles Bangla and English.
+
+Open points:
+
+- **Spoken greeting.** The greeting is created with the session, before the call and its control URL exist, so nothing speaks it. Either the assistant's first message is set to the same fixed text in the dashboard, or the backend speaks it on the first webhook of the call. To be decided when step 6 is done.
+- **Unwanted event volume.** About 120 webhooks arrived in a four-minute call, none of them needed. Restricting `serverMessages` to `transcript` plus what `speak` needs removes them.
+
+### 6.3 Verification
+
+- `pytest -q` including the new webhook test.
+- Manual call with the ngrok inspector open: `transcript` events return `200`; each patient answer appears as a turn; the backend's question is the only voice heard; the closing line ends the call; the summary fields are filled and `report_status` becomes `ready`.
+- One Bangla call and one English call.
