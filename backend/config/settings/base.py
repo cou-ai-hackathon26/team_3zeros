@@ -248,7 +248,9 @@ LLM_PRICE_OUT_PER_M = env.float("LLM_PRICE_OUT_PER_M", default=1.49)
 
 # Embeddings for knowledge-base search (MASTERPLAN D-28). The provider receives book text and de-identified symptom text.
 EMBEDDING_PROVIDER = env("EMBEDDING_PROVIDER", default="gemini")  # gemini | mock
-EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="gemini-embedding-001")
+EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="")  # empty = the provider's default (gemini-embedding-001)
+# Extra Gemini keys, comma separated, used as fallbacks when one is rate limited or rejected (apps/ai/keys.py).
+GEMINI_API_KEYS = env("GEMINI_API_KEYS", default="")
 # Placeholder until clinical reviewers set it (BACKEND §10.2): a passage must be at least this similar to count as evidence.
 KNOWLEDGE_MIN_SIMILARITY = env.float("KNOWLEDGE_MIN_SIMILARITY", default=0.5)
 # Pace book embedding under the provider's per-minute token limit (0 = no limit). A free Gemini key allows about 30000.

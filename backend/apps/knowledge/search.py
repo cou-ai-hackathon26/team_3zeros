@@ -11,7 +11,7 @@ from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.db.models import F
 from pgvector.django import CosineDistance
 
-from apps.ai.embeddings import embed_query
+from apps.ai.embeddings import embed_query, model_id
 from .models import KnowledgeChunk
 
 CANDIDATES = 20
@@ -41,7 +41,7 @@ def search(query: str, limit: int = 3, *, approved_only: bool = True, document: 
     vec = embed_query(query)
     similarity: Dict[int, float] = {}
     if vec is not None:
-        near = scope.filter(embedding__isnull=False).annotate(dist=CosineDistance("embedding", vec)).order_by("dist")[:CANDIDATES]
+        near = scope.filter(embedding__isnull=False, document__embedding_model=model_id()).annotate(dist=CosineDistance("embedding", vec)).order_by("dist")[:CANDIDATES]
         for rank, chunk in enumerate(near):
             sim = 1.0 - float(chunk.dist)
             if sim < settings.KNOWLEDGE_MIN_SIMILARITY:
@@ -57,7 +57,8 @@ def search(query: str, limit: int = 3, *, approved_only: bool = True, document: 
         for rank, chunk in enumerate(hits):
             # With vectors available, full-text may only re-rank passages that already passed the similarity bar;
             # without them (embedding unavailable) it stands alone.
-            if vec is not None and chunk.pk not in similarity:
+            # A book embedded with a different model has no comparable vectors, so full-text answers for it alone.
+            if vec is not None and chunk.pk not in similarity and chunk.document.embedding_model == model_id():
                 continue
             entry = ranked.setdefault(chunk.pk, {"chunk": chunk, "score": 0.0})
             entry["score"] += 1.0 / (RRF_K + rank + 1)

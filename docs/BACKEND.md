@@ -550,6 +550,11 @@ provides `PlaceholderVoiceProvider` implementing `VoiceProvider`.
   (about 1,200 characters, 150 overlap), full-text vectors, embeddings in batches of 25 paced by
   `EMBEDDING_TOKENS_PER_MINUTE`, then READY. A stopped run keeps what it embedded and resumes with `retry`. Search is
   vector top 20 plus full-text top 20 merged by reciprocal rank fusion, filtered by `KNOWLEDGE_MIN_SIMILARITY`.
+- Gemini keys (D-33): `apps/ai/keys.py`. `GEMINI_API_KEYS` (comma separated) plus `GEMINI_API_KEY` give the key list, the single
+  key first. Embedding and Gemini chat calls try each key in turn. A 429 puts a key on a 65-second cooldown, or an hour if the
+  answer says the daily quota is spent; a 400, 401 or 403 (wrong or revoked key) also gives an hour; the cooldown is kept in the
+  cache so later calls skip the key. If every key is cooling, embedding waits for the soonest one. Keys are never logged, only an
+  8-character fingerprint. Pacing (`EMBEDDING_TOKENS_PER_MINUTE`) is per key.
 - Vapi dashboard setup: server URL = the provider-events endpoint with the same secret,
   `monitorPlan.controlEnabled = true`, and no model-generated replies.
 

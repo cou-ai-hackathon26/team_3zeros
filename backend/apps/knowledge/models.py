@@ -6,7 +6,7 @@ from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from pgvector.django import HnswIndex, VectorField
 
-EMBEDDING_DIMENSIONS = 768
+EMBEDDING_DIMENSIONS = 1024  # bge-m3 and Gemini (cut to 1,024) both fit; see apps/ai/embeddings.py
 
 
 class KnowledgeDocument(models.Model):

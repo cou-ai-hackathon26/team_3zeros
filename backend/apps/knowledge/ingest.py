@@ -16,7 +16,8 @@ from django.core.files.storage import default_storage
 from django.db import connection, transaction
 from pypdf import PdfReader
 
-from apps.ai.embeddings import EmbeddingError, embed_texts
+from apps.ai.keys import gemini_keys
+from apps.ai.embeddings import EmbeddingError, embed_texts, model_id
 from apps.common.exceptions import ValidationError
 from apps.workflow.models import OutboxEvent
 from .models import KnowledgeChunk, KnowledgeDocument
@@ -24,7 +25,7 @@ from .models import KnowledgeChunk, KnowledgeDocument
 logger = logging.getLogger(__name__)
 
 CHUNK_SIZE, CHUNK_OVERLAP = 1200, 150
-EMBED_BATCH = 25
+EMBED_BATCH = 16
 
 
 def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
@@ -60,7 +61,7 @@ def store_upload(file, *, title, publisher="", version="", language="en", rights
 
     doc = KnowledgeDocument.objects.create(
         title=title, publisher=publisher, version=version, language=language, rights_statement=rights_statement,
-        sha256=digest, size=size, uploaded_by=user, status="PROCESSING", embedding_model=settings.EMBEDDING_MODEL,
+        sha256=digest, size=size, uploaded_by=user, status="PROCESSING", embedding_model=model_id(),
     )
     doc.storage_key = default_storage.save(f"knowledge/{doc.public_id}.pdf", file)
     doc.save(update_fields=["storage_key"])
@@ -134,8 +135,8 @@ def _extract_chunks(doc: KnowledgeDocument) -> bool:
 
 
 def _pace(chars: int, started: float) -> None:
-    """Stay under the provider's per-minute token limit (EMBEDDING_TOKENS_PER_MINUTE, 0 = no limit)."""
-    limit = getattr(settings, "EMBEDDING_TOKENS_PER_MINUTE", 0)
+    """Stay under the provider's per-minute token limit (EMBEDDING_TOKENS_PER_MINUTE per key, 0 = no limit)."""
+    limit = getattr(settings, "EMBEDDING_TOKENS_PER_MINUTE", 0) * max(1, len(gemini_keys()))  # the limit is per key
     if limit > 0:
         needed = (chars / 3.5) / limit * 60.0  # seconds this batch should have taken
         time.sleep(max(0.0, needed - (time.monotonic() - started)))
@@ -144,7 +145,11 @@ def _pace(chars: int, started: float) -> None:
 def ingest_document(doc: KnowledgeDocument) -> KnowledgeDocument:
     """Run ingestion to the end, or until it fails. Safe to run again: existing passages and vectors are kept."""
     doc.status, doc.error = "PROCESSING", ""
-    doc.save(update_fields=["status", "error"])
+    if doc.embedding_model != model_id():
+        # A different embedding model is now in use: vectors from the old one are not comparable, so start them over.
+        doc.chunks.update(embedding=None)
+        doc.embedding_model, doc.embedded_count = model_id(), 0
+    doc.save(update_fields=["status", "error", "embedding_model", "embedded_count"])
     if not doc.chunks.exists() and not _extract_chunks(doc):
         return doc
     _fill_search_vectors(doc)

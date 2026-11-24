@@ -332,4 +332,4 @@ Recorded in [redesign/PRODUCT_UX_AUDIT.md](redesign/PRODUCT_UX_AUDIT.md) §6; no
 Knowledge-base search sends two kinds of text to the embedding provider (Gemini): the book's own text when a book is
 ingested, and the patient's latest symptom answers (no name, phone or record id) when a question is searched. This sits
 under the same open question as the other model endpoints (§8.3): a written data-processing review is still needed before
-real patients. The Gemini key is sent in a request header, never in the URL, so it cannot appear in logs.
+real patients. Gemini keys are sent in a request header, never in the URL, and only an 8-character fingerprint of a key is ever logged, so a key cannot leak into logs.

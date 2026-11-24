@@ -228,3 +228,13 @@ def test_a_connection_that_never_recovers_fails_with_embedding_error(settings, m
     monkeypatch.setattr(emb.requests, "post", lambda *a, **k: (_ for _ in ()).throw(requests.ConnectionError("down")))
     with pytest.raises(EmbeddingError):
         emb.embed_texts(["x"])
+
+
+@pytest.mark.django_db
+def test_a_book_embedded_with_another_model_is_searched_by_full_text_only():
+    d = make_doc(text="Dengue fever shows a falling platelet count.", embedding_model="gemini:some-older-model")
+    hits = search("platelet count dengue")
+    assert hits and hits[0]["document_name"] == "Fever Guide"  # full-text still answers
+    other = make_doc("Other", text="Cough with blood needs imaging.", embedding_model="gemini:some-older-model")
+    assert d.embedding_model != "mock:mock"
+    assert search("zebra giraffe", approved_only=False, document=str(other.public_id)) == []

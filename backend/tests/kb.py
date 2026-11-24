@@ -1,5 +1,5 @@
 """Test helper: a ready, embedded reference document (embeddings come from the offline mock provider)."""
-from apps.ai.embeddings import embed_texts
+from apps.ai.embeddings import embed_texts, model_id
 from apps.knowledge.ingest import _fill_search_vectors
 from apps.knowledge.models import KnowledgeChunk, KnowledgeDocument
 
@@ -7,6 +7,7 @@ DEFAULT_TEXT = "Fever with severe headache and stiff neck needs urgent assessmen
 
 
 def make_doc(title="Fever Guide", approved=True, page=12, text=DEFAULT_TEXT, status="READY", texts=None, **extra):
+    extra.setdefault("embedding_model", model_id())
     doc = KnowledgeDocument.objects.create(title=title, approved=approved, status=status, **extra)
     for i, t in enumerate(texts or [text]):
         KnowledgeChunk.objects.create(document=doc, page=page + i, ordinal=0, text=t, embedding=embed_texts([t])[0])
