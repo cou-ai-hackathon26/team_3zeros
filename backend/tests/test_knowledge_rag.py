@@ -196,3 +196,35 @@ def test_the_command_ingests_and_approval_needs_a_named_reviewer(tmp_path):
     call_command("ingest_knowledge", str(pdf), "--title", "B", "--approve", "--reviewer", "Dr Rahman")
     d = KnowledgeDocument.objects.get(title="B")
     assert (d.status, d.approved, d.reviewer_name) == ("READY", True, "Dr Rahman") and d.approved_at
+
+
+def test_a_dropped_connection_is_retried_then_succeeds(settings, monkeypatch):
+    import requests
+    from apps.ai import embeddings as emb
+    settings.EMBEDDING_PROVIDER, settings.GEMINI_API_KEY = "gemini", "k"
+    monkeypatch.setattr(emb.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    class R:
+        status_code = 200
+        headers = {}
+        def json(self): return {"embeddings": [{"values": [1.0] + [0.0] * 767}]}
+
+    def post(*a, **k):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise requests.ConnectionError("dropped")
+        return R()
+
+    monkeypatch.setattr(emb.requests, "post", post)
+    assert len(emb.embed_texts(["x"])[0]) == 768 and calls["n"] == 3
+
+
+def test_a_connection_that_never_recovers_fails_with_embedding_error(settings, monkeypatch):
+    import requests
+    from apps.ai import embeddings as emb
+    settings.EMBEDDING_PROVIDER, settings.GEMINI_API_KEY = "gemini", "k"
+    monkeypatch.setattr(emb.time, "sleep", lambda s: None)
+    monkeypatch.setattr(emb.requests, "post", lambda *a, **k: (_ for _ in ()).throw(requests.ConnectionError("down")))
+    with pytest.raises(EmbeddingError):
+        emb.embed_texts(["x"])

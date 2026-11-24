@@ -271,6 +271,11 @@ ending after it) the view opens `/triage/summary/{id}`. That page polls every 2 
 disables confirming until it is ready, and routes by level with `features/patient/triageRoute.ts` (EMERGENCY shows
 the emergency screen and no booking). The doctor's queue reads the appointment's `triage_level`.
 
+**No answers captured.** If a finished session has no patient turn and no patient words (for example a voice call whose
+transcripts never reached the server), the summary page shows "We didn't capture your answers" with start-again and
+type-instead actions and no confirm button. When the server answers `provider_unavailable` to a call request, the
+patient sees its message and can type instead.
+
 ### 8.3 Failure handling
 
 | Condition | Behavior |

@@ -21,7 +21,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-from apps.common.exceptions import NotAuthenticatedError
+from apps.common.exceptions import NotAuthenticatedError, ProviderUnavailableError
 from .base import ProviderCredentials, ProviderEvent
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,9 @@ class VapiVoiceProvider:
     provider_name = "vapi"
 
     def create_session(self, session_ref: str, language: str) -> ProviderCredentials:
+        # Without the webhook secret every transcript is rejected, so a call would record nothing. Offer text instead.
+        if not settings.VAPI_WEBHOOK_SECRET:
+            raise ProviderUnavailableError("Voice calls are not available right now. You can type your answers instead.")
         # Vapi web calls use the public key (safe to expose, restricted by allowed origins in Vapi).
         return ProviderCredentials(
             session_ref=session_ref,

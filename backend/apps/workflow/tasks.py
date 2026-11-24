@@ -3,9 +3,12 @@ Outbox event dispatcher tasks (MASTERPLAN §4.9, §7.1, BACKEND §7.1).
 Periodically queries unhandled OutboxEvent entries and routes them to target workers.
 """
 import logging
+import threading
 from datetime import timedelta
 from celery import shared_task
 from django.conf import settings
+from django.db import connection, transaction
+from django.db.models import F
 from django.utils import timezone
 from apps.workflow.handlers import HANDLERS
 from apps.workflow.models import OutboxEvent
@@ -13,50 +16,62 @@ from apps.workflow.models import OutboxEvent
 logger = logging.getLogger(__name__)
 
 
+def _run_long(task, arg: str) -> None:
+    """Start a long task. With a real broker `.delay()` queues it. With the local eager setting it would run inside the
+    caller's request, so a book upload would hold the browser for the whole ingestion: use a background thread instead."""
+    if not settings.CELERY_TASK_ALWAYS_EAGER:
+        task.delay(arg)
+        return
+
+    def run():
+        try:
+            task(arg)
+        finally:
+            connection.close()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+def _route(event: OutboxEvent) -> None:
+    if event.event_type == "document.uploaded":
+        from apps.ai.tasks import process_document_ocr
+        process_document_ocr.delay(str(event.aggregate_id))
+    elif event.event_type == "referral.draft_requested":
+        from apps.ai.tasks import generate_referral_draft_task
+        generate_referral_draft_task.delay(str(event.aggregate_id))
+    elif event.event_type == "knowledge.document_uploaded":
+        from apps.knowledge.tasks import ingest_knowledge_document
+        _run_long(ingest_knowledge_document, str(event.aggregate_id))
+    elif event.event_type == "triage.report_requested":
+        from apps.triage.tasks import generate_triage_report
+        generate_triage_report.delay(str(event.aggregate_id))
+    elif event.event_type in HANDLERS:
+        HANDLERS[event.event_type](event)
+
+
 @shared_task(name="apps.workflow.tasks.dispatch_outbox_events")
 def dispatch_outbox_events(batch_size: int = 50) -> int:
     """
-    Claims undispatched OutboxEvent records and dispatches them to their appropriate handlers.
-    Returns the count of dispatched events.
+    Hands undispatched outbox events to their handlers (BACKEND §7.1). Each event is claimed with a row lock that skips
+    rows another dispatcher already holds, so an event is handled once even when the 2-second beat and an on-commit
+    kick overlap, and a patient's request never waits on another request's job. Returns the count dispatched.
     """
-    events = (
-        OutboxEvent.objects.filter(dispatched_at__isnull=True)
-        .order_by("created_at")[:batch_size]
-    )
-
-    dispatched_count = 0
-    for event in events:
+    ids = list(OutboxEvent.objects.filter(dispatched_at__isnull=True).order_by("created_at").values_list("pk", flat=True)[:batch_size])
+    dispatched = 0
+    for pk in ids:
         try:
-            if event.event_type == "document.uploaded":
-                from apps.ai.tasks import process_document_ocr
-                process_document_ocr.delay(str(event.aggregate_id))
-
-            elif event.event_type == "referral.draft_requested":
-                from apps.ai.tasks import generate_referral_draft_task
-                generate_referral_draft_task.delay(str(event.aggregate_id))
-
-            elif event.event_type == "knowledge.document_uploaded":
-                from apps.knowledge.tasks import ingest_knowledge_document
-                ingest_knowledge_document.delay(str(event.aggregate_id))
-
-            elif event.event_type == "triage.report_requested":
-                from apps.triage.tasks import generate_triage_report
-                generate_triage_report.delay(str(event.aggregate_id))
-
-            elif event.event_type in HANDLERS:
-                HANDLERS[event.event_type](event)
-
-            event.dispatched_at = timezone.now()
-            event.save(update_fields=["dispatched_at"])
-            dispatched_count += 1
-
-        except Exception as exc:
-            event.attempts += 1
-            event.last_error = str(exc)
-            event.save(update_fields=["attempts", "last_error"])
-            logger.error("dispatch_outbox_events: Failed to dispatch event %s: %s", event.id, exc)
-
-    return dispatched_count
+            with transaction.atomic():
+                event = OutboxEvent.objects.select_for_update(skip_locked=True).filter(pk=pk, dispatched_at__isnull=True).first()
+                if event is None:
+                    continue  # another dispatcher has it, or it is already done
+                _route(event)
+                event.dispatched_at = timezone.now()
+                event.save(update_fields=["dispatched_at"])
+                dispatched += 1
+        except Exception as exc:  # the claim rolled back: it stays pending and is tried again
+            OutboxEvent.objects.filter(pk=pk).update(attempts=F("attempts") + 1, last_error=str(exc)[:500])
+            logger.error("dispatch_outbox_events: Failed to dispatch event %s: %s", pk, exc)
+    return dispatched
 
 
 # --- Scheduled jobs (BACKEND §7.2). Each does nothing until its policy setting is above zero. ---

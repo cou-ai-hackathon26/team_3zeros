@@ -23,5 +23,7 @@
   "unavailable": "The AI assessment is not available right now. You can still review and confirm your summary.",
   "routeUrgent": "Please be seen today. Do not wait for a routine appointment.",
   "routeWatch": "Watch for the warning signs above and see a doctor if they appear or the problem continues.",
-  "routeEmergency": "This may be an emergency. Do not book an appointment."
+  "routeEmergency": "This may be an emergency. Do not book an appointment.",
+  "noAnswersTitle": "We didn't capture your answers",
+  "noAnswersBody": "Nothing you said was saved, so there is no summary to review. You can start again, or type your answers instead."
 }

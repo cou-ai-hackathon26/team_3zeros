@@ -123,7 +123,7 @@ describe("/knowledge (D-29)", () => {
   });
 
   it("the upload dialog validates, then uploads with progress", async () => {
-    upload.mockImplementation(async (_p: string, _f: FormData, onProgress: (n: number) => void) => { onProgress(0.5); return doc(); });
+    upload.mockImplementation(async (_p?: string, _f?: FormData, onProgress?: (n: number) => void) => { onProgress?.(0.5); return doc(); });
     mount(["platform_admin"], []);
     fireEvent.click(await screen.findByRole("button", { name: "Upload a book" }));
     const dialog = await screen.findByRole("dialog");

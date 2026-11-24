@@ -387,6 +387,12 @@ Handlers must be idempotent (keyed on event id).
 | `referral.draft_requested` | AI draft task |
 | `consent.granted` / `consent.revoked` | Referral guard re-evaluation |
 
+Each event is claimed with `SELECT … FOR UPDATE SKIP LOCKED` inside its own transaction, so it is handled once even
+when the 2-second beat and an on-commit kick overlap, and a request never waits on another request's job. A handler
+that raises rolls its claim back; the event stays pending with `attempts` incremented. With the local eager setting
+(`CELERY_TASK_ALWAYS_EAGER`) a book ingestion starts in a background thread, because run inline it would hold the
+upload request for the whole embedding run.
+
 ### 7.2 Scheduled jobs
 
 | Job | Interval | Behavior |
@@ -411,6 +417,9 @@ Not built yet: `expire_consent_requests` and `retention_enforcement` (Q-07 open)
 The dispatcher routes `referral.state_changed` and `appointment.state_changed` to
 `apps/workflow/handlers.py`: a WebSocket broadcast of id, state, version and action only, plus in-app
 notifications (`apps/notifications/services.py`, fixed bilingual texts, no clinical content).
+
+The knowledge-book ingestion runs on the `ai` queue and needs the shared media volume (the API saves the PDF, the worker
+reads it). Book uploads can be up to `KNOWLEDGE_MAX_UPLOAD_MB` (default 300).
 
 ### 7.3 Queues
 
@@ -535,6 +544,12 @@ provides `PlaceholderVoiceProvider` implementing `VoiceProvider`.
   `apps/triage/tasks.py::generate_triage_report` fills the report and summary fields. It is idempotent.
 - Model spend (D-31): `apps/ai/usage.py` records tokens per purpose (`LLMUsageDay`) and enforces
   `LLM_DAILY_BUDGET_USD`; prices are `LLM_PRICE_IN_PER_M` and `LLM_PRICE_OUT_PER_M`.
+- Knowledge base (D-33, D-34): `apps/knowledge` (`ingest.py`, `search.py`, `views.py`), embeddings in
+  `apps/ai/embeddings.py`. Upload (`POST /admin/knowledge/documents` or the `ingest_knowledge` command) stores the PDF,
+  an outbox event `knowledge.document_uploaded` runs `ingest_knowledge_document` on the `ai` queue: read pages, chunk
+  (about 1,200 characters, 150 overlap), full-text vectors, embeddings in batches of 25 paced by
+  `EMBEDDING_TOKENS_PER_MINUTE`, then READY. A stopped run keeps what it embedded and resumes with `retry`. Search is
+  vector top 20 plus full-text top 20 merged by reciprocal rank fusion, filtered by `KNOWLEDGE_MIN_SIMILARITY`.
 - Vapi dashboard setup: server URL = the provider-events endpoint with the same secret,
   `monitorPlan.controlEnabled = true`, and no model-generated replies.
 

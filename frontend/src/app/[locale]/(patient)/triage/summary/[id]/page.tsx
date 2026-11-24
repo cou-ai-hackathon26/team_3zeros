@@ -91,6 +91,24 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
     );
   }
 
+  // Nothing the patient said was saved (for example a voice call whose answers never reached the server): there is no
+  // summary to review, and a blank one must never be confirmed.
+  if (session.turns && !session.turns.some((turn) => turn.role === "patient") && !session.summary?.patient_words) {
+    return (
+      <>
+        <PageHeader serif title={t(locale, "report.noAnswersTitle")} context={t(locale, "report.noAnswersBody")} />
+        <div className="flex flex-wrap gap-3">
+          <Button size="lg" loading={restarting} loadingLabel={T("startAgain")} onClick={() => void handleStartAgain()}>
+            {T("startAgain")}
+          </Button>
+          <Link href={`/${locale}/triage?mode=text`} className={buttonVariants({ variant: "secondary", size: "lg" })}>
+            {T("typeInstead")}
+          </Link>
+        </div>
+      </>
+    );
+  }
+
   const sf = session.summary?.structured_fields ?? {};
   const specialtyCode = typeof sf.suggested_specialty_code === "string" ? sf.suggested_specialty_code : "";
   const sources = Array.isArray(sf.guidance_sources) ? sf.guidance_sources : [];

@@ -17,7 +17,7 @@ from django.core.cache import cache
 logger = logging.getLogger(__name__)
 
 DIMENSIONS = 768
-BATCH = 100
+BATCH = 25  # about 8k tokens a request: small enough for per-minute token limits
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
 
 
@@ -46,15 +46,21 @@ def _gemini_batch(texts: List[str], task_type: str) -> List[List[float]]:
         raise EmbeddingError("GEMINI_API_KEY is not set.")
     model = settings.EMBEDDING_MODEL
     body = {"requests": [{"model": f"models/{model}", "content": {"parts": [{"text": t}]}, "taskType": task_type, "outputDimensionality": DIMENSIONS} for t in texts]}
-    delay = 2.0
-    for attempt in range(6):
+    delay = 5.0
+    for attempt in range(8):
         try:
-            resp = requests.post(GEMINI_URL.format(model=model), headers={"x-goog-api-key": key}, json=body, timeout=60)
+            resp = requests.post(GEMINI_URL.format(model=model), headers={"x-goog-api-key": key}, json=body, timeout=90)
         except requests.RequestException as exc:
+            if attempt < 7:  # a dropped connection is usually brief: wait and try the same batch again
+                time.sleep(min(delay, 70))
+                delay = min(delay * 2, 70)
+                continue
             raise EmbeddingError(f"Embedding request failed: {exc}")
-        if resp.status_code in (429, 500, 502, 503) and attempt < 5:
-            time.sleep(delay)  # rate limit or outage: back off and try again
-            delay = min(delay * 2, 30)
+        if resp.status_code in (429, 500, 502, 503) and attempt < 7:
+            # Rate limits are per minute: wait out the window (or what the provider asks for) and try again.
+            wait = float(resp.headers.get("Retry-After") or delay)
+            time.sleep(min(wait, 70))
+            delay = min(delay * 2, 70)
             continue
         if resp.status_code != 200:
             raise EmbeddingError(f"Embedding provider answered {resp.status_code}.")

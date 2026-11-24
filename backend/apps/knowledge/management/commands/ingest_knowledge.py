@@ -26,7 +26,7 @@ class Command(BaseCommand):
             raise CommandError("--approve needs --reviewer: the clinical reviewer who approved this source.")
         try:
             with open(pdf, "rb") as f:
-                doc = store_upload(File(f), title=title, publisher=publisher, version=doc_version, language=language, rights_statement=rights)
+                doc = store_upload(File(f), title=title, publisher=publisher, version=doc_version, language=language, rights_statement=rights, queue=False)  # this command runs the ingestion itself
         except (OSError, ValidationError) as exc:
             raise CommandError(str(exc))
         self.stdout.write(f"Stored {doc.title}; embedding passages (resumable, this can take a while)...")

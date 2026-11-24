@@ -251,4 +251,6 @@ EMBEDDING_PROVIDER = env("EMBEDDING_PROVIDER", default="gemini")  # gemini | moc
 EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="gemini-embedding-001")
 # Placeholder until clinical reviewers set it (BACKEND §10.2): a passage must be at least this similar to count as evidence.
 KNOWLEDGE_MIN_SIMILARITY = env.float("KNOWLEDGE_MIN_SIMILARITY", default=0.5)
+# Pace book embedding under the provider's per-minute token limit (0 = no limit). A free Gemini key allows about 30000.
+EMBEDDING_TOKENS_PER_MINUTE = env.int("EMBEDDING_TOKENS_PER_MINUTE", default=0)
 KNOWLEDGE_MAX_UPLOAD_MB = env.int("KNOWLEDGE_MAX_UPLOAD_MB", default=300)

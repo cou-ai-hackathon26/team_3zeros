@@ -7,6 +7,7 @@ import hashlib
 import io
 import logging
 import re
+import time
 from typing import List
 
 from django.conf import settings
@@ -23,7 +24,7 @@ from .models import KnowledgeChunk, KnowledgeDocument
 logger = logging.getLogger(__name__)
 
 CHUNK_SIZE, CHUNK_OVERLAP = 1200, 150
-EMBED_BATCH = 100
+EMBED_BATCH = 25
 
 
 def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
@@ -40,7 +41,7 @@ def chunk_text(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) 
     return parts
 
 
-def store_upload(file, *, title, publisher="", version="", language="en", rights_statement="", user=None) -> KnowledgeDocument:
+def store_upload(file, *, title, publisher="", version="", language="en", rights_statement="", user=None, queue=True) -> KnowledgeDocument:
     """Validate and save an uploaded PDF, create the document in PROCESSING, and queue ingestion."""
     head = file.read(5)
     if head != b"%PDF-":
@@ -63,7 +64,8 @@ def store_upload(file, *, title, publisher="", version="", language="en", rights
     )
     doc.storage_key = default_storage.save(f"knowledge/{doc.public_id}.pdf", file)
     doc.save(update_fields=["storage_key"])
-    queue_ingestion(doc)
+    if queue:
+        queue_ingestion(doc)
     return doc
 
 
@@ -131,6 +133,14 @@ def _extract_chunks(doc: KnowledgeDocument) -> bool:
     return True
 
 
+def _pace(chars: int, started: float) -> None:
+    """Stay under the provider's per-minute token limit (EMBEDDING_TOKENS_PER_MINUTE, 0 = no limit)."""
+    limit = getattr(settings, "EMBEDDING_TOKENS_PER_MINUTE", 0)
+    if limit > 0:
+        needed = (chars / 3.5) / limit * 60.0  # seconds this batch should have taken
+        time.sleep(max(0.0, needed - (time.monotonic() - started)))
+
+
 def ingest_document(doc: KnowledgeDocument) -> KnowledgeDocument:
     """Run ingestion to the end, or until it fails. Safe to run again: existing passages and vectors are kept."""
     doc.status, doc.error = "PROCESSING", ""
@@ -143,6 +153,7 @@ def ingest_document(doc: KnowledgeDocument) -> KnowledgeDocument:
         pending = list(doc.chunks.filter(embedding__isnull=True).order_by("id")[:EMBED_BATCH])
         if not pending:
             break
+        started = time.monotonic()
         try:
             vectors = embed_texts([c.text for c in pending], "RETRIEVAL_DOCUMENT")
         except EmbeddingError as exc:
@@ -155,6 +166,7 @@ def ingest_document(doc: KnowledgeDocument) -> KnowledgeDocument:
         KnowledgeChunk.objects.bulk_update(pending, ["embedding"])
         doc.embedded_count = doc.chunks.filter(embedding__isnull=False).count()
         doc.save(update_fields=["embedded_count"])
+        _pace(sum(len(c.text) for c in pending), started)
 
     doc.status = "READY"
     doc.save(update_fields=["status"])

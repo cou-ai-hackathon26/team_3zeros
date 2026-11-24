@@ -140,6 +140,9 @@ class TriageSummaryConfirmView(views.APIView):
         session = get_triage_session_for_patient_mutation(request.user, public_id)
         serializer = SummaryConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if not session.turns.filter(role="patient").exists():
+            # A summary of nothing must never be confirmed or attached to an appointment.
+            raise ValidationError("No answers were captured, so there is no summary to confirm. Please start again.")
 
         session.ended_at = timezone.now()
         run_triage_action(

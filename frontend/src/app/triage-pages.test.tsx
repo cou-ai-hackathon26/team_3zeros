@@ -553,3 +553,55 @@ describe("Routing by triage level (D-30)", () => {
     expect(screen.queryByRole("button", { name: /Confirm/i })).toBeNull();
   });
 });
+
+
+describe("A voice call that saved no answers (VOICE_SUMMARY_FIX_PLAN)", () => {
+  const open = (turns: unknown[]) => {
+    nav.pathname = "/en/triage/summary/sess-empty-1";
+    nav.params = { locale: "en", id: "sess-empty-1" };
+    mount(<TriageSummaryReviewPage params={Promise.resolve({ locale: "en" })} />, (url, method) =>
+      url.endsWith("/triage/sessions/sess-empty-1") && method === "GET"
+        ? json({ id: "sess-empty-1", state: "SUMMARY_PENDING_REVIEW", allowed_actions: ["confirm_summary", "end"], version: 3, language: "en", mode: "voice", turns,
+            summary: { patient_words: "", structured_fields: { chief_complaint: "", report_status: "unavailable" }, patient_edits: {} } })
+        : json({}, 404),
+    );
+  };
+
+  it("shows a clear state with start-again and type-instead, and no blank fields or confirm button", async () => {
+    open([{ id: "t1", role: "assistant", text: "Hello", language_detected: "bn", at: "2026-11-24T00:00:00Z" }]);
+    expect(await screen.findByText("We didn't capture your answers")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Start again/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Type instead/i })).toHaveAttribute("href", "/en/triage?mode=text");
+    expect(screen.queryByRole("button", { name: /Confirm/i })).toBeNull();
+    expect(screen.queryByLabelText(/Chief complaint|Duration|Severity/i)).toBeNull();
+  });
+
+  it("still shows the normal summary once there is at least one patient answer", async () => {
+    open([{ id: "t1", role: "assistant", text: "Hello", language_detected: "bn", at: "x" }, { id: "t2", role: "patient", text: "Cough", language_detected: "en", at: "y" }]);
+    expect(await screen.findByRole("button", { name: /Confirm/i })).toBeInTheDocument();
+    expect(screen.queryByText("We didn't capture your answers")).toBeNull();
+  });
+});
+
+
+describe("Voice not configured (VOICE_SUMMARY_FIX_PLAN step 2)", () => {
+  it("when the server refuses the call, the patient sees why and can type instead", async () => {
+    nav.pathname = "/en/triage";
+    const fakeStream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream;
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockResolvedValue(fakeStream), enumerateDevices: vi.fn().mockResolvedValue([]) },
+    });
+    mount(<TriagePage params={Promise.resolve({ locale: "en" })} />, (url, method) => {
+      if (url.endsWith("/triage/sessions") && method === "POST")
+        return json({ id: "sess-v-1", state: "ACTIVE", allowed_actions: ["end"], version: 2, language: "en", mode: "voice", turns: [], summary: null }, 201);
+      if (url.endsWith("/voice-credentials"))
+        return json({ error: { code: "provider_unavailable", message: "Voice calls are not available right now. You can type your answers instead." } }, 503);
+      return json({});
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /Allow microphone/i }));
+    expect(await screen.findByText(/Voice calls are not available right now/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Type instead/i })).toBeEnabled();
+  });
+});
