@@ -56,7 +56,7 @@ def list_patient_triage_sessions(user, states=None):
 
 
 def _clinician_has_appointment_relationship(user, session: TriageSession) -> bool:
-    """True when authenticated clinical staff has an active membership at a facility with a linked appointment."""
+    """True when authenticated clinical staff has an active membership at a facility with a linked appointment, referral, or patient care relationship."""
     if not user or not getattr(user, "is_authenticated", False):
         return False
     from apps.accounts.selectors import active_memberships
@@ -70,10 +70,27 @@ def _clinician_has_appointment_relationship(user, session: TriageSession) -> boo
         return False
     from apps.scheduling.models import Appointment
 
-    return Appointment.objects.filter(
+    if Appointment.objects.filter(
         triage_session_id=session.public_id,
         facility_id__in=facility_ids,
-    ).exists()
+    ).exists():
+        return True
+
+    from apps.referrals.models import Referral
+    from django.db.models import Q
+    if Referral.objects.filter(
+        triage_session_id=session.public_id,
+    ).filter(
+        Q(sender_facility_id__in=facility_ids) | Q(receiver_facility_id__in=facility_ids)
+    ).exists():
+        return True
+
+    if session.patient_id:
+        from apps.identity.relationship import has_care_relationship
+        if has_care_relationship(session.patient, facility_ids):
+            return True
+
+    return False
 
 
 def get_triage_session_for_read(user, public_id):

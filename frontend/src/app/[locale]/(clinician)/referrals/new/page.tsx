@@ -45,6 +45,7 @@ export default function NewReferralPage() {
 
   const initialOfflineQueueId = params?.get("offlinePatientQueueId") ?? null;
   const initialLocalPatientRef = params?.get("localPatientRef") ?? null;
+  const triageSessionId = params?.get("triage_session_id") ?? null;
 
   const [patientId, setPatientId] = useState<string | null>(params?.get("patient") ?? null);
   const [offlinePatientQueueId, setOfflinePatientQueueId] = useState<string | null>(initialOfflineQueueId);
@@ -206,6 +207,7 @@ export default function NewReferralPage() {
           reason: reason.trim(),
           ...(encounterId ? { encounter_id: encounterId } : {}),
           ...(summary ? { summary } : {}),
+          ...(triageSessionId ? { triage_session_id: triageSessionId } : {}),
         },
       });
       router.push(`/${locale}/referrals/${ref.id}`);

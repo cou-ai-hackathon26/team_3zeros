@@ -213,12 +213,12 @@ export function usePatientNames(ids: string[]): Map<string, Patient> {
 }
 
 /** `GET /patients/?q=`. The backend serves this list with a trailing slash (audit A-21). */
-export function usePatientSearch(q: string) {
+export function usePatientSearch(q: string, listWhenEmpty = false) {
   const api = useApi();
   return useQuery({
     queryKey: ["records", "search", q],
     queryFn: async () => asList((await api.get<Page<Patient> | Patient[]>(withQuery("/patients/", { q }))).data),
-    enabled: q.trim().length > 0,
+    enabled: listWhenEmpty || q.trim().length > 0,
   });
 }
 

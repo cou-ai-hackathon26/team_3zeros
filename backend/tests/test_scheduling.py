@@ -201,3 +201,19 @@ def test_the_triage_level_is_snapshotted_on_the_appointment(api_client, scheduli
     # read-only: it cannot be set by the client
     resp2 = api_client.post("/api/v1/appointments", {"slot_id": str(data["slot2"].public_id), "triage_level": "HIGH"})
     assert resp2.status_code in (201, 400) and (resp2.data.get("triage_level") is None if resp2.status_code == 201 else True)
+
+
+@pytest.mark.django_db
+def test_empty_patient_list_shows_only_the_clinicians_own_patients(scheduling_setup):
+    from apps.identity.selectors import search_patients
+    data = scheduling_setup
+    user, patient = data["user"], data["patient"]
+    other = Patient.objects.create(given_name="Rina", family_name="Akter", phone="+8801700000001")
+    assert not search_patients(user).exists()  # no relationship yet
+
+    appt = create_appointment_request(user, patient.public_id, data["slot1"].public_id)
+    execute_appointment_transition(user, appt.public_id, "accept")
+    assert list(search_patients(user)) == [patient] and other not in search_patients(user)
+
+    execute_appointment_transition(user, appt.public_id, "cancel")
+    assert not search_patients(user).exists()  # a cancelled appointment is no relationship

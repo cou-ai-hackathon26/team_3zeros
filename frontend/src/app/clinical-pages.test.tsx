@@ -374,17 +374,18 @@ describe("/referrals/[id] workspace", () => {
 
 describe("/patients", () => {
   beforeEach(() => { nav.pathname = "/en/patients"; });
-  it("before searching it says how to search and shows no list", async () => {
-    const { calls } = mount(<PatientsPage />, {});
+  it("before searching it lists the clinician's own patients from the API", async () => {
+    const { calls } = mount(<PatientsPage />, { "GET /patients/": () => page([patient("p1", "Karim", "করিম")]) });
     expect(screen.getByText("Search by name, phone or ID.")).toBeTruthy();
-    expect(calls).toEqual([]);
+    expect(await screen.findByRole("link", { name: /Karim Uddin/ })).toBeTruthy();
+    expect(calls.map((c) => c.key)).toEqual(["GET /patients/"]);
   });
   it("searches through the API once typing pauses and links each result to its chart", async () => {
     const { calls } = mount(<PatientsPage />, { "GET /patients/": () => page([patient("p1", "Karim", "করিম")]) });
     fireEvent.change(screen.getByLabelText("Search patients"), { target: { value: "Kar" } });
     const link = await screen.findByRole("link", { name: /Karim Uddin/ });
     expect(link.getAttribute("href")).toBe("/en/patients/p1");
-    expect(calls.some((c) => c.key === "GET /patients/?q=Kar")).toBe(true);
+    await waitFor(() => expect(calls.some((c) => c.key === "GET /patients/?q=Kar")).toBe(true));
   });
   it("says when nothing matches and when the search fails", async () => {
     const { unmount } = mount(<PatientsPage />, { "GET /patients/": () => page([]) });

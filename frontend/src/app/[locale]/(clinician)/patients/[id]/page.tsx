@@ -25,6 +25,9 @@ import { PatientHeldSummary } from "../../../../../components/patient/PatientHel
 import { PatientReportHistoryCard } from "../../../../../components/reports/ReportAnalysisPanels";
 import { Printer, FlaskConical, AlertTriangle, ShieldCheck } from "lucide-react";
 
+import { cn } from "../../../../../lib/cn";
+import { TriageSummaryForClinician } from "../../../../../components/clinical/TriageSummaryForClinician";
+
 const ConfirmDialog = dynamic(() => import("../../../../../components/ConfirmDialog").then((m) => m.ConfirmDialog), { ssr: false });
 
 /** `/patients/[id]`: read the chart (APPLICATION_DESIGN §5.3). */
@@ -75,6 +78,20 @@ export default function PatientChartPage() {
     }
   }
 
+  function importFromTriage() {
+    const latestTriage = chart.data?.triage_sessions?.[0];
+    if (!latestTriage?.summary) return;
+    const sf = latestTriage.summary.structured_fields || {};
+    const parts = [
+      sf.chief_complaint,
+      sf.duration ? `(${sf.duration})` : null,
+      sf.severity ? `- Severity: ${sf.severity}` : null,
+    ].filter(Boolean);
+    if (parts.length > 0) {
+      setVisitReason(parts.join(" "));
+    }
+  }
+
   async function saveVisit(e: React.FormEvent) {
     e.preventDefault();
     const facility = me?.active_facility?.id;
@@ -120,7 +137,7 @@ export default function PatientChartPage() {
               actions={
                 <>
                   {clinician && <Link href={`/${locale}/referrals/new?patient=${id}`} className={buttonVariants()}>{L("refer")}</Link>}
-                  <Button variant="secondary" onClick={() => setShowVisit((v) => !v)}>{L("recordVisit")}</Button>
+                  <Button variant="secondary" onClick={() => { setShowVisit((v) => !v); if (!visitReason) importFromTriage(); }}>{L("recordVisit")}</Button>
                   <Button variant="secondary" onClick={() => setShowOrderModal(true)}>
                     <FlaskConical aria-hidden className="size-4 me-1.5" />
                     {L("orderTest")}
@@ -155,13 +172,21 @@ export default function PatientChartPage() {
             )}
             {showVisit && (
               <form onSubmit={saveVisit} className="flex max-w-md flex-col gap-3 rounded-panel border border-line bg-surface p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-dense font-semibold text-ink">{L("visitDetails")}</span>
+                  {chart.data?.triage_sessions?.[0]?.summary?.structured_fields?.chief_complaint && (
+                    <Button type="button" size="sm" variant="quiet" onClick={importFromTriage}>
+                      {L("importFromTriage")}
+                    </Button>
+                  )}
+                </div>
                 <Field label={L("visitReason")} locale={locale}>{(f) => <Input {...f} value={visitReason} onChange={(e) => setVisitReason(e.target.value)} />}</Field>
                 <Button type="submit" loading={createVisit.isPending} className="w-fit">{L("saveVisit")}</Button>
               </form>
             )}
             <Tabs defaultValue="summary">
               <TabsList>
-                {(["summary", "visits", "results", "reports", "referrals"] as const).map((k) => <TabsTrigger key={k} value={k}>{L(`tab${k[0].toUpperCase()}${k.slice(1)}`)}</TabsTrigger>)}
+                {(["summary", "visits", "triage", "results", "reports", "referrals"] as const).map((k) => <TabsTrigger key={k} value={k}>{L(`tab${k[0].toUpperCase()}${k.slice(1)}`)}</TabsTrigger>)}
               </TabsList>
               <TabsContent value="summary" className="mt-4">
                 <DescriptionList items={[
@@ -247,6 +272,43 @@ export default function PatientChartPage() {
                 <QueryBoundary query={chart} locale={locale} loadingLabel={L("loading")} errorMessage={L("error")}>
                   {(c) => c.encounters.length === 0 ? <EmptyState message={L("noVisits")} /> : (
                     <ul className="m-0 p-0">{c.encounters.map((v) => <ListRow key={v.id} title={`${formatDhakaDateTime(v.period_start, locale)}, ${v.facility_name}`} meta={v.reason || v.encounter_type} />)}</ul>
+                  )}
+                </QueryBoundary>
+              </TabsContent>
+              <TabsContent value="triage" className="mt-4">
+                <QueryBoundary query={chart} locale={locale} loadingLabel={L("loading")} errorMessage={L("error")}>
+                  {(c) => (
+                    <div className="flex flex-col gap-4">
+                      {(!c.triage_sessions || c.triage_sessions.length === 0) ? (
+                        <EmptyState message={L("noTriage")} />
+                      ) : (
+                        c.triage_sessions.map((ts) => (
+                          <div key={ts.id} className="rounded-[20px] border border-line bg-surface p-5 flex flex-col gap-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-ink text-dense">
+                                  {ts.started_at ? formatDhakaDateTime(ts.started_at, locale) : ts.id}
+                                </span>
+                                <span className="rounded-pill bg-sunken px-2.5 py-0.5 text-caption font-medium uppercase text-ink-muted">
+                                  {ts.mode}
+                                </span>
+                              </div>
+                              {ts.triage_level && (
+                                <span className={cn(
+                                  "rounded-pill px-2.5 py-0.5 text-caption font-semibold",
+                                  ts.triage_level === "EMERGENCY" ? "bg-signal-wash text-signal" :
+                                  ts.triage_level === "HIGH" ? "bg-ochre/20 text-ochre" :
+                                  "bg-positive/15 text-positive"
+                                )}>
+                                  {ts.triage_level}
+                                </span>
+                              )}
+                            </div>
+                            <TriageSummaryForClinician summary={ts.summary} locale={locale} />
+                          </div>
+                        ))
+                      )}
+                    </div>
                   )}
                 </QueryBoundary>
               </TabsContent>

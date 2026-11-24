@@ -17,6 +17,7 @@ CSRF_TRUSTED_ORIGINS = [
 DATABASES = {
     "default": env.db("DATABASE_URL", default="postgres://medi:medi_secret@localhost:5432/medi_waypoint")
 }
+DATABASES["default"].get("OPTIONS", {}).pop("pgbouncer", None)
 
 # In local testing, use in-memory channel layer or dummy
 CHANNEL_LAYERS = {

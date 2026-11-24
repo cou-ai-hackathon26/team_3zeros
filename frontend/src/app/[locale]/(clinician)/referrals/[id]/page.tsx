@@ -6,12 +6,13 @@ import { useParams } from "next/navigation";
 import { usePageLocale } from "../../../../usePageLocale";
 import { ApiError, createIntentIdempotencyKey } from "../../../../../api/client";
 import { formatDhakaDateTime, formatTimeAgo, t } from "../../../../../i18n/format";
-import { useReferral, useReferralDraft, useChart } from "../../../../../api/queries/hooks";
+import { useReferral, useReferralDraft, useChart, useTriageSession } from "../../../../../api/queries/hooks";
 import type { Referral } from "../../../../../api/queries/types";
 import { PERMISSIONS, can, hasRole } from "../../../../../auth/access";
 import { useMe } from "../../../../../auth/me";
 import { AssistedConsentPanel } from "../../../../../components/chw/AssistedConsentPanel";
 import { ReferralSlip } from "../../../../../components/chw/ReferralSlip";
+import { TriageSummaryForClinician } from "../../../../../components/clinical/TriageSummaryForClinician";
 import { useCaseActions } from "../../../../../features/clinical/useCaseActions";
 import { referralTone } from "../../../../../features/clinical/referralDisplay";
 import { holderOf } from "../../../../../state/routes";
@@ -23,7 +24,7 @@ import { QueryBoundary } from "../../../../../components/QueryBoundary";
 import { StatusBadge } from "../../../../../components/StatusBadge/StatusBadge";
 import { SyncBadge } from "../../../../../components/SyncBadge/SyncBadge";
 import { Button } from "../../../../../components/ui/button";
-import { Alert } from "../../../../../components/ui/states";
+import { Alert, ErrorState, Skeleton } from "../../../../../components/ui/states";
 import { DescriptionList, PageHeader, Panel } from "../../../../../components/ui/surfaces";
 
 type Sections = NonNullable<Referral["summary"]["sections"]>;
@@ -54,6 +55,7 @@ export default function ReferralWorkspacePage() {
   const { me } = useMe();
   const r = query.data;
   const chart = useChart(r?.patient_id ?? "");
+  const triage = useTriageSession(r?.triage_session_id ?? null);
   const activeMeds = chart.data?.active_medications ?? [];
   const activeAllergies = chart.data?.active_allergies ?? [];
 
@@ -240,6 +242,15 @@ export default function ReferralWorkspacePage() {
                 </section>
 
                 <aside className="flex flex-col gap-4">
+                  {ref.triage_session_id && (
+                    <Panel title={t(locale, "queue.triage")}>
+                      {triage.isLoading ? <Skeleton /> : triage.isError ? (
+                        <ErrorState message={t(locale, "queue.error")} locale={locale} variant="inline" />
+                      ) : (
+                        <TriageSummaryForClinician summary={triage.data?.summary} locale={locale} />
+                      )}
+                    </Panel>
+                  )}
                   <Panel title={L("details")}>
                     <DescriptionList items={[
                       { label: L("destination"), value: ref.receiver_facility_name },

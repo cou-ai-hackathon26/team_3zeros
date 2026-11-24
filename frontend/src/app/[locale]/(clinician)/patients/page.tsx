@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, Skeleton } from "../../../../components/ui/stat
 import { ListRow, PageHeader } from "../../../../components/ui/surfaces";
 import { patientDisplayName } from "../../../../components/clinical/QueueDetail";
 
-/** `/patients`: find a patient within scope. Results come only from the API; no recent-patients list is invented. */
+/** `/patients`: the clinician's own patients (care relationship, INV-9) until they type a search. Results come only from the API. */
 export default function PatientsPage() {
   const locale = usePageLocale(undefined, "en");
   const L = (k: string) => t(locale, `patients.${k}`);
@@ -21,7 +21,7 @@ export default function PatientsPage() {
     const id = setTimeout(() => setDebounced(q.trim()), 300);
     return () => clearTimeout(id);
   }, [q]);
-  const search = usePatientSearch(debounced);
+  const search = usePatientSearch(debounced, true);
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
@@ -34,9 +34,8 @@ export default function PatientsPage() {
         }
       />
       <Field label={L("searchLabel")} locale={locale}>{(p) => <Input {...p} type="search" value={q} onChange={(e) => setQ(e.target.value)} />}</Field>
-      {!debounced ? (
-        <p className="m-0 text-dense text-ink-muted">{L("searchHelp")}</p>
-      ) : search.isLoading ? (
+      {!debounced && <p className="m-0 text-dense text-ink-muted">{L("searchHelp")}</p>}
+      {search.isLoading ? (
         <Skeleton />
       ) : search.isError ? (
         <ErrorState message={L("searchError")} locale={locale} onRetry={() => search.refetch()} />

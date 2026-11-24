@@ -67,8 +67,22 @@ class PatientChartView(views.APIView):
         from apps.ai.report_analysis import get_or_build_patient_report_history
         from apps.documents.selectors import list_patient_documents
         from apps.documents.serializers import DocumentSerializer
+        from apps.triage.serializers import TriageSummarySerializer
 
         documents = list_patient_documents(patient)
+        triage_sessions = []
+        for ts in patient.triage_sessions.select_related("summary").order_by("-started_at")[:10]:
+            if hasattr(ts, "summary") and ts.summary:
+                triage_sessions.append({
+                    "id": str(ts.public_id),
+                    "started_at": ts.started_at.isoformat() if ts.started_at else None,
+                    "ended_at": ts.ended_at.isoformat() if ts.ended_at else None,
+                    "state": ts.state,
+                    "mode": ts.mode,
+                    "triage_level": (ts.summary.structured_fields or {}).get("triage_level"),
+                    "summary": TriageSummarySerializer(ts.summary).data,
+                })
+
         return Response({
             "patient_id": str(patient.public_id),
             "encounters": EncounterSerializer(encounters, many=True).data,
@@ -77,6 +91,7 @@ class PatientChartView(views.APIView):
             "active_allergies": active_allergies,
             "active_medications": active_medications,
             "active_problems": active_problems,
+            "triage_sessions": triage_sessions,
         })
 
 

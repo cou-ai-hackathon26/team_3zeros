@@ -1,6 +1,7 @@
 from django.db.models import Q
 from apps.accounts.selectors import active_memberships
 from .models import Patient, DuplicateCandidate
+from .relationship import INACTIVE_APPOINTMENT_STATES
 from apps.common.exceptions import NotFoundError
 
 
@@ -36,6 +37,18 @@ def search_patients(user, query_str=None):
         return Patient.objects.none()
 
     queryset = Patient.objects.prefetch_related("identifiers").all()
+    if not query_str:
+        # No search text: the clinician's own patients, i.e. those with a care relationship at their facilities (INV-9).
+        from apps.scheduling.models import Appointment
+
+        live = [k for k, _ in Appointment.STATE_CHOICES if k not in INACTIVE_APPOINTMENT_STATES]
+        facility_ids = list(active_memberships(user).filter(role__in=["clinician", "facility_staff"]).values_list("facility_id", flat=True))
+        return queryset.filter(
+            Q(appointments__facility_id__in=facility_ids, appointments__state__in=live)
+            | Q(encounters__facility_id__in=facility_ids)
+            | Q(referrals__sender_facility_id__in=facility_ids)
+            | Q(referrals__receiver_facility_id__in=facility_ids)
+        ).distinct()
     if query_str:
         queryset = queryset.filter(
             Q(phone__icontains=query_str) |

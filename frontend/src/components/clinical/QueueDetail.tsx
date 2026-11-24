@@ -26,7 +26,7 @@ export function QueueDetail({ entry, patient, locale, onActed }: { entry: QueueE
   const isAppt = entry.kind === "appointment";
   const object = (isAppt ? entry.appointment : entry.referral)!;
   const actions = useCaseActions(isAppt ? "appointments" : "referrals", locale);
-  const triage = useTriageSession(isAppt ? entry.appointment!.triage_session_id : null);
+  const triage = useTriageSession(isAppt ? entry.appointment!.triage_session_id : entry.referral?.triage_session_id ?? null);
   const name = patientDisplayName(patient, entry.referral?.patient_name ?? "");
 
   return (
@@ -70,6 +70,16 @@ export function QueueDetail({ entry, patient, locale, onActed }: { entry: QueueE
           {(entry.referral!.summary?.sections ?? []).map((s, i) => (
             <div key={i} className="text-dense"><strong>{s.name}</strong> {s.statements.map((x) => x.text).join(" ")}</div>
           ))}
+          {entry.referral!.triage_session_id && (
+            <div className="flex flex-col gap-1 border-t border-line pt-2">
+              <h3 className="m-0 text-subheading font-semibold">{t(locale, "queue.triage")}</h3>
+              {triage.isLoading ? <Skeleton /> : triage.isError ? (
+                <ErrorState message={t(locale, "queue.error")} locale={locale} variant="inline" onRetry={() => triage.refetch()} />
+              ) : (
+                <TriageSummaryForClinician summary={triage.data?.summary} locale={locale} />
+              )}
+            </div>
+          )}
           <Link href={`/${locale}/referrals/${entry.referral!.id}`} className={buttonVariants({ variant: "secondary", size: "sm", className: "w-fit" })}>{t(locale, "queue.openReferral")}</Link>
         </section>
       )}

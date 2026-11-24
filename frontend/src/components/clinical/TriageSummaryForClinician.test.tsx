@@ -36,4 +36,13 @@ describe("TriageSummaryForClinician", () => {
     rerender(<TriageSummaryForClinician summary={null} locale="en" />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("highlights patient-edited fields with a patient updated badge", () => {
+    const summaryWithEdits = {
+      ...summary,
+      patient_edits: { duration: "5 days" },
+    };
+    render(<TriageSummaryForClinician summary={summaryWithEdits} locale="en" />);
+    expect(screen.getByText("Patient updated")).toBeInTheDocument();
+  });
 });

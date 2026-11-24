@@ -62,6 +62,7 @@ class ReferralSerializer(serializers.ModelSerializer):
             "outcome",
             "decline_reason",
             "version",
+            "triage_session_id",
             "fhir_sync_status",
             "pending_action",
             "allowed_actions",
@@ -115,6 +116,7 @@ class ReferralCreateSerializer(serializers.Serializer):
     reason = serializers.CharField()
     summary = serializers.DictField(required=False, default=dict)
     provisional_code = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    triage_session_id = serializers.UUIDField(required=False, allow_null=True)
     idempotency_key = serializers.UUIDField(required=False, allow_null=True)
 
 

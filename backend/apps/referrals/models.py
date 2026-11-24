@@ -119,6 +119,7 @@ class Referral(TimeStamped):
         default="complete",
         db_index=True,
     )
+    triage_session_id = models.UUIDField(null=True, blank=True, db_index=True)
     missing_fields = models.JSONField(default=list, blank=True)
     reconciled_at = models.DateTimeField(null=True, blank=True)
     reconciliation_metadata = models.JSONField(default=dict, blank=True)

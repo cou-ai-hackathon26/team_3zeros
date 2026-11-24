@@ -118,6 +118,7 @@ export interface Referral extends Stateful {
   summary_origin?: string;
   content_hash?: string;
   consent_state: string;
+  triage_session_id?: string | null;
   outcome?: Record<string, unknown>;
   decline_reason?: string;
   sent_at?: string | null;
@@ -186,6 +187,16 @@ export interface ActiveProblem {
   period_start: string;
 }
 
+export interface PatientChartTriageSession {
+  id: string;
+  started_at: string | null;
+  ended_at: string | null;
+  state: string;
+  mode: string;
+  triage_level?: "LOW" | "MODERATE" | "HIGH" | "EMERGENCY" | null;
+  summary?: TriageSummaryData | null;
+}
+
 export interface Chart {
   patient_id: string;
   encounters: Encounter[];
@@ -194,6 +205,7 @@ export interface Chart {
   active_problems?: ActiveProblem[];
   documents?: DocumentMeta[];
   report_history?: PatientReportHistory | null;
+  triage_sessions?: PatientChartTriageSession[];
 }
 
 export interface DocumentDownloadLinkResponse {

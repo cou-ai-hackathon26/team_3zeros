@@ -277,6 +277,7 @@ def create_referral_draft(user, validated_data, request_id="", idempotency_key=N
                 summary_origin=summary_origin,
                 provisional_code=provisional_code,
                 idempotency_key=effective_key,
+                triage_session_id=validated_data.get("triage_session_id"),
             )
 
             ReferralDraftVersion.objects.create(
