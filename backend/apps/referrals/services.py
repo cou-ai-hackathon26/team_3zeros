@@ -24,27 +24,41 @@ from apps.common.exceptions import (
 from apps.audit.services import record_audit_event
 from apps.identity.models import Patient
 from apps.organizations.models import Facility, Practitioner
+from apps.accounts.selectors import active_memberships
+from apps.identity.relationship import has_care_relationship
+from .selectors import get_referral_by_public_id
+from .transitions import is_sender_clinician
+from apps.common.exceptions import StaleVersionError
+
+def _sender_membership(user, active_facility_id=None, allow_staff_permission=None):
+    """The user's active membership that lets them send: a clinician, or (when `allow_staff_permission` is given) staff
+    holding it. The active facility is preferred; expired memberships never count."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return None
+    found = []
+    for m in active_memberships(user).select_related("facility"):
+        if m.role == "clinician" or (allow_staff_permission and m.role == "facility_staff" and allow_staff_permission in (m.permissions or [])):
+            found.append(m)
+    if active_facility_id:
+        found = [m for m in found if str(m.facility.public_id) == str(active_facility_id)] or found
+    # Prefer clinician membership over facility_staff when both exist
+    found.sort(key=lambda m: 0 if m.role == "clinician" else 1)
+    return found[0] if found else None
 
 
-def _resolve_sender_membership(user):
+def _resolve_sender_membership(user, active_facility_id=None):
     """
     Resolve an active membership authorized to initiate a referral draft:
     - Any active `clinician` membership (preferred), OR
     - An active `facility_staff` (CHW) membership holding `referral.create`.
     Never grants clinician approval or send rights (those remain clinician-only in transitions.py).
     """
-    if not user or not getattr(user, "is_authenticated", False):
-        raise PermissionDeniedError("Authentication required to create a referral draft.")
-    memberships = list(active_memberships(user).select_related("facility"))
-    for m in memberships:
-        if m.role == "clinician":
-            return m
-    for m in memberships:
-        if m.role == "facility_staff" and "referral.create" in (m.permissions or []):
-            return m
-    raise PermissionDeniedError(
-        "Only a clinician or authorized facility staff (with referral.create) can create a referral draft."
-    )
+    membership = _sender_membership(user, active_facility_id=active_facility_id, allow_staff_permission="referral.create")
+    if not membership:
+        raise PermissionDeniedError(
+            "Only a clinician or authorized facility staff (with referral.create) can create a referral draft."
+        )
+    return membership
 
 
 def _canonical_referral_payload(patient_public_id, receiver_facility_public_id, receiver_practitioner_public_id, urgency, reason, summary):
@@ -102,16 +116,15 @@ def _parse_idempotency_key(header_key=None, body_key=None):
     return parsed_header or parsed_body
 
 
-def create_referral_draft(user, validated_data, request_id="", idempotency_key=None):
+def create_referral_draft(user, validated_data, request_id="", idempotency_key=None, active_facility_id=None):
     # Authorization & facility scope check FIRST (prevents cross-tenant idempotency probing)
-    membership = _resolve_sender_membership(user)
+    membership = _resolve_sender_membership(user, active_facility_id=active_facility_id)
     sender_facility = membership.facility
 
     effective_key = _parse_idempotency_key(
         header_key=idempotency_key,
         body_key=validated_data.get("idempotency_key"),
     )
-
     patient = Patient.objects.filter(public_id=validated_data["patient_id"]).first()
     if not patient:
         raise NotFoundError("Patient not found.")
@@ -120,6 +133,32 @@ def create_referral_draft(user, validated_data, request_id="", idempotency_key=N
     if not receiver_facility:
         raise NotFoundError("Receiver facility not found.")
 
+    if receiver_facility.pk == sender_facility.pk:
+        raise ValidationError("The receiving facility must be different from your own.")
+
+    # SECURITY §4.3: reject cross-facility probing for patients already bound to another facility's care,
+    # while still allowing newly registered phone-less patients and partial-intake reconciliation.
+    if not has_care_relationship(patient, [sender_facility.pk]):
+        from apps.records.models import Encounter
+        from apps.scheduling.models import Appointment
+        has_other_care = (
+            Appointment.objects.filter(patient=patient).exists()
+            or Encounter.objects.filter(patient=patient).exists()
+            or Referral.objects.filter(patient=patient, is_partial=False).exists()
+        )
+        if has_other_care:
+            raise NotFoundError("Patient not found.")
+
+    encounter = None
+    if validated_data.get("encounter_id"):
+        from apps.records.models import Encounter
+        encounter = Encounter.objects.filter(
+            public_id=validated_data["encounter_id"],
+            patient=patient,
+            facility=sender_facility,
+        ).first()
+        if not encounter:
+            raise ValidationError("The encounter does not belong to this patient at your facility.")
     receiver_practitioner = None
     if validated_data.get("receiver_practitioner_id"):
         receiver_practitioner = Practitioner.objects.filter(public_id=validated_data["receiver_practitioner_id"]).first()
@@ -152,12 +191,12 @@ def create_referral_draft(user, validated_data, request_id="", idempotency_key=N
         else Practitioner.objects.filter(user=user).first()
     )
     if not sender_practitioner:
-        prefix = "DOC" if membership.role == "clinician" else "CHW"
-        default_name = "Doctor" if membership.role == "clinician" else "Health Worker"
+        if membership.role == "clinician":
+            raise PermissionDeniedError("Your account has no practitioner profile. Ask your facility admin to create one.")
         sender_practitioner = Practitioner.objects.create(
             user=user,
-            name=user.display_name or default_name,
-            registration_number=f"{prefix}-{user.id}",
+            name=user.display_name or "Health Worker",
+            registration_number=f"CHW-{user.id}",
         )
 
     content_hash = compute_content_hash(summary)
@@ -188,6 +227,7 @@ def create_referral_draft(user, validated_data, request_id="", idempotency_key=N
         with transaction.atomic():
             referral = Referral.objects.create(
                 patient=patient,
+                encounter=encounter,
                 sender_facility=sender_facility,
                 sender_practitioner=sender_practitioner,
                 initiated_by=user,
@@ -252,24 +292,23 @@ def create_referral_draft(user, validated_data, request_id="", idempotency_key=N
         raise
 
 
-def update_referral_draft(user, referral_public_id, validated_data, request_id=""):
-    referral = Referral.objects.filter(public_id=referral_public_id).first()
-    if not referral:
-        raise NotFoundError("Referral not found.")
-
-    # Enforce active sending-facility authorization (clinician or CHW with referral.create)
-    has_access = any(
-        m.role == "clinician" or (m.role == "facility_staff" and "referral.create" in (m.permissions or []))
+def update_referral_draft(user, referral_public_id, validated_data, request_id="", if_match=None):
+    referral = get_referral_by_public_id(user, referral_public_id)  # 404 outside the user's scope
+    has_access = is_sender_clinician(user, referral, None) or any(
+        m.role == "facility_staff" and "referral.create" in (m.permissions or [])
         for m in active_memberships(user).filter(facility=referral.sender_facility)
     )
     if not has_access:
-        raise PermissionDeniedError("Not authorized to edit this referral draft.")
-
-    # Enforce MASTERPLAN §5.2 rule: Content is editable (PATCH) ONLY in DRAFT
-    if referral.state != "DRAFT":
-        raise TransitionNotAllowedError("Referral content can only be edited in DRAFT state. Use reopen_draft first.")
+        raise PermissionDeniedError("Only a clinician or authorized staff at the sending facility can edit this referral.")
 
     with transaction.atomic():
+        referral = Referral.objects.select_for_update().get(pk=referral.pk)
+        if if_match is not None and referral.version != if_match:
+            raise StaleVersionError(f"Stale version: expected {if_match}, but current version is {referral.version}.")
+        # MASTERPLAN §5.2: content is editable (PATCH) only in DRAFT.
+        if referral.state != "DRAFT":
+            raise TransitionNotAllowedError("Referral content can only be edited in DRAFT state. Use reopen_draft first.")
+
         if "reason" in validated_data:
             referral.reason = validated_data["reason"]
         if "urgency" in validated_data:
@@ -301,7 +340,7 @@ def update_referral_draft(user, referral_public_id, validated_data, request_id="
         return referral
 
 
-def create_emergency_referral(user, validated_data, request_id=""):
+def create_emergency_referral(user, validated_data, request_id="", active_facility_id=None):
     """
     Creates an emergency referral per MASTERPLAN INV-16, §6.3, §13 / BACKEND §13.
     Requires only 5 minimum fields; idempotent and enters SENT state directly.
@@ -333,14 +372,13 @@ def create_emergency_referral(user, validated_data, request_id=""):
     if not facility:
         raise NotFoundError("Facility not found.")
 
-    sender_facility = user.memberships.first().facility if user.memberships.exists() else facility
-    sender_practitioner = user.practitioner_profile if hasattr(user, "practitioner_profile") else Practitioner.objects.filter(user=user).first()
-    if not sender_practitioner:
-        sender_practitioner = Practitioner.objects.create(
-            user=user,
-            name=user.display_name or "Emergency Staff",
-            registration_number=f"STAFF-{user.id}",
-        )
+    # §4.2: a clinician, or staff holding `emergency.create`, at an active membership. Staff have no Practitioner record,
+    # so sender_practitioner stays empty for them instead of inventing one.
+    membership = _sender_membership(user, active_facility_id, allow_staff_permission="emergency.create")
+    if not membership:
+        raise PermissionDeniedError("Only a clinician, or staff with emergency.create, can send an emergency referral.")
+    sender_facility = membership.facility
+    sender_practitioner = Practitioner.objects.filter(user=user).first()
 
     # Patient lookup or unverified patient record
     patient = None

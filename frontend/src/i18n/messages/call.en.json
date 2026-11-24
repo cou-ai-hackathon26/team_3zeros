@@ -12,5 +12,7 @@
   "speaking": "Speaking…",
   "thinking": "Thinking…",
   "reconnecting": "Reconnecting…",
-  "voiceCall": "Voice session"
+  "voiceCall": "Voice session",
+  "progress": "Question {n} of about {total}",
+  "finishNow": "Finish and see summary"
 }

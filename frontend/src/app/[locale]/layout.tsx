@@ -33,8 +33,9 @@ export default async function LocaleRootLayout({
       lang={locale}
       data-scroll-behavior="smooth"
       className={`${hindSiliguri.variable} ${tiroBangla.variable}`}
+      suppressHydrationWarning
     >
-      <body>
+      <body suppressHydrationWarning>
         <AppProviders>
           <Toaster>
             {children}

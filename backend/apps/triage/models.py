@@ -61,6 +61,7 @@ class Turn(TimeStamped):
     text = models.TextField()
     language_detected = models.CharField(max_length=10, default="bn")
     red_flag_hits = models.JSONField(default=list, blank=True)
+    passage_ids = models.JSONField(default=list, blank=True)  # knowledge passages shown to the model for this reply (BACKEND §4.5)
     response_policy = models.CharField(max_length=30, default="question")  # grounded | declined | emergency | question
     at = models.DateTimeField(auto_now_add=True)
 

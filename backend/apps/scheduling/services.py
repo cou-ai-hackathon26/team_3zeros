@@ -29,6 +29,13 @@ def create_appointment_request(user, patient_id, slot_id, triage_session_id=None
                 request_id=request_id,
             )
 
+        triage_level = None
+        if triage_session_id:
+            from apps.triage.models import TriageSummary
+            summary = TriageSummary.objects.filter(session__public_id=triage_session_id).first()
+            level = (summary.structured_fields or {}).get("triage_level") if summary else None
+            triage_level = level if level in ("LOW", "MODERATE", "HIGH", "EMERGENCY") else None
+
         # Hold the slot
         slot.state = "HELD"
         slot.save()
@@ -43,6 +50,7 @@ def create_appointment_request(user, patient_id, slot_id, triage_session_id=None
             slot=slot,
             state="REQUESTED",
             triage_session_id=triage_session_id,
+            triage_level=triage_level,
         )
 
         record_audit_event(

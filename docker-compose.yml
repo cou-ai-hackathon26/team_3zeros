@@ -35,10 +35,15 @@ services:
       - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
       - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
       - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-gemini}
+      - EMBEDDING_TOKENS_PER_MINUTE=${EMBEDDING_TOKENS_PER_MINUTE:-0}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - FHIR_SERVER_URL=http://hapi:8080/fhir
       - FHIR_SYNC_MODE=stub
+    volumes:
+      - media_data:/app/media  # uploads shared by the API and the workers (documents, knowledge books)
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,6 +65,8 @@ services:
       - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
       - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
       - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - media_data:/app/media  # uploads shared by the API and the workers (documents, knowledge books)
     depends_on:
       - api
     networks:
@@ -77,6 +84,8 @@ services:
       - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
       - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
       - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - media_data:/app/media  # uploads shared by the API and the workers (documents, knowledge books)
     depends_on:
       - api
     networks:
@@ -95,6 +104,11 @@ services:
       - SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-prod-key-change-me}
       - DATABASE_URL=postgres://${POSTGRES_USER:-medi}:${POSTGRES_PASSWORD:-medi_secret}@postgres:5432/${POSTGRES_DB:-medi_waypoint}
       - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-gemini}
+      - EMBEDDING_TOKENS_PER_MINUTE=${EMBEDDING_TOKENS_PER_MINUTE:-0}
+    volumes:
+      - media_data:/app/media  # uploads shared by the API and the workers (documents, knowledge books)
     depends_on:
       - api
     networks:
@@ -174,6 +188,7 @@ networks:
     internal: true
 
 volumes:
+  media_data:
   postgres_data:
   redis_data:
   minio_data:

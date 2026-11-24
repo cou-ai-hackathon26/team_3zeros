@@ -103,25 +103,12 @@ def generate_referral_draft_task(referral_id: str):
         logger.info("generate_referral_draft_task: Referral %s state is %s (not DRAFT), skipping", referral_id, referral.state)
         return
 
-    patient = referral.patient
-
-    # Build context from verified documents and observations
-    doc_refs = []
-    for doc in patient.documents.filter(state="VERIFIED"):
-        doc_refs.append(f"document:{doc.public_id} ({doc.original_filename})")
-
-    patient_name = f"{patient.given_name} {patient.family_name}".strip()
-    context_lines = [
-        f"Patient: {patient_name}, Age: {patient.estimated_age or 'unknown'}, Sex: {patient.sex}",
-        f"Referral Reason: {referral.reason}",
-        f"Urgency: {referral.urgency}",
-    ]
-    if doc_refs:
-        context_lines.append("Verified documents: " + ", ".join(doc_refs))
+    from apps.ai.referral_context import build_referral_context
+    context_lines, _refs = build_referral_context(referral)
 
     system_prompt = (
         "You are a clinical referral summarization assistant. "
-        "Every clinical statement must include valid source_refs citing documents or clinical observations. "
+        "Every clinical statement must include valid source_refs taken only from the [bracketed] references in the input. "
         "Do not invent medical facts. Do not use placeholder strings like N/A. "
         "If information is missing, place it in the 'Missing or Uncertain Information' section with empty source_refs."
     )

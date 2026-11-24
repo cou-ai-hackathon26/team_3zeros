@@ -65,6 +65,90 @@
         "title": "The doctor decides, and you see it",
         "text": "The doctor accepts, suggests another time, or declines. Your request shows who has it now."
       }
+    },
+    "pipeline": {
+      "eyebrow": "Medical Knowledge RAG Pipeline",
+      "title": "How the voice guide decides from medical reference books",
+      "subtitle": "Every symptom you share is screened by fixed danger-sign rules first, then matched against approved medical book passages so the voice guide only speaks verified guidance.",
+      "regionLabel": "Triage medical knowledge pipeline",
+      "scenarios": {
+        "label": "Choose sample pathway",
+        "routine": "Routine symptoms",
+        "emergency": "Emergency signs"
+      },
+      "status": {
+        "running": "Running…",
+        "waiting": "Waiting",
+        "done": "Verified",
+        "alert": "Escalated",
+        "skipped": "Bypassed"
+      },
+      "inspectorLabel": "Selected stage detail",
+      "sampleNote": "Example with sample data — automated triage guide only, not a medical diagnosis.",
+      "routine": {
+        "intake": {
+          "title": "Voice symptom intake",
+          "subtitle": "Fever 3 days · Bangla → EN",
+          "detail": "Captures spoken or typed symptoms in Bangla or English, normalizes text, and translates Bangla turns to English for medical book lookup.",
+          "tag": "Bangla & English transcript"
+        },
+        "rules": {
+          "title": "Red-flag rules check",
+          "subtitle": "No danger signs matched",
+          "detail": "Fixed clinician-authored rules scan every turn for life-threatening warning signs before any model runs, with clause-level negation checks.",
+          "tag": "Deterministic safety gate"
+        },
+        "rag": {
+          "title": "Medical book RAG",
+          "subtitle": "Fever Guide · p. 12 matched",
+          "detail": "Searches only clinician-approved medical reference PDFs indexed by page and chunk, returning exact book titles, page numbers, and verified directory doctors.",
+          "tag": "Approved reference index"
+        },
+        "voiceReply": {
+          "title": "Voice agent guidance",
+          "subtitle": "Next question · Medicine",
+          "detail": "Speaks a concise, safety-checked follow-up or urgency tier in the patient's language. Every reply is filtered to block diagnoses or prescriptions.",
+          "tag": "Output safety validator"
+        },
+        "summary": {
+          "title": "Cited summary & match",
+          "subtitle": "Quote-verified draft ready",
+          "detail": "Builds a structured symptom summary and health assessment draft where every explanation is backed by an exact quote from the retrieved book passage.",
+          "tag": "Patient-reviewed draft"
+        }
+      },
+      "emergency": {
+        "intake": {
+          "title": "Voice symptom intake",
+          "subtitle": "Chest pain & breathlessness",
+          "detail": "Receives the patient's spoken or typed symptoms in real time across Bangla, English, or mixed phrasing.",
+          "tag": "Real-time symptom capture"
+        },
+        "rules": {
+          "title": "Red-flag rules check",
+          "subtitle": "Cardiac warning sign hit",
+          "detail": "Immediately detects a critical danger sign using fixed bilingual rules and locks the session into the emergency pathway without waiting for an AI reply.",
+          "tag": "Immediate rule override"
+        },
+        "rag": {
+          "title": "Medical book RAG",
+          "subtitle": "Bypassed · urgent override",
+          "detail": "Routine follow-up questions and book-based outpatient matching stop immediately so emergency care is never delayed.",
+          "tag": "No routine delay"
+        },
+        "voiceReply": {
+          "title": "Emergency guidance",
+          "subtitle": "Stops routine questions now",
+          "detail": "Replaces routine conversation with fixed urgent care instructions directing the patient to seek immediate emergency help.",
+          "tag": "Fixed emergency protocol"
+        },
+        "summary": {
+          "title": "Nearest emergency care",
+          "subtitle": "Verified emergency hospitals",
+          "detail": "Surfaces verified emergency-capable hospitals from the platform directory and logs the escalation for clinical continuity.",
+          "tag": "Verified hospital directory"
+        }
+      }
     }
   },
   "features": {
@@ -145,6 +229,38 @@
   "final": {
     "title": "Tell us what is wrong.",
     "text": "It takes a few minutes. You can stop at any time."
+  },
+  "expansion": {
+    "eyebrow": "Future work · Global roadmap",
+    "title": "Starting in Bangladesh, built to expand worldwide",
+    "subtitle": "Medi Waypoint starts with Bangla and English care handovers in Bangladesh. Our roadmap brings localized voice guidance, clinician-approved regional reference books, and closed-loop referrals to communities around the world.",
+    "mapLabel": "Global expansion signal map radiating from Dhaka, Bangladesh",
+    "originBadge": "Dhaka · Starting hub",
+    "legendOrigin": "Starting point: Bangladesh",
+    "legendPlanned": "Planned global expansion",
+    "regions": {
+      "label": "Filter planned expansion regions",
+      "all": "Whole world",
+      "asiaPacific": "Asia-Pacific",
+      "menaAfrica": "Middle East & Africa",
+      "europe": "Europe",
+      "americas": "Americas"
+    },
+    "pillars": {
+      "languages": {
+        "title": "Local-language voice triage",
+        "text": "Extend natural voice and text intake beyond Bangla and English to regional languages and local expressions."
+      },
+      "knowledge": {
+        "title": "Regional medical book libraries",
+        "text": "Support clinician-approved medical references and local emergency danger-sign rules tailored to each health system."
+      },
+      "handover": {
+        "title": "Connected referral networks",
+        "text": "Carry patient-approved records between clinics and hospitals so outcomes always return to the referring doctor."
+      }
+    },
+    "note": "Conceptual roadmap illustration showing planned future expansion regions from Bangladesh."
   },
   "footer": {
     "description": "Care that is handed over properly, from the first symptom to the outcome.",

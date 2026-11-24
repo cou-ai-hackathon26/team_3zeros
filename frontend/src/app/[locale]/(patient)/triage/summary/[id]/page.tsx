@@ -19,6 +19,8 @@ import { EmergencyScreen } from "../../../../../../components/EmergencyScreen/Em
 import { Column, QueryBoundary } from "../../../../../../components/QueryBoundary";
 import { PageHeader, Panel } from "../../../../../../components/ui/surfaces";
 import { Alert } from "../../../../../../components/ui/states";
+import "../../../../../../i18n/report";
+import { triageRoute } from "../../../../../../features/patient/triageRoute";
 import { ConsultationReport } from "../../../../../../components/triage/ConsultationReport";
 import { Button, buttonVariants } from "../../../../../../components/ui/button";
 
@@ -69,12 +71,14 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
     if (session.state === "CONFIRMED_BY_PATIENT") setConfirmed(true);
   }, [session.id, locale]);
 
-  if (session.state === "EMERGENCY_PATHWAY") {
+  const route = triageRoute(session.summary?.structured_fields?.triage_level);
+  const reportEmergency = session.summary?.structured_fields?.report?.health_assessment?.emergency_instructions;
+  if (session.state === "EMERGENCY_PATHWAY" || (route === "emergency" && reportEmergency)) {
     const emTurn = [...(session.turns ?? [])].reverse().find((turn) => turn.response_policy === "emergency");
     return (
       <EmergencyScreen
         instructionText={
-          emTurn?.text ??
+          emTurn?.text ?? reportEmergency ??
           "PLACEHOLDER — NOT CLINICALLY APPROVED: Go to the nearest emergency hospital immediately."
         }
         locale={locale}
@@ -84,6 +88,24 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
         facilitiesError={emergencyFacilities.isError}
         facilities={emergencyFacilities.data ?? []}
       />
+    );
+  }
+
+  // Nothing the patient said was saved (for example a voice call whose answers never reached the server): there is no
+  // summary to review, and a blank one must never be confirmed.
+  if (session.turns && !session.turns.some((turn) => turn.role === "patient") && !session.summary?.patient_words) {
+    return (
+      <>
+        <PageHeader serif title={t(locale, "report.noAnswersTitle")} context={t(locale, "report.noAnswersBody")} />
+        <div className="flex flex-wrap gap-3">
+          <Button size="lg" loading={restarting} loadingLabel={T("startAgain")} onClick={() => void handleStartAgain()}>
+            {T("startAgain")}
+          </Button>
+          <Link href={`/${locale}/triage?mode=text`} className={buttonVariants({ variant: "secondary", size: "lg" })}>
+            {T("typeInstead")}
+          </Link>
+        </div>
+      </>
     );
   }
 
@@ -175,6 +197,8 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
     { key: "suggested_specialty", label: T("suggestedSpecialty") },
   ];
 
+  const status = sf.report_status;
+  const preparing = status === "pending";
   const submitting = finish.isPending || confirm.isPending;
 
   return (
@@ -208,7 +232,7 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
                 <input
                   id={inputId}
                   type="text"
-                  disabled={confirmed}
+                  disabled={confirmed || preparing}
                   value={fields[key]}
                   onChange={(e) => setFields((prev) => ({ ...prev, [key]: e.target.value }))}
                   className="h-11 rounded-control border border-line-strong bg-surface px-3 text-body disabled:bg-sunken"
@@ -240,7 +264,12 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
         </Panel>
       )}
 
+      {preparing && <Alert tone="info" title={t(locale, "report.preparing")} />}
+      {status === "unavailable" && <Alert tone="info" title={t(locale, "report.unavailable")} />}
       {sf.report && <ConsultationReport report={sf.report} locale={locale} />}
+
+      {route === "urgent" && <Alert tone="attention" title={t(locale, "report.routeUrgent")} />}
+      {route === "watch" && <Alert tone="info" title={t(locale, "report.routeWatch")} />}
 
       {errorMessage && <Alert tone="attention" title={errorMessage} />}
 
@@ -250,6 +279,7 @@ function SummaryEditor({ session, locale }: { session: TriageSessionDetail; loca
             <Button
               size="lg"
               loading={submitting}
+              disabled={preparing}
               loadingLabel={T("confirming")}
               onClick={() => void handleConfirm()}
             >

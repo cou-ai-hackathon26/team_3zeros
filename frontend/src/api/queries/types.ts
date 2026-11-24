@@ -45,6 +45,8 @@ export interface Appointment extends Stateful {
   slot: SlotRef & { state?: string };
   original_slot?: (SlotRef & { state?: string }) | null;
   triage_session_id?: string | null;
+  /** AI triage level snapshot taken when the request was made (D-30). An AI draft; null = not assessed. */
+  triage_level?: "LOW" | "MODERATE" | "HIGH" | "EMERGENCY" | null;
   decline_reason?: string;
   expires_at?: string | null;
   history: HistoryEntry[];
@@ -227,6 +229,11 @@ export interface ExtractionResponse {
   fields: ApiExtractedField[];
 }
 
+/** `POST /triage/sessions/{id}/turns` reply: the assistant turn plus the session state, so the client knows when the interview closed. */
+export interface TriageTurnReply extends TriageTurn {
+  session_state?: string;
+}
+
 export interface TriageTurn {
   id: string;
   role: "patient" | "assistant" | "system";
@@ -281,6 +288,9 @@ export interface TriageSummaryData {
     suggested_specialty_bn?: string;
     guidance_sources?: TriageGuidanceSource[];
     report?: ConsultationReport;
+    /** pending while the report is being drafted in the background, then ready or unavailable (D-27). */
+    report_status?: "pending" | "ready" | "unavailable";
+    triage_level?: "LOW" | "MODERATE" | "HIGH" | "EMERGENCY" | null;
     [k: string]: unknown;
   };
   guidance_given?: string | unknown[];
@@ -297,6 +307,8 @@ export interface TriageSessionDetail {
   mode?: "voice" | "text" | string;
   triage_disclosure_version?: string;
   ruleset_version?: string;
+  /** Interview length: aim for `target` answers, never more than `max` (D-27). */
+  interview?: { target: number; max: number };
   turns?: TriageTurn[];
   summary?: TriageSummaryData | null;
   started_at?: string;

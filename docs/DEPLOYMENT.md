@@ -248,3 +248,16 @@ a fresh backup before running.
 | 7 | Egress allow-list for voice provider | Provider reachable only from api |
 | 8 | Backups, PITR, restore drill, monitoring + alerts, load test, runbooks | Restore drill report; alert test fired |
 | 9 | Production environment, on-call, pilot ops | Go/no-go checklist signed |
+
+
+## Local development database and uploads (D-32)
+
+Development, tests and CI use Postgres with pgvector, the same image as the stack:
+
+```
+docker compose -f docker-compose.dev.yml up -d
+```
+
+`DATABASE_URL` defaults to `postgres://medi:medi_secret@localhost:5432/medi_waypoint`. The API and the workers share the
+`media_data` volume so a worker can read an uploaded file. nginx allows 300 MB request bodies on
+`/api/v1/admin/knowledge/` only; every other API path keeps the 25 MB limit.

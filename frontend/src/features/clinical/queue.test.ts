@@ -59,3 +59,13 @@ describe("clinical queue (APPLICATION_DESIGN §5.2)", () => {
     expect(toQueueItem(entries.find((x) => x.key === "in:i2")!, new Map(), "en").patientName).toBe("Karim");
   });
 });
+
+describe("appointment requests carry the patient's AI triage level into the queue (D-30)", () => {
+  const appt = (id: string, triage_level: "LOW" | "MODERATE" | "HIGH" | "EMERGENCY" | null | undefined) =>
+    ({ id, state: "REQUESTED", patient_id: "p", created_at: "2026-11-24T00:00:00Z", triage_level }) as never;
+
+  it("HIGH sorts as urgent, EMERGENCY as emergency, anything else as routine", () => {
+    const urgencies = buildEntries([appt("a", "HIGH"), appt("b", "EMERGENCY"), appt("c", "LOW"), appt("d", null), appt("e", undefined)], [], []).map((x) => x.urgency);
+    expect(urgencies).toEqual(["urgent", "emergency", "routine", "routine", "routine"]);
+  });
+});

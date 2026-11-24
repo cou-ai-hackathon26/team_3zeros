@@ -35,7 +35,8 @@ def test_model_reply_is_used_and_gets_the_conversation(session, monkeypatch):
 def test_falls_back_to_the_scripted_reply_without_a_model(session, monkeypatch):
     monkeypatch.setattr(dialogue, "generate_text", lambda *a, **k: None)
     turn = process_patient_turn(session, "I have a cough")
-    assert "days" in turn.text.lower()  # scripted first question
+    assert "start" in turn.text.lower()  # scripted first question (onset), no echo of what was said
+    assert "cough" not in turn.text.lower()
 
 
 @pytest.mark.django_db
@@ -57,6 +58,7 @@ def test_red_flag_never_reaches_the_model(session, monkeypatch):
     assert session.state == "EMERGENCY_PATHWAY"
 
 
+@pytest.mark.django_db
 def test_cerebras_call_turns_reasoning_off_and_maps_roles(settings, monkeypatch):
     from apps.ai import chat
 

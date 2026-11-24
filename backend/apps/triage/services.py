@@ -1,6 +1,8 @@
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from .dialogue import EMERGENCY_MARKER, generate_consultation_report, llm_next_reply
+from apps.knowledge.versioning import kb_version
+from .dialogue import DONE_MARKER, EMERGENCY_MARKER, MAX_ANSWERS, MIN_ANSWERS, TARGET_ANSWERS, generate_consultation_report, llm_next_reply
 from .models import TriageSession, Turn, TriageSummary
 from .normalizer import normalize_for_matching, normalize_text
 from .policy import (
@@ -159,13 +161,16 @@ def create_triage_session(user, language="bn", mode="text", disclosure_version="
             mode=mode,
             triage_disclosure_version=disclosure_version,
             triage_disclosure_accepted_at=timezone.now(),
+            kb_version=kb_version(),
+            model_version=getattr(settings, "LLM_MODEL", "") or "v1",
         )
         run_triage_action(session, "connect", request_id=request_id)  # CREATED -> ACTIVE
 
         # The first message is always Bangla (agent prompt §2).
         greeting = (
             "আসসালামু আলাইকুম। আমি আপনার স্বাস্থ্যসংক্রান্ত সমস্যাগুলো বুঝতে এবং সঠিক চিকিৎসাসেবা খুঁজে পেতে সাহায্য করব। "
-            "আপনার কী সমস্যা হচ্ছে? কী কারণে আজ আমাদের সাথে যোগাযোগ করেছেন?"
+            "আপনার কী সমস্যা হচ্ছে? কী কারণে আজ আমাদের সাথে যোগাযোগ করেছেন? "
+            f"এতে প্রায় ৩ মিনিট সময় লাগবে, আনুমানিক {_bn_digits(TARGET_ANSWERS)}টি প্রশ্ন।"
         )
         safe_greeting, policy = validate_assistant_output(greeting, language=language, intended_policy="question")
         Turn.objects.create(
@@ -193,34 +198,31 @@ MODEL_EMERGENCY_INSTRUCTION = {
 }
 
 
-def _scripted_reply(session, turn_count: int, latest_text: str, specialty: dict) -> str:
-    """Fixed fallback dialogue, used when no language model is configured or it fails."""
-    if turn_count == 1:
-        reply = (
-            f"I heard: \"{latest_text}\". How many days have you had this symptom, and is the discomfort mild, moderate, or severe?"
-            if session.language == "en"
-            else f"আমি শুনেছি: \"{latest_text}\"। এই সমস্যাটি কতদিন ধরে হচ্ছে এবং তীব্রতা কেমন—হালকা, মাঝারি, নাকি বেশি?"
-        )
-    elif turn_count == 2:
-        reply = (
-            "Got it. Do you also have fever, nausea, dizziness, or any long-term conditions like diabetes or high blood pressure?"
-            if session.language == "en"
-            else "বুঝেছি। এর সাথে কি জ্বর, বমি ভাব, মাথা ঘোরা কিংবা ডায়াবেটিস বা উচ্চ রক্তচাপের মতো কোনো পূর্ববর্তী সমস্যা আছে?"
-        )
-    elif turn_count == 3:
-        reply = (
-            f"Thank you. Based on your answers, an outpatient visit with {specialty['en']} is appropriate. Are you taking any medicines right now, or would you like to review your summary?"
-            if session.language == "en"
-            else f"ধন্যবাদ। আপনার লক্ষণ অনুযায়ী {specialty['bn']} বিভাগের ডাক্তার দেখানো উপযুক্ত হবে। আপনি কি বর্তমানে কোনো ওষুধ খাচ্ছেন, নাকি এখনই খসড়া সারাংশ যাচাই করতে চান?"
-        )
-    else:
-        reply = (
-            f"Your intake summary for {specialty['en']} is ready. You can share any additional detail, or tap 'Finish & review summary' below."
-            if session.language == "en"
-            else f"{specialty['bn']} ডাক্তারের জন্য আপনার খসড়া সারাংশ প্রস্তুত। আরও কিছু যোগ করতে চাইলে জানান, অথবা নিচে 'সারাংশ যাচাই করুন' বাটনে চাপুন।"
-        )
+def _bn_digits(n: int) -> str:
+    return str(n).translate(str.maketrans("0123456789", "০১২৩৪৫৬৭৮৯"))
 
-    return reply
+
+SCRIPTED_QUESTIONS = [  # follows the interview checklist; used when no model is available
+    ("When did it start, and is it getting better or worse?", "কবে থেকে শুরু, আর কি বাড়ছে না কমছে?"),
+    ("How bad is it, and where exactly?", "কতটা তীব্র, আর ঠিক কোথায়?"),
+    ("Any fever, vomiting or trouble breathing?", "জ্বর, বমি বা শ্বাসকষ্ট আছে কি?"),
+    ("How old are you?", "আপনার বয়স কত?"),
+    ("Any long-term illness, regular medicine or allergy?", "কোনো দীর্ঘমেয়াদি রোগ, নিয়মিত ওষুধ বা এলার্জি আছে কি?"),
+]
+
+
+def _scripted_reply(session, turn_count: int, latest_text: str, specialty: dict) -> str:
+    """Fixed fallback dialogue, used when no language model is available. Never echoes what the patient said."""
+    if turn_count > len(SCRIPTED_QUESTIONS):
+        return DONE_MARKER
+    en, bn = SCRIPTED_QUESTIONS[turn_count - 1]
+    return en if session.language == "en" else bn
+
+
+CLOSING = {
+    "en": "Thank you. Your summary is ready. Please check it on the screen.",
+    "bn": "ধন্যবাদ। আপনার সারাংশ প্রস্তুত। অনুগ্রহ করে পর্দায় দেখে নিন।",
+}
 
 
 def _build_clinical_dialogue_and_summary(session: TriageSession, latest_text: str):
@@ -272,10 +274,20 @@ def _build_clinical_dialogue_and_summary(session: TriageSession, latest_text: st
     )
     summary.save()
 
+    if turn_count >= MAX_ANSWERS:
+        return CLOSING[session.language == "en" and "en" or "bn"], "closing"  # hard stop: no model call
+
     reply = llm_next_reply(session) or _scripted_reply(session, turn_count, latest_text, specialty)
     if reply.lstrip().startswith(EMERGENCY_MARKER):
         # The model judged this an emergency: use the fixed official instruction, never the model's own words (INV-8, INV-16).
         return MODEL_EMERGENCY_INSTRUCTION[session.language == "en"], "emergency"
+    if reply.lstrip().startswith(DONE_MARKER):
+        if turn_count >= MIN_ANSWERS:
+            return CLOSING[session.language == "en" and "en" or "bn"], "closing"
+        # Too early to stop: ignore the marker and ask the next scripted question instead.
+        reply = _scripted_reply(session, turn_count, latest_text, specialty)
+        if reply.startswith(DONE_MARKER):
+            reply = SCRIPTED_QUESTIONS[-1][0 if session.language == "en" else 1]
 
     return validate_assistant_output(reply, language=session.language, intended_policy="question")
 
@@ -310,15 +322,25 @@ def _escalate_emergency(session: TriageSession, instruction: str, hits: list, us
     return assistant_turn
 
 
-def process_patient_turn(session: TriageSession, text: str, user=None, request_id=""):
-    if session.state not in ("ACTIVE", "PAUSED"):
-        raise TransitionNotAllowedError(f"Session cannot accept turns in state '{session.state}'.")
+def _close_interview(session: TriageSession, text: str, user, request_id: str):
+    """The interview is complete: say the fixed closing line, move to summary review, and queue the report."""
+    turn = Turn.objects.create(session=session, role="assistant", text=text, language_detected=session.language, response_policy="closing")
+    run_triage_action(session, "finish_questions", request_id=request_id)  # system action (§5.3)
+    request_report(session)
+    return turn
 
+
+def process_patient_turn(session: TriageSession, text: str, user=None, request_id=""):
     cleaned_text = normalize_text(text)
     if not cleaned_text:
         raise ValidationError("Turn text cannot be empty.")
 
     with transaction.atomic():
+        # One turn at a time per session: two transcript fragments must not produce two replies.
+        locked = TriageSession.objects.select_for_update().get(pk=session.pk)
+        session.state, session.version = locked.state, locked.version
+        if session.state not in ("ACTIVE", "PAUSED"):
+            raise TransitionNotAllowedError(f"Session cannot accept turns in state '{session.state}'.")
         if session.state == "PAUSED":
             run_triage_action(session, "resume", actor=user, request_id=request_id)
 
@@ -346,21 +368,69 @@ def process_patient_turn(session: TriageSession, text: str, user=None, request_i
         if response_policy == "emergency":
             hits = [{"rule_id": "MODEL-EMERGENCY", "symptom": "model_judgement", "matched_keyword": "", "language_detected": session.language}]
             return _escalate_emergency(session, next_reply, hits, user, request_id)
+        if response_policy == "closing":
+            return _close_interview(session, next_reply, user, request_id)
         assistant_turn = Turn.objects.create(
             session=session,
             role="assistant",
             text=next_reply,
             language_detected=session.language,
             response_policy=response_policy,
+            passage_ids=getattr(session, "_passage_ids", []),
         )
         return assistant_turn
 
 
-def attach_consultation_report(session: TriageSession) -> None:
-    """Best-effort: store the conversation summary and AI health assessment on the summary (an AI draft the patient reviews, INV-7)."""
-    report = generate_consultation_report(session)
-    if not report:
-        return
+def request_report(session: TriageSession) -> None:
+    """Queue the consultation report (BACKEND §7.1). The patient's summary page shows "preparing" until it is ready."""
     summary, _ = TriageSummary.objects.get_or_create(session=session)
-    summary.structured_fields = {**summary.structured_fields, "report": report}
+    summary.structured_fields = {**summary.structured_fields, "report_status": "pending"}
+    summary.save(update_fields=["structured_fields", "updated_at"])
+    OutboxEvent.objects.create(
+        aggregate_type="triage_session",
+        aggregate_id=session.public_id,
+        event_type="triage.report_requested",
+        payload={"session_id": str(session.public_id)},
+    )
+
+    def kick():
+        from apps.workflow.tasks import dispatch_outbox_events
+        dispatch_outbox_events.delay()  # beat also runs it every 2 s as the safety net
+
+    transaction.on_commit(kick)
+
+
+def attach_consultation_report(session: TriageSession) -> None:
+    """Draft the report, then fill the editable summary fields from it (an AI draft the patient reviews, INV-7).
+    With no model, or an unusable answer, the heuristic fields stay and the status is "unavailable"."""
+    from apps.directory.models import Specialty
+    from apps.knowledge.models import KnowledgeDocument
+
+    summary, _ = TriageSummary.objects.get_or_create(session=session)
+    if summary.structured_fields.get("report_status") == "ready":
+        return  # already done: the queue may deliver the request twice
+    report = generate_consultation_report(session)
+    fields = dict(summary.structured_fields)
+    if not report:
+        fields["report_status"] = "unavailable"
+        fields.setdefault("triage_level", None)  # not assessed: routed as "see a doctor"
+        summary.structured_fields = fields
+        summary.save(update_fields=["structured_fields", "updated_at"])
+        return
+    cs, ha = report["conversation_summary"], report["health_assessment"]
+    fields.update({"report": report, "report_status": "ready", "triage_level": ha["triage_level"]})
+    for key, value in (("chief_complaint", cs["primary_complaint"]), ("duration", cs["symptom_duration"]),
+                       ("severity", cs["severity"]), ("additional_notes", "; ".join(cs["medical_history"]))):
+        if value:
+            fields[key] = value
+    code = ha.get("recommended_specialty_code")
+    spec = Specialty.objects.filter(code=code).first() if code else None
+    if spec:
+        fields.update({"suggested_specialty_code": spec.code, "suggested_specialty_en": spec.name_en, "suggested_specialty_bn": spec.name_bn})
+    titles = {e["document"] for e in ha["medical_evidence"]}
+    if titles:
+        fields["guidance_sources"] = [
+            {"title": d.title, "publisher": d.publisher, "version": d.version} for d in KnowledgeDocument.objects.filter(title__in=titles)
+        ]
+    summary.structured_fields = fields
     summary.save(update_fields=["structured_fields", "updated_at"])

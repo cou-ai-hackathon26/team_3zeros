@@ -1,17 +1,9 @@
 import json
 import pytest
-from apps.knowledge.models import KnowledgeChunk, KnowledgeDocument
-from apps.knowledge.search import reset_index
+from tests.kb import make_doc
 from apps.triage import dialogue
 from apps.triage.models import Turn, TriageSummary
 from apps.triage.services import attach_consultation_report, create_triage_session, process_patient_turn
-
-
-@pytest.fixture(autouse=True)
-def _fresh_index():
-    reset_index()
-    yield
-    reset_index()
 
 
 def _raw(level="MODERATE", **ha):
@@ -28,11 +20,13 @@ def _raw(level="MODERATE", **ha):
 
 
 def _session(monkeypatch, said="fever and headache", approved=True):
-    d = KnowledgeDocument.objects.create(title="Fever Guide", approved=approved)
-    KnowledgeChunk.objects.create(document=d, page=12, text="Fever with headache is often caused by viral infection and needs assessment.")
+    make_doc(title="Fever Guide", approved=approved, text="Fever with headache is often caused by viral infection and needs assessment.")
     s = create_triage_session(user=None, language="en", disclosure_version="v1.0")
     monkeypatch.setattr(dialogue, "generate_text", lambda *a, **k: "How long?")
     process_patient_turn(s, said)
+    s.refresh_from_db()
+    if s.state == "ACTIVE":  # a report needs at least two answers
+        process_patient_turn(s, "about three days now")
     return s
 
 
@@ -82,7 +76,8 @@ def test_unsafe_live_agent_advice_is_flagged_not_repeated(monkeypatch):
 
 @pytest.mark.django_db
 def test_emergency_is_never_downgraded_when_a_fixed_rule_fired(monkeypatch):
-    s = _session(monkeypatch, said="I have fever and my neck is stiff")  # fixed rule RF-MENING-01
+    s = _session(monkeypatch, said="I have fever for two days")
+    process_patient_turn(s, "now my neck is stiff")  # fixed rule RF-MENING-01 fires across the two answers
     r = _report(s, monkeypatch, _raw(level="LOW", emergency_instructions="Rest at home"))
     ha = r["health_assessment"]
     assert ha["triage_level"] == "EMERGENCY" and "999" in ha["emergency_instructions"] and "Rest" not in ha["emergency_instructions"]
@@ -114,7 +109,7 @@ def test_the_model_never_receives_patient_identity(monkeypatch):
     monkeypatch.setattr(dialogue, "generate_text", lambda m, **k: seen.update(body=m[0]["text"]) or None)
     attach_consultation_report(s)
     body = json.loads(seen["body"])
-    assert set(body) == {"consultation_id", "language", "transcript", "structured_symptom_history", "red_flag_results", "retrieved_passages", "suggested_specialty"}
+    assert set(body) == {"consultation_id", "language", "transcript", "structured_symptom_history", "red_flag_results", "retrieved_passages", "suggested_specialty", "specialty_codes"}
 
 
 @pytest.mark.django_db

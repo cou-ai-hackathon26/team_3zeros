@@ -64,6 +64,7 @@ STAFF_SESSION_SECONDS = 15 * 60
 
 # Application definition
 DJANGO_APPS = [
+    "django.contrib.postgres",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -214,12 +215,15 @@ LLM_MODEL = env("LLM_MODEL", default="")
 
 
 
+def _clean_env_val(val: str) -> str:
+    return val.split("#")[0].strip() if isinstance(val, str) else val
+
 # Voice provider (MASTERPLAN Q-05, D-22). "placeholder" until Vapi is approved.
-VOICE_PROVIDER = env("VOICE_PROVIDER", default="placeholder")
-VAPI_PUBLIC_KEY = env("VAPI_PUBLIC_KEY", default="")
-VAPI_PRIVATE_KEY = env("VAPI_PRIVATE_KEY", default="")
-VAPI_ASSISTANT_ID = env("VAPI_ASSISTANT_ID", default="")
-VAPI_WEBHOOK_SECRET = env("VAPI_WEBHOOK_SECRET", default="")
+VOICE_PROVIDER = _clean_env_val(env("VOICE_PROVIDER", default="placeholder"))
+VAPI_PUBLIC_KEY = _clean_env_val(env("VAPI_PUBLIC_KEY", default=""))
+VAPI_PRIVATE_KEY = _clean_env_val(env("VAPI_PRIVATE_KEY", default=""))
+VAPI_ASSISTANT_ID = _clean_env_val(env("VAPI_ASSISTANT_ID", default=""))
+VAPI_WEBHOOK_SECRET = _clean_env_val(env("VAPI_WEBHOOK_SECRET", default=""))
 
 # Scheduled-job policies (BACKEND §7.2). 0 means the job does nothing. These are policy decisions that are still
 # open, so there is deliberately no default: REFERRAL_ESCALATION_MINUTES (Q-06), APPOINTMENT_REQUEST_EXPIRY_HOURS (Q-04).
@@ -235,3 +239,18 @@ CELERY_BEAT_SCHEDULE = {
     "abandon-idle-triage-sessions": {"task": "apps.workflow.tasks.abandon_idle_triage_sessions", "schedule": 60.0},
     "expire-appointment-requests": {"task": "apps.workflow.tasks.expire_appointment_requests", "schedule": 300.0},
 }
+
+# Model spend guard (apps/ai/usage.py). Budget 0 = no limit. Prices are USD per million tokens (third-party listing for
+# qwen-3.8-27b on Cerebras; check your provider's own page and override).
+LLM_DAILY_BUDGET_USD = env.float("LLM_DAILY_BUDGET_USD", default=0)
+LLM_PRICE_IN_PER_M = env.float("LLM_PRICE_IN_PER_M", default=0.99)
+LLM_PRICE_OUT_PER_M = env.float("LLM_PRICE_OUT_PER_M", default=1.49)
+
+# Embeddings for knowledge-base search (MASTERPLAN D-28). The provider receives book text and de-identified symptom text.
+EMBEDDING_PROVIDER = env("EMBEDDING_PROVIDER", default="gemini")  # gemini | mock
+EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="gemini-embedding-001")
+# Placeholder until clinical reviewers set it (BACKEND §10.2): a passage must be at least this similar to count as evidence.
+KNOWLEDGE_MIN_SIMILARITY = env.float("KNOWLEDGE_MIN_SIMILARITY", default=0.5)
+# Pace book embedding under the provider's per-minute token limit (0 = no limit). A free Gemini key allows about 30000.
+EMBEDDING_TOKENS_PER_MINUTE = env.int("EMBEDDING_TOKENS_PER_MINUTE", default=0)
+KNOWLEDGE_MAX_UPLOAD_MB = env.int("KNOWLEDGE_MAX_UPLOAD_MB", default=300)

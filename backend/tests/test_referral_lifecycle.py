@@ -1,12 +1,14 @@
 """Referral lifecycle with real consent and FHIR-gated completion (INV-10, INV-12)."""
 import pytest
+from django.utils import timezone
 from apps.accounts.models import User, Membership, PatientAccount
 from apps.common.exceptions import PermissionDeniedError, SyncPendingError, TransitionNotAllowedError, FhirUnavailableError
 from apps.consent.services import grant_consent_request, refuse_consent_request, revoke_consent
 from apps.fhir.client import FhirClient
 from apps.fhir.sync import complete_fhir_transition
 from apps.identity.models import Patient
-from apps.organizations.models import Facility
+from apps.organizations.models import Facility, Practitioner
+from apps.records.models import Encounter
 from apps.referrals.models import Referral
 from apps.referrals.services import create_referral_draft, execute_referral_transition
 
@@ -21,8 +23,11 @@ def world(db):
     fac_r = Facility.objects.create(name="District Hospital", type="district_hospital")
     Membership.objects.create(user=sender, facility=fac_s, role="clinician")
     Membership.objects.create(user=receiver, facility=fac_r, role="clinician")
+    Practitioner.objects.create(user=sender, name="Dr Sender", registration_number="BMDC-S-1")
     patient = Patient.objects.create(given_name="Anisur", family_name="Rahman")
     PatientAccount.objects.create(user=patient_user, patient=patient)
+    # Care relationship (SECURITY §4.3): the patient was seen at the sending facility.
+    Encounter.objects.create(patient=patient, facility=fac_s, period_start=timezone.now())
     draft = create_referral_draft(sender, {
         "patient_id": patient.public_id,
         "receiver_facility_id": fac_r.public_id,

@@ -86,7 +86,7 @@ import path from "node:path";
 describe("message namespaces that load on demand", () => {
   // `auth.*` and `landing.*` are registered by modules only the auth and public routes import (i18n/auth.ts,
   // i18n/landing.ts). Any other file using those keys would show the raw key in production.
-  const ALLOWED = [/src[\\/]components[\\/]auth[\\/]/, /src[\\/]components[\\/]landing[\\/]/, /PublicHeader\.tsx$/, /MobileMenu\.tsx$/, /\(public\)[\\/]page\.tsx$/, /src[\\/]auth[\\/]errors\.ts$/];
+  const ALLOWED = [/src[\\/]components[\\/]auth[\\/]/, /src[\\/]components[\\/]landing[\\/]/, /src[\\/]components[\\/]marketing[\\/]/ /* only rendered by landing/Sections.tsx */, /PublicHeader\.tsx$/, /MobileMenu\.tsx$/, /\(public\)[\\/]page\.tsx$/, /src[\\/]auth[\\/]errors\.ts$/];
   function* walk(dir: string): Generator<string> {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);

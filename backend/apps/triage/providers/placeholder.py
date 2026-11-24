@@ -41,9 +41,9 @@ class PlaceholderVoiceProvider:
             raw=dict(data) if isinstance(data, dict) else {},
         )
 
-    def speak(self, session_ref: str, text: str, language: str) -> None:
+    def speak(self, session_ref: str, text: str, language: str, end_after: bool = False) -> bool:
         # TODO(teammate/vapi): Push server-authored assistant text to Vapi TTS stream.
-        return None
+        return False
 
     def end_session(self, session_ref: str) -> None:
         # TODO(teammate/vapi): Terminate active Vapi call immediately (required on emergency).
@@ -54,7 +54,11 @@ def get_voice_provider():
     """Factory returning the configured VoiceProvider (settings.VOICE_PROVIDER, Q-05)."""
     from django.conf import settings
 
-    if getattr(settings, "VOICE_PROVIDER", "placeholder").lower() == "vapi":
+    raw = getattr(settings, "VOICE_PROVIDER", "placeholder")
+    if isinstance(raw, str):
+        raw = raw.split("#")[0].strip().lower()
+
+    if raw == "vapi":
         from .vapi import VapiVoiceProvider
 
         return VapiVoiceProvider()

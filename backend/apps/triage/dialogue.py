@@ -25,6 +25,11 @@ TRIAGE_SYSTEM_PROMPT = (_DIR / "prompt.md").read_text(encoding="utf-8")
 REPORT_PROMPT = (_DIR / "report_prompt.md").read_text(encoding="utf-8")
 
 MAX_TURNS = 24
+
+# Interview length (TRIAGE_RAG_REFERRAL_PLAN §3; checklist and numbers are placeholders until Q-06 sign-off):
+# at least MIN answers, aim for TARGET (about three to four minutes), never more than MAX.
+MIN_ANSWERS, TARGET_ANSWERS, MAX_ANSWERS = 4, 7, 10
+DONE_MARKER = "[DONE]"  # the model starts its reply with this when it has enough to summarise
 EMERGENCY_MARKER = "[EMERGENCY]"  # the model starts its reply with this to raise an emergency (prompt section 0)
 LEVELS = ("LOW", "MODERATE", "HIGH", "EMERGENCY")
 
@@ -41,6 +46,16 @@ def _patient_text(session) -> str:
     return " ".join(session.turns.filter(role="patient").order_by("at").values_list("text", flat=True))
 
 
+def budget_directive(answers: int) -> str:
+    """Tells the model how many answers it has and when to stop, so the interview stays short and costs little."""
+    base = f"The patient has given {answers} answers so far."
+    if answers <= 5:
+        return base + " Ask the next missing item from the checklist."
+    if answers < MAX_ANSWERS - 1:
+        return base + f" Ask only if a required checklist item (main problem, onset, severity, age) is still missing; otherwise reply exactly {DONE_MARKER}."
+    return base + f" Reply exactly {DONE_MARKER}."
+
+
 def llm_next_reply(session) -> Optional[str]:
     """Next assistant reply from the model, or None to use the scripted reply."""
     messages = _messages(session)
@@ -48,10 +63,11 @@ def llm_next_reply(session) -> Optional[str]:
         return None
     patient_turns = sum(1 for m in messages if m["role"] == "user")
     specialty = infer_specialty(_patient_text(session))["code"]
-    context, _ = build_context(session, specialty, patient_turns)
+    context, passages = build_context(session, specialty, patient_turns)
+    session._passage_ids = [p["id"] for p in passages]  # stored on the assistant turn for audit
     hint = f"Session language: {'English' if session.language == 'en' else 'Bangla'} (follow the patient's language if it differs)."
-    system = "\n\n".join([TRIAGE_SYSTEM_PROMPT, hint, context])
-    return generate_text(messages, system=system, max_tokens=260)
+    system = "\n\n".join([TRIAGE_SYSTEM_PROMPT, hint, budget_directive(patient_turns), context])
+    return generate_text(messages, system=system, max_tokens=150, purpose="dialogue")  # one short spoken question
 
 
 DISCLAIMER = {
@@ -102,13 +118,18 @@ def _grounded_explanations(items, passages: List[Dict]) -> Tuple[List[Dict], boo
     return kept, len(kept) != len(items if isinstance(items, list) else [])
 
 
+def _specialty_codes() -> List[str]:
+    from apps.directory.models import Specialty
+    return list(Specialty.objects.values_list("code", flat=True))
+
+
 def generate_consultation_report(session) -> Optional[Dict]:
     """Conversation summary and AI health assessment for the patient to review (an AI draft, never a diagnosis).
     Returns None when no model is configured or its answer is unusable. Safety is enforced here, not trusted to the model."""
     turns = list(session.turns.filter(role__in=("patient", "assistant")).order_by("at")[:MAX_TURNS * 2])
     patient_said = [t.text for t in turns if t.role == "patient"]
-    if not patient_said:
-        return None
+    if len(patient_said) < 2:
+        return None  # too little said to assess; spare the model call
     language = "en" if session.language == "en" else "bn"
 
     # Facts the report may rest on: fixed red-flag rules, and passages found by retrieval (never by the model).
@@ -119,7 +140,7 @@ def generate_consultation_report(session) -> Optional[Dict]:
         or any(t.response_policy == "emergency" for t in turns)
     )
     specialty = infer_specialty(" ".join(patient_said))
-    _, passages = build_context(session, specialty["code"], 0)
+    _, passages = build_context(session, specialty["code"], 0, all_answers=True)
     summary = getattr(session, "summary", None)
     history = {k: v for k, v in (summary.structured_fields if summary else {}).items() if k in ("chief_complaint", "duration", "severity", "additional_notes")}
     payload = {
@@ -128,12 +149,13 @@ def generate_consultation_report(session) -> Optional[Dict]:
         "transcript": [{"role": "patient" if t.role == "patient" else "agent", "text": t.text} for t in turns],
         "structured_symptom_history": history,
         "red_flag_results": [h["rule_id"] for h in hits] or "none triggered",
-        "retrieved_passages": passages,
+        "retrieved_passages": [{**p, "relevant_information": p["relevant_information"][:500]} for p in passages],  # shorter input, lower cost
         "suggested_specialty": specialty["en"],
+        "specialty_codes": _specialty_codes(),
     }
     raw = generate_text(
         [{"role": "user", "text": json.dumps(payload, ensure_ascii=False)}],
-        system=REPORT_PROMPT, max_tokens=3000, temperature=0, timeout=45,
+        system=REPORT_PROMPT, max_tokens=1800, temperature=0, timeout=45, purpose="report",
     )
     if not raw:
         return None
@@ -172,6 +194,7 @@ def generate_consultation_report(session) -> Optional[Dict]:
             "primary_complaint": str(cs.get("primary_complaint") or ""),
             "reported_symptoms": _strings(cs.get("reported_symptoms")),
             "symptom_duration": str(cs.get("symptom_duration") or ""),
+            "severity": str(cs.get("severity") or ""),
             "medical_history": _strings(cs.get("medical_history")),
             "important_questions_and_answers": _strings(cs.get("important_questions_and_answers")),
             "advice_given": advice,
@@ -192,6 +215,7 @@ def generate_consultation_report(session) -> Optional[Dict]:
             "recommended_actions": actions,
             "warning_signs": _strings(ha.get("warning_signs")),
             "recommended_specialization": ha.get("recommended_specialization") or specialty["en"],
+            "recommended_specialty_code": ha.get("recommended_specialty_code") if ha.get("recommended_specialty_code") in _specialty_codes() else None,
             "follow_up_guidance": str(ha.get("follow_up_guidance") or ""),
             "emergency_instructions": emergency_instructions,
             "missing_information": _strings(ha.get("missing_information")),

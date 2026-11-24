@@ -20,7 +20,9 @@ import { Alert } from "../ui/states";
 import { ListRow, Tile } from "../ui/surfaces";
 import { StatusBadge } from "../StatusBadge/StatusBadge";
 import { BlurFade } from "../marketing/BlurFade";
+import { SignalMap } from "../marketing/SignalMap";
 import { TracingBeam } from "../marketing/TracingBeam";
+import { TriagePipeline } from "../marketing/TriagePipeline";
 import { cn } from "../../lib/cn";
 import type { LandingClaims } from "./LandingPage";
 
@@ -175,6 +177,9 @@ export function How({ locale }: { locale: Locale }) {
         </TracingBeam>
         <div className="mt-12 max-w-2xl">
           <Alert tone="attention" title={L("alert")} />
+        </div>
+        <div className="mt-14">
+          <TriagePipeline locale={locale} />
         </div>
       </div>
     </section>
@@ -448,6 +453,17 @@ export function Audiences({ locale, claims }: { locale: Locale; claims: LandingC
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** Bottom-of-page future roadmap band with themed dotted world SignalMap radiating from Bangladesh. */
+export function GlobalExpansion({ locale }: { locale: Locale }) {
+  return (
+    <section aria-labelledby="expansion-title" className="bg-sunken">
+      <div className={cn(wrap, sectionPad)}>
+        <SignalMap locale={locale} />
       </div>
     </section>
   );

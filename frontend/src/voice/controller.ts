@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ApiError, createIntentIdempotencyKey } from "../api/client";
 import { useApi } from "../api/queries/provider";
-import type { TriageSessionDetail, TriageTurn, VoiceCredentialsResponse } from "../api/queries/types";
+import type { TriageSessionDetail, TriageTurn, TriageTurnReply, VoiceCredentialsResponse } from "../api/queries/types";
 import type { Locale } from "../i18n/config";
 import type {
   TriageCaptionEvent,
@@ -46,6 +46,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
   const [textMode, setTextMode] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(resumeSessionId ?? null);
   const [sessionState, setSessionState] = useState<string | null>(null);
+  const [interview, setInterview] = useState({ target: 7, max: 10 });
   const [sessionVersion, setSessionVersion] = useState<number | undefined>(undefined);
   const [turns, setTurns] = useState<TriageCaptionEvent[]>([]);
   const [micLevel, setMicLevel] = useState(0);
@@ -182,6 +183,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
         if (cancelled) return;
         sessionIdRef.current = data.id;
         versionRef.current = data.version;
+        if (data.interview) setInterview(data.interview);
         setSessionId(data.id);
         setSessionState(data.state);
         setSessionVersion(data.version);
@@ -190,7 +192,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
         languageRef.current = lang;
         const isVoice = data.mode === "voice";
         setTextMode(!isVoice);
-        setVoicePlaceholderActive(isVoice);
+        setVoicePlaceholderActive(false);
         const hydrated = toCaptionTurns(data.turns, lang);
         setTurns(hydrated);
 
@@ -282,6 +284,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
       setSessionId(data.id);
       setSessionState(data.state);
       setSessionVersion(data.version);
+      if (data.interview) setInterview(data.interview);
       setTurns(toCaptionTurns(data.turns, languageRef.current));
       storeActiveSessionId(data.id);
       return data;
@@ -413,7 +416,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
       setPhase("thinking");
 
       try {
-        const reply = await postWithCsrf<TriageTurn>(`/triage/sessions/${activeId}/turns`, { text });
+        const reply = await postWithCsrf<TriageTurnReply>(`/triage/sessions/${activeId}/turns`, { text });
         if (reply.response_policy === "emergency") {
           endingRef.current = true;
           stopTracks();
@@ -437,7 +440,8 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
             at: reply.at || new Date().toISOString(),
           },
         ]);
-        setSessionState("ACTIVE");
+        // The interview closed itself (fixed closing line): the view then opens the summary.
+        setSessionState(reply.session_state ?? "ACTIVE");
         setPhase("listening");
       } catch (e) {
         setErrorMessage(e instanceof ApiError ? e.message : "Could not send message. Please try again.");
@@ -555,6 +559,7 @@ export function useTriageSessionController(initialLocale: Locale = "bn", resumeS
     sessionVersion,
     turns,
     patientTurnCount,
+    interview,
     interimText: "",
     draftSummary: { turnCount: patientTurnCount },
     bargeIn: () => undefined,

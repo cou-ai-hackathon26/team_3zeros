@@ -262,7 +262,8 @@
     "capacity": "Capacity",
     "staff": "Staff",
     "consents": "Sharing permissions",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "knowledge": "Knowledge base"
   },
   "shell": {
     "signIn": "Sign in",

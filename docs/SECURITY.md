@@ -325,3 +325,11 @@ Recorded in [redesign/PRODUCT_UX_AUDIT.md](redesign/PRODUCT_UX_AUDIT.md) §6; no
 
 - **A-01 (high):** the voice provider key is copied into a `NEXT_PUBLIC_*` variable and shipped in the browser bundle, contrary to §8.1. Fix before any public deployment.
 - **A-02 (high):** the OTP and MFA codes are fixed development values with no attempt limits or rate limits, contrary to §3.1 and §3.4. Nothing stops them running in production settings.
+
+
+### Embedding provider (D-33, Q-12)
+
+Knowledge-base search sends two kinds of text to the embedding provider (Gemini): the book's own text when a book is
+ingested, and the patient's latest symptom answers (no name, phone or record id) when a question is searched. This sits
+under the same open question as the other model endpoints (§8.3): a written data-processing review is still needed before
+real patients. The Gemini key is sent in a request header, never in the URL, so it cannot appear in logs.

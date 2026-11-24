@@ -479,3 +479,129 @@ describe("Code review regression fixes", () => {
     expect(screen.getByText("Describe symptoms")).toBeTruthy();
   });
 });
+
+
+describe("Summary while the report is drafted in the background (D-27)", () => {
+  const pending = (status: "pending" | "ready" | "unavailable") => ({
+    id: "sess-bg-1",
+    state: "SUMMARY_PENDING_REVIEW",
+    allowed_actions: ["confirm_summary", "end"],
+    version: 5,
+    language: "en",
+    mode: "text",
+    turns: [],
+    summary: { patient_words: "Cough", structured_fields: { chief_complaint: "Cough", report_status: status }, patient_edits: {} },
+  });
+
+  it("shows a preparing notice, disables confirming, and refetches until the report is ready", async () => {
+    nav.pathname = "/en/triage/summary/sess-bg-1";
+    nav.params = { locale: "en", id: "sess-bg-1" };
+    let reads = 0;
+    mount(<TriageSummaryReviewPage params={Promise.resolve({ locale: "en" })} />, (url, method) => {
+      if (url.endsWith("/triage/sessions/sess-bg-1") && method === "GET") {
+        reads += 1;
+        return json(pending(reads < 2 ? "pending" : "ready"));
+      }
+      return json({}, 404);
+    });
+    expect(await screen.findByText(/Preparing your summary and assessment/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Confirm/i })).toBeDisabled();
+    await waitFor(() => expect(screen.queryByText(/Preparing your summary and assessment/)).toBeNull(), { timeout: 6000 });
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole("button", { name: /Confirm/i })).toBeEnabled();
+  });
+
+  it("says the assessment is unavailable but still lets the patient confirm", async () => {
+    nav.pathname = "/en/triage/summary/sess-bg-1";
+    nav.params = { locale: "en", id: "sess-bg-1" };
+    mount(<TriageSummaryReviewPage params={Promise.resolve({ locale: "en" })} />, (url, method) =>
+      url.endsWith("/triage/sessions/sess-bg-1") && method === "GET" ? json(pending("unavailable")) : json({}, 404),
+    );
+    expect(await screen.findByText(/AI assessment is not available right now/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Confirm/i })).toBeEnabled();
+  });
+});
+
+
+describe("Routing by triage level (D-30)", () => {
+  const withLevel = (level: string | null, extra: Record<string, unknown> = {}) => ({
+    id: "sess-lvl-1", state: "SUMMARY_PENDING_REVIEW", allowed_actions: ["confirm_summary", "end"], version: 6, language: "en", mode: "text", turns: [],
+    summary: { patient_words: "Chest pain", structured_fields: { chief_complaint: "Chest pain", report_status: "ready", triage_level: level, ...extra }, patient_edits: {} },
+  });
+  const open = (body: unknown) => {
+    nav.pathname = "/en/triage/summary/sess-lvl-1";
+    nav.params = { locale: "en", id: "sess-lvl-1" };
+    mount(<TriageSummaryReviewPage params={Promise.resolve({ locale: "en" })} />, (url, method) =>
+      url.endsWith("/triage/sessions/sess-lvl-1") && method === "GET" ? json(body) : json({}, 404),
+    );
+  };
+
+  it("HIGH asks the patient to be seen today but still lets them find a doctor", async () => {
+    open(withLevel("HIGH"));
+    expect(await screen.findByText(/Please be seen today/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Confirm/i })).toBeEnabled();
+  });
+
+  it("LOW says what to watch for and MODERATE adds no extra notice", async () => {
+    open(withLevel("LOW"));
+    expect(await screen.findByText(/Watch for the warning signs/)).toBeInTheDocument();
+  });
+
+  it("an EMERGENCY assessment shows the emergency screen with the fixed instruction and no booking", async () => {
+    open(withLevel("EMERGENCY", { report: { conversation_summary: { overview: "", missing_information: [] }, health_assessment: { triage_level: "EMERGENCY", emergency_instructions: "Call 999 or go to the nearest emergency department now.", possible_explanations: [], medical_evidence: [], recommended_actions: [], warning_signs: [], missing_information: [], requires_clinician_review: true, disclaimer: "d", primary_concern: "", triage_reasoning: "", follow_up_guidance: "", recommended_specialization: null } } }));
+    expect(await screen.findByText(/Call 999 or go to the nearest emergency department now/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Confirm/i })).toBeNull();
+  });
+});
+
+
+describe("A voice call that saved no answers (VOICE_SUMMARY_FIX_PLAN)", () => {
+  const open = (turns: unknown[]) => {
+    nav.pathname = "/en/triage/summary/sess-empty-1";
+    nav.params = { locale: "en", id: "sess-empty-1" };
+    mount(<TriageSummaryReviewPage params={Promise.resolve({ locale: "en" })} />, (url, method) =>
+      url.endsWith("/triage/sessions/sess-empty-1") && method === "GET"
+        ? json({ id: "sess-empty-1", state: "SUMMARY_PENDING_REVIEW", allowed_actions: ["confirm_summary", "end"], version: 3, language: "en", mode: "voice", turns,
+            summary: { patient_words: "", structured_fields: { chief_complaint: "", report_status: "unavailable" }, patient_edits: {} } })
+        : json({}, 404),
+    );
+  };
+
+  it("shows a clear state with start-again and type-instead, and no blank fields or confirm button", async () => {
+    open([{ id: "t1", role: "assistant", text: "Hello", language_detected: "bn", at: "2026-11-24T00:00:00Z" }]);
+    expect(await screen.findByText("We didn't capture your answers")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Start again/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Type instead/i })).toHaveAttribute("href", "/en/triage?mode=text");
+    expect(screen.queryByRole("button", { name: /Confirm/i })).toBeNull();
+    expect(screen.queryByLabelText(/Chief complaint|Duration|Severity/i)).toBeNull();
+  });
+
+  it("still shows the normal summary once there is at least one patient answer", async () => {
+    open([{ id: "t1", role: "assistant", text: "Hello", language_detected: "bn", at: "x" }, { id: "t2", role: "patient", text: "Cough", language_detected: "en", at: "y" }]);
+    expect(await screen.findByRole("button", { name: /Confirm/i })).toBeInTheDocument();
+    expect(screen.queryByText("We didn't capture your answers")).toBeNull();
+  });
+});
+
+
+describe("Voice not configured (VOICE_SUMMARY_FIX_PLAN step 2)", () => {
+  it("when the server refuses the call, the patient sees why and can type instead", async () => {
+    nav.pathname = "/en/triage";
+    const fakeStream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream;
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockResolvedValue(fakeStream), enumerateDevices: vi.fn().mockResolvedValue([]) },
+    });
+    mount(<TriagePage params={Promise.resolve({ locale: "en" })} />, (url, method) => {
+      if (url.endsWith("/triage/sessions") && method === "POST")
+        return json({ id: "sess-v-1", state: "ACTIVE", allowed_actions: ["end"], version: 2, language: "en", mode: "voice", turns: [], summary: null }, 201);
+      if (url.endsWith("/voice-credentials"))
+        return json({ error: { code: "provider_unavailable", message: "Voice calls are not available right now. You can type your answers instead." } }, 503);
+      return json({});
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /Allow microphone/i }));
+    expect(await screen.findByText(/Voice calls are not available right now/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Type instead/i })).toBeEnabled();
+  });
+});

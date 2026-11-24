@@ -22,7 +22,8 @@ from .services import (
 )
 from apps.common.idempotency import resolve_idempotent_replay, persist_idempotent_response
 from apps.common.pagination import CursorPagination
-from apps.common.exceptions import ValidationError
+from apps.common.exceptions import PermissionDeniedError, ValidationError
+from .transitions import is_sender_clinician
 
 class ReferralListCreateView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -46,6 +47,7 @@ class ReferralListCreateView(views.APIView):
             serializer.validated_data,
             request_id=request_id,
             idempotency_key=header_idempotency_key,
+            active_facility_id=request.session.get("active_facility_id"),
         )
         http_status = (
             status.HTTP_200_OK
@@ -69,7 +71,12 @@ class ReferralDetailView(views.APIView):
         serializer = ReferralUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         request_id = getattr(request, "request_id", "")
-        referral = update_referral_draft(request.user, public_id, serializer.validated_data, request_id=request_id)
+        if_match = request.headers.get("If-Match")
+        try:
+            version = int(if_match.strip('"')) if if_match else None
+        except ValueError:
+            raise ValidationError("Invalid If-Match version header.")
+        referral = update_referral_draft(request.user, public_id, serializer.validated_data, request_id=request_id, if_match=version)
         return Response(ReferralSerializer(referral, context={"request": request}).data)
 
 
@@ -115,7 +122,7 @@ class EmergencyReferralView(views.APIView):
         serializer = EmergencyReferralCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         request_id = getattr(request, "request_id", "")
-        referral = create_emergency_referral(request.user, serializer.validated_data, request_id=request_id)
+        referral = create_emergency_referral(request.user, serializer.validated_data, request_id=request_id, active_facility_id=request.session.get("active_facility_id"))
         return Response(
             ReferralSerializer(referral, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
@@ -163,6 +170,8 @@ class ReferralGenerateDraftView(views.APIView):
     def post(self, request, public_id):
         from apps.workflow.models import OutboxEvent
         referral = get_referral_by_public_id(request.user, public_id)
+        if not is_sender_clinician(request.user, referral, None):
+            raise PermissionDeniedError("Only a clinician at the sending facility can request an AI draft.")
         if referral.state != "DRAFT":
             raise ValidationError("AI draft can only be generated while referral is in DRAFT state.")
         OutboxEvent.objects.create(

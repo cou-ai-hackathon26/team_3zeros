@@ -15,7 +15,15 @@ try {
       const eqIdx = trimmed.indexOf("=");
       if (eqIdx === -1) continue;
       const key = trimmed.slice(0, eqIdx).trim();
-      const val = trimmed.slice(eqIdx + 1).trim();
+      let val = trimmed.slice(eqIdx + 1).trim();
+      if (!val.startsWith('"') && !val.startsWith("'")) {
+        const commentIdx = val.indexOf("#");
+        if (commentIdx !== -1) {
+          val = val.slice(0, commentIdx).trim();
+        }
+      } else {
+        val = val.replace(/^["']|["']$/g, "");
+      }
       if (key && !process.env[key] && val) {
         process.env[key] = val;
       }

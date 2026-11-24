@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, lazy, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEmergencyFacilities } from "../../api/queries/hooks";
@@ -9,6 +9,7 @@ import { useTriageSessionController } from "../../voice/controller";
 
 // The call screen (and its animation code) loads only when a real call starts, keeping the patient first load small.
 const CallScreen = lazy(() => import("../../voice/callSetup").then((m) => ({ default: m.CallScreen })));
+const InterviewProgress = lazy(() => import("../../components/VoiceCall/InterviewProgress").then((m) => ({ default: m.InterviewProgress })));
 import { VoicePanel } from "../../components/VoicePanel/VoicePanel";
 import { EmergencyScreen } from "../../components/EmergencyScreen/EmergencyScreen";
 import { t } from "../../i18n/format";
@@ -39,6 +40,13 @@ export function TriageView({ params, resumeSessionId }: TriageViewProps) {
   const [showEmergencyFacilities, setShowEmergencyFacilities] = useState(false);
 
   const emergencyFacilities = useEmergencyFacilities(showEmergencyFacilities);
+
+  // The interview finished by itself (closing line, or the call ended after it): open the summary.
+  useEffect(() => {
+    if (ctrl.sessionState === "SUMMARY_PENDING_REVIEW" && ctrl.sessionId) {
+      router.push(`/${ctrl.language}/triage/summary/${ctrl.sessionId}`);
+    }
+  }, [ctrl.sessionState, ctrl.sessionId, ctrl.language, router]);
 
   let modeParam: string | null = null;
   try {
@@ -135,6 +143,11 @@ export function TriageView({ params, resumeSessionId }: TriageViewProps) {
   }
 
   async function handleEndSession() {
+    // Hanging up after at least one answer keeps the summary instead of discarding it (D-27).
+    if (ctrl.patientTurnCount > 0 && ctrl.sessionId) {
+      await handleFinishAndReview();
+      return;
+    }
     await ctrl.end();
     router.push(me ? `/${ctrl.language}/home` : `/${ctrl.language}`);
   }
@@ -154,12 +167,21 @@ export function TriageView({ params, resumeSessionId }: TriageViewProps) {
             level={ctrl.micLevel}
             seconds={ctrl.callSeconds}
             onMute={ctrl.setMuted}
-            onEnd={ctrl.end}
+            onEnd={() => void handleEndSession()}
             onSwitchToText={ctrl.switchToText}
+            onFinish={() => void handleFinishAndReview()}
+            answered={ctrl.patientTurnCount}
+            target={ctrl.interview.target}
+            max={ctrl.interview.max}
           />
         </Suspense>
       ) : (
         <div className={showSideRail ? "grid gap-6 lg:grid-cols-[1fr_290px] lg:items-start" : ""}>
+          {ctrl.sessionId && ctrl.sessionState === "ACTIVE" && (
+            <Suspense fallback={null}>
+              <InterviewProgress answered={ctrl.patientTurnCount} target={ctrl.interview.target} max={ctrl.interview.max} language={ctrl.language} />
+            </Suspense>
+          )}
           <VoicePanel
             phase={ctrl.phase}
             language={ctrl.language}

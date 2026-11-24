@@ -12,11 +12,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
 ]
 
+# Postgres with pgvector everywhere (MASTERPLAN D-32). Start it with: docker compose -f docker-compose.dev.yml up -d
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": env.db("DATABASE_URL", default="postgres://medi:medi_secret@localhost:5432/medi_waypoint")
 }
 
 # In local testing, use in-memory channel layer or dummy

@@ -1,12 +1,15 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import fs from "node:fs";
 import path from "node:path";
+import "../../i18n/landing";
 import { BlurFade } from "./BlurFade";
 import { BlurText } from "./BlurText";
 import { TracingBeam } from "./TracingBeam";
 import { AnimatedBeam } from "./AnimatedBeam";
+import { SignalMap } from "./SignalMap";
+import { TriagePipeline } from "./TriagePipeline";
 import { EmergencyScreen } from "../EmergencyScreen/EmergencyScreen";
 
 describe("Phase 8 — Marketing & Animation Components (E1-E4)", () => {
@@ -44,6 +47,50 @@ describe("Phase 8 — Marketing & Animation Components (E1-E4)", () => {
     it("renders SVG with beam paths", () => {
       const { container } = render(<AnimatedBeam />);
       expect(container.querySelector("svg")).toBeTruthy();
+    });
+  });
+
+  describe("TriagePipeline: Medical Knowledge RAG Workflow Graph", () => {
+    it("renders all five RAG pipeline stages and switches between routine and emergency pathways", () => {
+      render(<TriagePipeline locale="en" />);
+      expect(screen.getByText("Voice symptom intake")).toBeTruthy();
+      expect(screen.getByText("Red-flag rules check")).toBeTruthy();
+      expect(screen.getAllByText("Medical book RAG").length).toBeGreaterThan(0);
+      expect(screen.getByText("Voice agent guidance")).toBeTruthy();
+      expect(screen.getByText("Cited summary & match")).toBeTruthy();
+
+      fireEvent.click(screen.getByRole("button", { name: "Emergency signs" }));
+      expect(screen.getByText("Emergency guidance")).toBeTruthy();
+      expect(screen.getByText("Nearest emergency care")).toBeTruthy();
+
+      fireEvent.click(screen.getByRole("button", { name: /Emergency guidance/ }));
+      expect(screen.getByText("Fixed emergency protocol")).toBeTruthy();
+    });
+
+    it("renders Bangla localization cleanly", () => {
+      render(<TriagePipeline locale="bn" />);
+      expect(screen.getByText("ভয়েস উপসর্গ গ্রহণ")).toBeTruthy();
+      expect(screen.getAllByText("মেডিকেল বই RAG অনুসন্ধান").length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("SignalMap: Global Expansion Roadmap Map", () => {
+    it("renders the dotted world map, origin legend, roadmap pillars, and region filters", () => {
+      const { container } = render(<SignalMap locale="en" />);
+      expect(screen.getByRole("heading", { name: /Starting in Bangladesh/i })).toBeTruthy();
+      expect(screen.getByText("Starting point: Bangladesh")).toBeTruthy();
+      expect(screen.getByText("Local-language voice triage")).toBeTruthy();
+      expect(container.querySelectorAll("svg circle").length).toBeGreaterThan(500);
+
+      const europeBtn = screen.getByRole("button", { name: "Europe" });
+      fireEvent.click(europeBtn);
+      expect(europeBtn.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("renders Bangla localization cleanly", () => {
+      render(<SignalMap locale="bn" />);
+      expect(screen.getByText("শুরুর কেন্দ্র: বাংলাদেশ")).toBeTruthy();
+      expect(screen.getByText("সারা বিশ্ব")).toBeTruthy();
     });
   });
 

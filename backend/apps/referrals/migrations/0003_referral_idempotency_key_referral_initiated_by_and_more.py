@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
         ('identity', '0002_alter_patientidentifier_system'),
         ('organizations', '0002_alter_facility_type_accessrequest'),
         ('records', '0002_clinicalorder'),
-        ('referrals', '0002_referral_consent_request'),
+        ('referrals', '0003_sender_practitioner_nullable'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

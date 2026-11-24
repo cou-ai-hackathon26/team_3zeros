@@ -2,46 +2,29 @@
 
 The model has no tools. The backend looks these up and appends them to the prompt, so the model can
 only mention doctors, hospitals and phone numbers that exist in our database (MASTERPLAN D-23)."""
-import hashlib
-import re
 from typing import Dict, List, Tuple
 
-from django.core.cache import cache
 from django.utils import timezone
 
 from apps.directory.selectors import list_facilities, list_practitioners
-from apps.ai.translate import translate_text
 from apps.knowledge.search import search
 from apps.scheduling.models import Slot
 
 
-def _is_bangla(text: str) -> bool:
-    return len(re.findall(r"[\u0980-\u09FF]", text)) >= len(re.findall(r"[A-Za-z]", text))
+ANSWERS_FOR_DIALOGUE = 3  # the question for the next turn depends on the latest answers
 
 
-def _english(text: str) -> str:
-    """English version of a patient's words (the reference books are English). Cached per sentence,
-    so only the newest turn costs a translation call. Falls back to the original if unavailable."""
-    if not _is_bangla(text):
-        return text
-    key = "kb-en:" + hashlib.sha256(text.encode()).hexdigest()
-    cached = cache.get(key)
-    if cached is None:
-        cached = translate_text(text, "bn", "en") or ""
-        if cached:
-            cache.set(key, cached, 60 * 60 * 24)
-    return cached or text
-
-
-def reference_passages(session) -> List[Dict]:
-    turns = session.turns.filter(role="patient").order_by("at").values_list("text", flat=True)
-    return search(" ".join(_english(t) for t in turns))
+def reference_passages(session, last: int | None = ANSWERS_FOR_DIALOGUE) -> List[Dict]:
+    """Passages for the patient's latest answers (all of them for the report). Multilingual embeddings match Bangla
+    words to English passages, so no translation call is needed."""
+    turns = list(session.turns.filter(role="patient").order_by("at").values_list("text", flat=True))
+    return search(" ".join(turns[-last:] if last else turns))
 
 
 def references_block(passages: List[Dict]) -> str:
     if not passages:
         return "REFERENCES: none found. Do not state medical facts as if they came from a reference."
-    lines = [f'[{p["document_name"]}, page {p["page_number"]}] {p["relevant_information"]}' for p in passages]
+    lines = [f'[{p["document_name"]}, page {p["page_number"]}] {p["relevant_information"][:450]}' for p in passages[:2]]  # fewer, shorter passages: lower cost
     return "REFERENCES (cite document name and page if you use one; never cite anything not listed):\n" + "\n".join(lines)
 
 
@@ -69,9 +52,9 @@ def hospitals_block(limit: int = 3) -> str:
     return "EMERGENCY HOSPITALS (verified; give only these numbers, plus 999):\n" + "\n".join(rows)
 
 
-def build_context(session, specialty_code: str, patient_turns: int) -> Tuple[str, List[Dict]]:
+def build_context(session, specialty_code: str, patient_turns: int, all_answers: bool = False) -> Tuple[str, List[Dict]]:
     """Text appended to the system prompt, and the reference passages that were offered to the model."""
-    passages = reference_passages(session)
+    passages = reference_passages(session, None if all_answers else ANSWERS_FOR_DIALOGUE)
     blocks = [references_block(passages)]
     if patient_turns >= 3:  # enough history to point at care
         blocks += [doctors_block(specialty_code), hospitals_block()]
