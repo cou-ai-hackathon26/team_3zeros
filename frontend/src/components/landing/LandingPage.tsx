@@ -4,7 +4,7 @@ import type { Locale } from "../../i18n/config";
 import { t } from "../../i18n/format";
 import { CLAIMS } from "../../features/flags";
 import { Hero } from "./Hero";
-import { Audiences, Features, How, Problem, Safety } from "./Sections";
+import { Audiences, Features, GlobalExpansion, How, Problem, Safety } from "./Sections";
 import { FinalCall, Footer } from "./Chrome";
 import { SectionFocus, StickyStartBar } from "./Client";
 import { BlurFade } from "../marketing/BlurFade";
@@ -27,6 +27,7 @@ export function LandingPage({ locale, claims = CLAIMS }: { locale: Locale; claim
         <BlurFade delay={0.05}><Features locale={locale} claims={claims} /></BlurFade>
         <BlurFade delay={0.05}><Safety locale={locale} claims={claims} /></BlurFade>
         <BlurFade delay={0.05}><Audiences locale={locale} claims={claims} /></BlurFade>
+        <BlurFade delay={0.05}><GlobalExpansion locale={locale} /></BlurFade>
         <BlurFade delay={0.05}><FinalCall locale={locale} claims={claims} /></BlurFade>
       </main>
       <Footer locale={locale} />
