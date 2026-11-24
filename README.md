@@ -31,6 +31,92 @@ Medi Waypoint supports patients, Community Health Workers (CHWs), clinicians and
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart TD
+
+subgraph group_access["Access and experience"]
+  node_web["Role-based web app"]
+  node_voice["Voice and text client"]
+  node_api["API client"]
+  node_offline["Encrypted offline queue"]
+  node_accounts["Accounts and access"]
+end
+
+subgraph group_triage["Triage and knowledge"]
+  node_triage_service["Triage sessions"]
+  node_redflags["Red-flag rules"]
+  node_ai["AI triage and dialogue"]
+  node_knowledge[("Knowledge search and ingestion")]
+  node_report["Clinical report analysis"]
+end
+
+subgraph group_care["Care coordination"]
+  node_consent["Patient consent"]
+  node_referrals["Referral lifecycle"]
+  node_facility_intake["Emergency intake"]
+  node_scheduling["Appointments"]
+  node_records[("Patient records")]
+end
+
+subgraph group_platform["Workflow and integrations"]
+  node_workflow["State and outbox engine"]
+  node_audit[("Audit trail")]
+  node_notifications["Notifications"]
+  node_fhir["FHIR synchronization"]
+end
+
+node_users(("Patients and care teams"))
+node_voice_provider["Vapi voice service"]
+node_llm["Cerebras and Gemini"]
+node_database[("Postgres and pgvector")]
+
+node_users -->|"use"| node_web
+node_web -->|"request data"| node_api
+node_api -->|"submit turns"| node_triage_service
+node_voice -->|"send session turns"| node_api
+node_voice -.->|"place calls"| node_voice_provider
+node_triage_service -->|"check emergencies"| node_redflags
+node_triage_service -->|"request next reply"| node_ai
+node_ai -.->|"generate dialogue"| node_llm
+node_triage_service -->|"generate report"| node_report
+node_report -->|"retrieve context"| node_knowledge
+node_knowledge -->|"embed content"| node_llm
+node_users -->|"queue offline actions"| node_offline
+node_offline -.->|"sync actions"| node_api
+node_api -.->|"authenticate requests"| node_accounts
+node_users -->|"grant or refuse"| node_consent
+node_consent -->|"advance referral"| node_referrals
+node_referrals -->|"execute transitions"| node_workflow
+node_referrals -->|"reconcile intake"| node_facility_intake
+node_referrals -->|"sync referrals"| node_fhir
+node_referrals -->|"use triage report"| node_report
+node_workflow -->|"record transition"| node_audit
+node_workflow -.->|"write history and outbox"| node_database
+node_knowledge -->|"store searchable chunks"| node_database
+node_referrals -->|"coordinate appointments"| node_scheduling
+node_referrals -->|"associate encounters"| node_records
+node_notifications -->|"read notification data"| node_database
+node_users -.->|"receive updates"| node_notifications
+
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+
+class node_web,node_voice,node_api,node_offline,node_accounts toneBlue
+class node_triage_service,node_redflags,node_ai,node_knowledge,node_report,node_database toneAmber
+class node_consent,node_referrals,node_facility_intake,node_scheduling,node_records,node_voice_provider toneMint
+class node_workflow,node_audit,node_notifications,node_fhir toneRose
+class node_users,node_llm toneIndigo
+```
+
+---
+
 ## Stack
 
 | Layer | Technology |
