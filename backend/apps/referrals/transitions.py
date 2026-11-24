@@ -5,6 +5,8 @@ from apps.workflow.models import HistoryEntry
 # MASTERPLAN §4.2: platform admins and facility admins have no referral actions, and only memberships that are
 # currently active count. Clinicians act for their own facility; staff only with the `referral.acknowledge` permission.
 def _active(actor, facility):
+    if facility is None:
+        return active_memberships(actor).none()
     return active_memberships(actor).filter(facility=facility)
 
 
@@ -12,6 +14,16 @@ def is_sender_clinician(actor, obj, payload):
     if not actor or not actor.is_authenticated:
         return False
     return _active(actor, obj.sender_facility).filter(role="clinician").exists()
+
+
+def is_sender_clinician_or_chw(actor, obj, payload):
+    """Clinicians or facility_staff (CHWs) with `referral.create` at the sending facility."""
+    if not actor or not actor.is_authenticated:
+        return False
+    return any(
+        m.role == "clinician" or (m.role == "facility_staff" and "referral.create" in (m.permissions or []))
+        for m in _active(actor, obj.sender_facility)
+    )
 
 def is_receiver_clinician(actor, obj, payload):
     if not actor or not actor.is_authenticated:
@@ -79,7 +91,7 @@ REFERRAL_TRANSITIONS = {
     "request_consent": Transition(
         source={"DRAFT"},
         target="AWAITING_PATIENT_CONSENT",
-        permission=is_sender_clinician,
+        permission=is_sender_clinician_or_chw,
     ),
     "use_existing_consent": Transition(
         source={"DRAFT"},

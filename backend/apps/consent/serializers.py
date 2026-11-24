@@ -42,8 +42,17 @@ class ConsentSerializer(serializers.ModelSerializer):
             "categories",
             "content_hash",
             "method",
+            "verification_context",
             "state",
             "revoked_at",
             "created_at",
         ]
+
+
+class AssistedConsentRecordSerializer(serializers.Serializer):
+    method = serializers.CharField(max_length=30)
+    patient_confirmed_in_person = serializers.BooleanField()
+    witness_name = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+    consent_language = serializers.ChoiceField(choices=["bn", "en"], required=False, default="bn")
 

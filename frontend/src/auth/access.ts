@@ -22,6 +22,8 @@ const AREA_ROLES: Record<Area, readonly Role[]> = {
 export const PERMISSIONS = {
   scheduleManage: "schedule.manage",
   referralAcknowledge: "referral.acknowledge",
+  referralCreate: "referral.create",
+  consentRecordAssisted: "consent.record_assisted",
   emergencyCreate: "emergency.create",
   edManage: "ed.manage",
 } as const;

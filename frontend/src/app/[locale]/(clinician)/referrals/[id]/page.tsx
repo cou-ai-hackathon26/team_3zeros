@@ -8,6 +8,10 @@ import { ApiError, createIntentIdempotencyKey } from "../../../../../api/client"
 import { formatDhakaDateTime, formatTimeAgo, t } from "../../../../../i18n/format";
 import { useReferral, useReferralDraft, useChart } from "../../../../../api/queries/hooks";
 import type { Referral } from "../../../../../api/queries/types";
+import { PERMISSIONS, can, hasRole } from "../../../../../auth/access";
+import { useMe } from "../../../../../auth/me";
+import { AssistedConsentPanel } from "../../../../../components/chw/AssistedConsentPanel";
+import { ReferralSlip } from "../../../../../components/chw/ReferralSlip";
 import { useCaseActions } from "../../../../../features/clinical/useCaseActions";
 import { referralTone } from "../../../../../features/clinical/referralDisplay";
 import { holderOf } from "../../../../../state/routes";
@@ -45,6 +49,8 @@ export default function ReferralWorkspacePage() {
   const [editedFor, setEditedFor] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
+  const [showSlip, setShowSlip] = useState(false);
+  const { me } = useMe();
   const r = query.data;
   const chart = useChart(r?.patient_id ?? "");
   const activeMeds = chart.data?.active_medications ?? [];
@@ -86,9 +92,64 @@ export default function ReferralWorkspacePage() {
               <PageHeader
                 title={ref.patient_name}
                 status={<StatusBadge entity="referral" state={ref.state} tone={referralTone(ref.state)} locale={locale} />}
-                context={`${L("code")}: ${ref.reference_code}`}
+                context={`${L("code")}: ${ref.reference_code}${ref.patient_system_id ? ` · ${ref.patient_system_id}` : ""}`}
+                actions={
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setShowSlip((v) => !v)}>
+                    {showSlip ? t(locale, "chw.slip.hideSlip") : t(locale, "chw.slip.showSlip")}
+                  </Button>
+                }
               />
+              {showSlip && (
+                <ReferralSlip
+                  referenceCode={ref.reference_code}
+                  isProvisional={false}
+                  patientSystemId={ref.patient_system_id}
+                  patientName={ref.patient_name}
+                  sendingFacility={ref.sender_facility_name}
+                  receivingFacility={ref.receiver_facility_name}
+                  urgency={ref.urgency}
+                  reason={ref.reason}
+                  createdAt={ref.created_at}
+                  locale={locale}
+                />
+              )}
+              {(ref.state === "AWAITING_PATIENT_CONSENT" || ref.state === "CONSENT_REQUESTED") &&
+                ref.consent_request_id &&
+                (hasRole(me, "clinician") || can(me, PERMISSIONS.consentRecordAssisted)) && (
+                  <AssistedConsentPanel
+                    consentRequestId={ref.consent_request_id}
+                    patientHasAccount={Boolean(ref.patient_has_account)}
+                    locale={locale}
+                    onRecorded={() => query.refetch()}
+                  />
+                )}
               <HandoverTracker entity="referral" currentState={ref.state} objectId={ref.id} locale={locale} variant="clinical" holderName={holderName} />
+              {(ref.is_partial || ref.completeness_status?.toLowerCase() === "partial") && (
+                <Alert
+                  tone="attention"
+                  title={t(locale, "receiving.partialBannerTitle")}
+                >
+                  <span data-testid="partial-record-banner">
+                    {t(locale, "receiving.partialBannerBody")}
+                    {Array.isArray(ref.missing_fields) && ref.missing_fields.length > 0
+                      ? ` ${ref.missing_fields.join(", ")}`
+                      : ""}
+                  </span>
+                </Alert>
+              )}
+              {!ref.is_partial && ref.reconciled_at && (
+                <Alert
+                  tone="info"
+                  title={t(locale, "receiving.reconciledBannerTitle")}
+                >
+                  <span data-testid="reconciled-record-banner">
+                    {t(locale, "receiving.reconciledBannerBody").replace(
+                      "{at}",
+                      formatDhakaDateTime(ref.reconciled_at, locale)
+                    )}
+                  </span>
+                </Alert>
+              )}
               {ref.state === "SENT" && ref.sent_at && (
                 <p className="m-0 text-dense text-ink-muted">{L("waitingFor").replace("{facility}", ref.receiver_facility_name).replace("{elapsed}", formatTimeAgo(ref.sent_at, locale))}</p>
               )}

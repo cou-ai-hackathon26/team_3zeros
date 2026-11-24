@@ -1,9 +1,16 @@
 import hashlib
 import json
-from django.db import transaction
+import uuid
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from .models import Referral, EmergencyReferral, ReferralDraftVersion, compute_content_hash
+from .reconciliation import (
+    create_partial_referral_intake,
+    normalize_provisional_code,
+    reconcile_partial_referral,
+)
 from .transitions import REFERRAL_TRANSITIONS
+from apps.accounts.selectors import active_memberships
 from apps.workflow.engine import execute_transition, compute_allowed_actions
 from apps.fhir.sync import complete_fhir_transition
 from apps.consent.services import create_consent_request_for_referral, supersede_pending_consent_request
@@ -18,7 +25,93 @@ from apps.audit.services import record_audit_event
 from apps.identity.models import Patient
 from apps.organizations.models import Facility, Practitioner
 
-def create_referral_draft(user, validated_data, request_id=""):
+
+def _resolve_sender_membership(user):
+    """
+    Resolve an active membership authorized to initiate a referral draft:
+    - Any active `clinician` membership (preferred), OR
+    - An active `facility_staff` (CHW) membership holding `referral.create`.
+    Never grants clinician approval or send rights (those remain clinician-only in transitions.py).
+    """
+    if not user or not getattr(user, "is_authenticated", False):
+        raise PermissionDeniedError("Authentication required to create a referral draft.")
+    memberships = list(active_memberships(user).select_related("facility"))
+    for m in memberships:
+        if m.role == "clinician":
+            return m
+    for m in memberships:
+        if m.role == "facility_staff" and "referral.create" in (m.permissions or []):
+            return m
+    raise PermissionDeniedError(
+        "Only a clinician or authorized facility staff (with referral.create) can create a referral draft."
+    )
+
+
+def _canonical_referral_payload(patient_public_id, receiver_facility_public_id, receiver_practitioner_public_id, urgency, reason, summary):
+    return json.dumps({
+        "patient_id": str(patient_public_id),
+        "receiver_facility_id": str(receiver_facility_public_id),
+        "receiver_practitioner_id": str(receiver_practitioner_public_id) if receiver_practitioner_public_id else None,
+        "urgency": urgency,
+        "reason": reason,
+        "summary": summary or {},
+    }, sort_keys=True)
+
+
+def _verify_idempotent_match(existing: Referral, canonical_input: str):
+    reconciled_hash = (existing.reconciliation_metadata or {}).get("reconciled_sender_payload_hash")
+    if existing.reconciled_at is not None and reconciled_hash:
+        if reconciled_hash != canonical_input:
+            raise IdempotencyConflictError(
+                "Idempotency key was reused with a different referral payload."
+            )
+        existing._idempotency_replayed = True
+        return existing
+
+    stored = _canonical_referral_payload(
+        existing.patient.public_id,
+        existing.receiver_facility.public_id,
+        existing.receiver_practitioner.public_id if existing.receiver_practitioner else None,
+        existing.urgency,
+        existing.reason,
+        existing.summary,
+    )
+    if canonical_input != stored:
+        raise IdempotencyConflictError(
+            "Idempotency key was reused with a different referral payload."
+        )
+    existing._idempotency_replayed = True
+    return existing
+
+
+def _parse_idempotency_key(header_key=None, body_key=None):
+    parsed_header = None
+    parsed_body = None
+    if header_key is not None and str(header_key).strip():
+        try:
+            parsed_header = uuid.UUID(str(header_key).strip())
+        except ValueError:
+            raise ValidationError("Invalid Idempotency-Key header; must be a valid UUID.")
+    if body_key is not None and str(body_key).strip():
+        try:
+            parsed_body = body_key if isinstance(body_key, uuid.UUID) else uuid.UUID(str(body_key).strip())
+        except ValueError:
+            raise ValidationError("Invalid idempotency_key; must be a valid UUID.")
+    if parsed_header and parsed_body and parsed_header != parsed_body:
+        raise ValidationError("Idempotency-Key header does not match body idempotency_key.")
+    return parsed_header or parsed_body
+
+
+def create_referral_draft(user, validated_data, request_id="", idempotency_key=None):
+    # Authorization & facility scope check FIRST (prevents cross-tenant idempotency probing)
+    membership = _resolve_sender_membership(user)
+    sender_facility = membership.facility
+
+    effective_key = _parse_idempotency_key(
+        header_key=idempotency_key,
+        body_key=validated_data.get("idempotency_key"),
+    )
+
     patient = Patient.objects.filter(public_id=validated_data["patient_id"]).first()
     if not patient:
         raise NotFoundError("Patient not found.")
@@ -27,66 +120,150 @@ def create_referral_draft(user, validated_data, request_id=""):
     if not receiver_facility:
         raise NotFoundError("Receiver facility not found.")
 
-    # Sender practitioner and facility from active user context
-    membership = user.memberships.filter(role="clinician").first()
-    if not membership:
-        raise PermissionDeniedError("Only a clinician can create a referral draft.")
-
-    sender_facility = membership.facility
-    sender_practitioner = user.practitioner_profile if hasattr(user, "practitioner_profile") else Practitioner.objects.filter(user=user).first()
-    if not sender_practitioner:
-        # Fallback if testing without dedicated practitioner profile
-        sender_practitioner = Practitioner.objects.create(
-            user=user,
-            name=user.display_name or "Doctor",
-            registration_number=f"DOC-{user.id}",
-        )
-
     receiver_practitioner = None
     if validated_data.get("receiver_practitioner_id"):
         receiver_practitioner = Practitioner.objects.filter(public_id=validated_data["receiver_practitioner_id"]).first()
 
+    urgency = validated_data.get("urgency", "routine")
+    reason = validated_data["reason"]
     summary = validated_data.get("summary", {})
-    content_hash = compute_content_hash(summary)
+    canonical_input = _canonical_referral_payload(
+        patient.public_id,
+        receiver_facility.public_id,
+        receiver_practitioner.public_id if receiver_practitioner else None,
+        urgency,
+        reason,
+        summary,
+    )
 
-    with transaction.atomic():
-        referral = Referral.objects.create(
-            patient=patient,
+    # Scoped idempotency lookup before creation
+    if effective_key is not None:
+        existing = (
+            Referral.objects.select_related("patient", "receiver_facility", "receiver_practitioner")
+            .filter(sender_facility=sender_facility, idempotency_key=effective_key)
+            .first()
+        )
+        if existing:
+            return _verify_idempotent_match(existing, canonical_input)
+
+    sender_practitioner = (
+        user.practitioner_profile
+        if hasattr(user, "practitioner_profile")
+        else Practitioner.objects.filter(user=user).first()
+    )
+    if not sender_practitioner:
+        prefix = "DOC" if membership.role == "clinician" else "CHW"
+        default_name = "Doctor" if membership.role == "clinician" else "Health Worker"
+        sender_practitioner = Practitioner.objects.create(
+            user=user,
+            name=user.display_name or default_name,
+            registration_number=f"{prefix}-{user.id}",
+        )
+
+    content_hash = compute_content_hash(summary)
+    provisional_code = normalize_provisional_code(validated_data.get("provisional_code")) or None
+
+    # Deterministic reconciliation with any existing partial intake for (receiver_facility, provisional_code)
+    if provisional_code:
+        reconciled = reconcile_partial_referral(
+            user=user,
+            provisional_code=provisional_code,
             sender_facility=sender_facility,
             sender_practitioner=sender_practitioner,
             receiver_facility=receiver_facility,
             receiver_practitioner=receiver_practitioner,
-            urgency=validated_data.get("urgency", "routine"),
-            reason=validated_data["reason"],
-            state="DRAFT",
+            patient=patient,
+            urgency=urgency,
+            reason=reason,
             summary=summary,
-            content_hash=content_hash,
-            summary_origin="manual",
-        )
-
-        ReferralDraftVersion.objects.create(
-            referral=referral,
-            version_number=1,
-            summary=summary,
-            created_by=user,
-            origin="clinician_edit",
-        )
-
-        record_audit_event(
-            action="create",
-            object_type="referral",
-            object_id=str(referral.public_id),
-            actor_user=user,
-            patient_id=str(patient.public_id),
+            idempotency_key=effective_key,
+            emergency_mode=False,
+            sender_payload_hash=canonical_input,
             request_id=request_id,
         )
-        return referral
+        if reconciled is not None:
+            return reconciled
+
+    try:
+        with transaction.atomic():
+            referral = Referral.objects.create(
+                patient=patient,
+                sender_facility=sender_facility,
+                sender_practitioner=sender_practitioner,
+                initiated_by=user,
+                receiver_facility=receiver_facility,
+                receiver_practitioner=receiver_practitioner,
+                urgency=urgency,
+                reason=reason,
+                state="DRAFT",
+                summary=summary,
+                content_hash=content_hash,
+                summary_origin="manual",
+                provisional_code=provisional_code,
+                idempotency_key=effective_key,
+            )
+
+            ReferralDraftVersion.objects.create(
+                referral=referral,
+                version_number=1,
+                summary=summary,
+                created_by=user,
+                origin="clinician_edit" if membership.role == "clinician" else "chw_draft",
+            )
+
+            record_audit_event(
+                action="create",
+                object_type="referral",
+                object_id=str(referral.public_id),
+                actor_user=user,
+                patient_id=str(patient.public_id),
+                request_id=request_id,
+            )
+            referral._idempotency_replayed = False
+            return referral
+    except IntegrityError:
+        # Concurrent request race on (sender_facility, idempotency_key) or (receiver_facility, provisional_code)
+        if effective_key is not None:
+            existing = (
+                Referral.objects.select_related("patient", "receiver_facility", "receiver_practitioner")
+                .filter(sender_facility=sender_facility, idempotency_key=effective_key)
+                .first()
+            )
+            if existing:
+                return _verify_idempotent_match(existing, canonical_input)
+        if provisional_code:
+            reconciled = reconcile_partial_referral(
+                user=user,
+                provisional_code=provisional_code,
+                sender_facility=sender_facility,
+                sender_practitioner=sender_practitioner,
+                receiver_facility=receiver_facility,
+                receiver_practitioner=receiver_practitioner,
+                patient=patient,
+                urgency=urgency,
+                reason=reason,
+                summary=summary,
+                idempotency_key=effective_key,
+                emergency_mode=False,
+                request_id=request_id,
+            )
+            if reconciled is not None:
+                return reconciled
+        raise
 
 
 def update_referral_draft(user, referral_public_id, validated_data, request_id=""):
     referral = Referral.objects.filter(public_id=referral_public_id).first()
     if not referral:
         raise NotFoundError("Referral not found.")
+
+    # Enforce active sending-facility authorization (clinician or CHW with referral.create)
+    has_access = any(
+        m.role == "clinician" or (m.role == "facility_staff" and "referral.create" in (m.permissions or []))
+        for m in active_memberships(user).filter(facility=referral.sender_facility)
+    )
+    if not has_access:
+        raise PermissionDeniedError("Not authorized to edit this referral draft.")
 
     # Enforce MASTERPLAN §5.2 rule: Content is editable (PATCH) ONLY in DRAFT
     if referral.state != "DRAFT":

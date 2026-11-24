@@ -1,8 +1,13 @@
 from rest_framework import views, permissions, status
 from rest_framework.response import Response
 from .models import ConsentRequest, Consent
-from .serializers import ConsentRequestSerializer, ConsentSerializer
-from .services import grant_consent_request, refuse_consent_request, revoke_consent
+from .serializers import ConsentRequestSerializer, ConsentSerializer, AssistedConsentRecordSerializer
+from .services import (
+    grant_consent_request,
+    refuse_consent_request,
+    revoke_consent,
+    record_assisted_consent,
+)
 from apps.common.exceptions import NotFoundError, PermissionDeniedError
 
 class PatientConsentsView(views.APIView):
@@ -46,6 +51,28 @@ class GrantConsentRequestView(views.APIView):
         request_id = getattr(request, "request_id", "")
         consent = grant_consent_request(request.user, public_id, request_id=request_id)
         return Response(ConsentSerializer(consent).data)
+
+
+class RecordAssistedConsentView(views.APIView):
+    """Record witnessed in-person consent (`assisted_verbal` / `assisted_paper`) for account-less patients."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, public_id):
+        serializer = AssistedConsentRecordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        request_id = getattr(request, "request_id", "")
+        data = serializer.validated_data
+        consent = record_assisted_consent(
+            user=request.user,
+            request_public_id=public_id,
+            method=data["method"],
+            patient_confirmed_in_person=data["patient_confirmed_in_person"],
+            witness_name=data.get("witness_name", ""),
+            notes=data.get("notes", ""),
+            consent_language=data.get("consent_language", "bn"),
+            request_id=request_id,
+        )
+        return Response(ConsentSerializer(consent).data, status=status.HTTP_201_CREATED)
 
 
 class RefuseConsentRequestView(views.APIView):

@@ -49,10 +49,27 @@ class Referral(TimeStamped):
         ("emergency", "Emergency"),
     ]
 
+    COMPLETENESS_CHOICES = [
+        ("complete", "Complete"),
+        ("partial", "Partial"),
+    ]
+
     patient = models.ForeignKey("identity.Patient", on_delete=models.CASCADE, related_name="referrals")
     encounter = models.ForeignKey("records.Encounter", on_delete=models.SET_NULL, null=True, blank=True, related_name="referrals")
-    sender_practitioner = models.ForeignKey("organizations.Practitioner", on_delete=models.CASCADE, related_name="sent_referrals")
-    sender_facility = models.ForeignKey("organizations.Facility", on_delete=models.CASCADE, related_name="sent_referrals")
+    sender_practitioner = models.ForeignKey(
+        "organizations.Practitioner",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="sent_referrals",
+    )
+    sender_facility = models.ForeignKey(
+        "organizations.Facility",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="sent_referrals",
+    )
     receiver_facility = models.ForeignKey("organizations.Facility", on_delete=models.CASCADE, related_name="received_referrals")
     receiver_practitioner = models.ForeignKey(
         "organizations.Practitioner",
@@ -87,6 +104,24 @@ class Referral(TimeStamped):
     )
     reference_code = models.CharField(max_length=12, unique=True, default=generate_reference_code, db_index=True)
     provisional_code = models.CharField(max_length=50, null=True, blank=True, db_index=True)
+    idempotency_key = models.UUIDField(null=True, blank=True, db_index=True)
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="initiated_referrals",
+    )
+    is_partial = models.BooleanField(default=False, db_index=True)
+    completeness_status = models.CharField(
+        max_length=20,
+        choices=COMPLETENESS_CHOICES,
+        default="complete",
+        db_index=True,
+    )
+    missing_fields = models.JSONField(default=list, blank=True)
+    reconciled_at = models.DateTimeField(null=True, blank=True)
+    reconciliation_metadata = models.JSONField(default=dict, blank=True)
     outcome = models.JSONField(default=dict, blank=True)
     decline_reason = models.TextField(blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
@@ -98,6 +133,18 @@ class Referral(TimeStamped):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["sender_facility", "idempotency_key"],
+                condition=models.Q(idempotency_key__isnull=False),
+                name="uniq_referral_facility_idempotency_key",
+            ),
+            models.UniqueConstraint(
+                fields=["receiver_facility", "provisional_code"],
+                condition=models.Q(provisional_code__isnull=False) & ~models.Q(provisional_code=""),
+                name="uniq_referral_receiver_provisional_code",
+            ),
+        ]
 
     def __str__(self):
         return f"Referral({self.reference_code}, {self.state}, urgency={self.urgency})"

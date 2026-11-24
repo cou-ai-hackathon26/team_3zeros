@@ -57,18 +57,26 @@ def get_referral_by_public_id(user, public_id):
 
 
 def get_referral_by_code(user, code):
+    normalized = (code or "").strip()
+    if normalized.upper().startswith("MW-REF:"):
+        normalized = normalized[7:].strip()
+    if not normalized:
+        raise NotFoundError("Referral not found.")
+
     referral = Referral.objects.select_related(
         "patient",
         "sender_facility",
         "sender_practitioner",
         "receiver_facility",
         "receiver_practitioner",
-    ).filter(Q(reference_code=code) | Q(provisional_code=code)).first()
+    ).filter(Q(reference_code=normalized) | Q(provisional_code=normalized)).first()
     if not referral:
         raise NotFoundError("Referral not found.")
 
-    user_facility_ids = active_memberships(user).values_list("facility_id", flat=True)
-    if referral.receiver_facility_id not in user_facility_ids and referral.sender_facility_id not in user_facility_ids:
+    user_facility_ids = set(active_memberships(user).values_list("facility_id", flat=True))
+    in_receiver = referral.receiver_facility_id in user_facility_ids
+    in_sender = referral.sender_facility_id is not None and referral.sender_facility_id in user_facility_ids
+    if not (in_receiver or in_sender):
         raise NotFoundError("Referral not found.")
 
     return referral

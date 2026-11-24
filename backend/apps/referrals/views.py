@@ -5,6 +5,7 @@ from .serializers import (
     ReferralCreateSerializer,
     ReferralUpdateSerializer,
     EmergencyReferralCreateSerializer,
+    PartialReferralIntakeSerializer,
     ReferralActionSerializer,
 )
 from .selectors import (
@@ -16,8 +17,10 @@ from .services import (
     create_referral_draft,
     update_referral_draft,
     create_emergency_referral,
+    create_partial_referral_intake,
     execute_referral_transition,
 )
+from apps.common.idempotency import resolve_idempotent_replay, persist_idempotent_response
 from apps.common.pagination import CursorPagination
 from apps.common.exceptions import ValidationError
 
@@ -37,10 +40,21 @@ class ReferralListCreateView(views.APIView):
         serializer = ReferralCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         request_id = getattr(request, "request_id", "")
-        referral = create_referral_draft(request.user, serializer.validated_data, request_id=request_id)
+        header_idempotency_key = request.headers.get("Idempotency-Key")
+        referral = create_referral_draft(
+            request.user,
+            serializer.validated_data,
+            request_id=request_id,
+            idempotency_key=header_idempotency_key,
+        )
+        http_status = (
+            status.HTTP_200_OK
+            if getattr(referral, "_idempotency_replayed", False)
+            else status.HTTP_201_CREATED
+        )
         return Response(
             ReferralSerializer(referral, context={"request": request}).data,
-            status=status.HTTP_201_CREATED,
+            status=http_status,
         )
 
 
@@ -63,6 +77,10 @@ class ReferralActionView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, public_id, action):
+        replayed = resolve_idempotent_replay(request)
+        if replayed is not None:
+            return replayed
+
         serializer = ReferralActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -85,7 +103,9 @@ class ReferralActionView(views.APIView):
         )
         # 202: the action is accepted but its FHIR write is still pending (INV-12).
         http_status = status.HTTP_202_ACCEPTED if referral.pending_action else status.HTTP_200_OK
-        return Response(ReferralSerializer(referral, context={"request": request}).data, status=http_status)
+        response = Response(ReferralSerializer(referral, context={"request": request}).data, status=http_status)
+        persist_idempotent_response(request, response)
+        return response
 
 
 class EmergencyReferralView(views.APIView):
@@ -99,6 +119,32 @@ class EmergencyReferralView(views.APIView):
         return Response(
             ReferralSerializer(referral, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
+        )
+
+
+class PartialReferralIntakeView(views.APIView):
+    """Receiving-facility intake when a patient arrives before the full referral has synced (Phase 3B)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = PartialReferralIntakeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        request_id = getattr(request, "request_id", "")
+        header_key = request.headers.get("Idempotency-Key")
+        referral = create_partial_referral_intake(
+            request.user,
+            serializer.validated_data,
+            request_id=request_id,
+            idempotency_key=header_key,
+        )
+        http_status = (
+            status.HTTP_200_OK
+            if getattr(referral, "_idempotency_replayed", False)
+            else status.HTTP_201_CREATED
+        )
+        return Response(
+            ReferralSerializer(referral, context={"request": request}).data,
+            status=http_status,
         )
 
 

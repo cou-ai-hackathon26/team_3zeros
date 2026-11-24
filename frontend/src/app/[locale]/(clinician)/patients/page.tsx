@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePageLocale } from "../../../usePageLocale";
 import { t } from "../../../../i18n/format";
 import { usePatientSearch } from "../../../../api/queries/hooks";
+import { buttonVariants } from "../../../../components/ui/button";
 import { Field, Input } from "../../../../components/ui/field";
 import { EmptyState, ErrorState, Skeleton } from "../../../../components/ui/states";
 import { ListRow, PageHeader } from "../../../../components/ui/surfaces";
@@ -23,7 +25,14 @@ export default function PatientsPage() {
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
-      <PageHeader title={L("title")} />
+      <PageHeader
+        title={L("title")}
+        actions={
+          <Link href={`/${locale}/patients/new`} className={buttonVariants()}>
+            {t(locale, "chw.register.cta")}
+          </Link>
+        }
+      />
       <Field label={L("searchLabel")} locale={locale}>{(p) => <Input {...p} type="search" value={q} onChange={(e) => setQ(e.target.value)} />}</Field>
       {!debounced ? (
         <p className="m-0 text-dense text-ink-muted">{L("searchHelp")}</p>
@@ -36,7 +45,12 @@ export default function PatientsPage() {
       ) : (
         <ul className="m-0 p-0">
           {(search.data ?? []).map((p) => (
-            <ListRow key={p.id} href={`/${locale}/patients/${p.id}`} title={`${patientDisplayName(p, "")}${p.name_bn ? ` (${p.name_bn})` : ""}`} meta={[p.phone, p.sex, p.birth_date].filter(Boolean).join(", ")} />
+            <ListRow
+              key={p.id}
+              href={`/${locale}/patients/${p.id}`}
+              title={`${patientDisplayName(p, "")}${p.name_bn ? ` (${p.name_bn})` : ""}`}
+              meta={[p.system_id, p.phone, p.sex, p.birth_date].filter(Boolean).join(", ")}
+            />
           ))}
         </ul>
       )}

@@ -9,10 +9,14 @@ class ReferralSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source="public_id", read_only=True)
     patient_id = serializers.UUIDField(source="patient.public_id", read_only=True)
     patient_name = serializers.CharField(source="patient.given_name", read_only=True)
-    sender_facility_id = serializers.UUIDField(source="sender_facility.public_id", read_only=True)
-    sender_facility_name = serializers.CharField(source="sender_facility.name", read_only=True)
-    sender_practitioner_id = serializers.UUIDField(source="sender_practitioner.public_id", read_only=True)
-    sender_practitioner_name = serializers.CharField(source="sender_practitioner.name", read_only=True)
+    patient_system_id = serializers.SerializerMethodField()
+    patient_has_account = serializers.SerializerMethodField()
+    initiated_by_id = serializers.UUIDField(source="initiated_by.public_id", read_only=True, allow_null=True)
+    consent_request_id = serializers.UUIDField(source="consent_request.public_id", read_only=True, allow_null=True)
+    sender_facility_id = serializers.UUIDField(source="sender_facility.public_id", read_only=True, allow_null=True)
+    sender_facility_name = serializers.CharField(source="sender_facility.name", read_only=True, allow_null=True)
+    sender_practitioner_id = serializers.UUIDField(source="sender_practitioner.public_id", read_only=True, allow_null=True)
+    sender_practitioner_name = serializers.CharField(source="sender_practitioner.name", read_only=True, allow_null=True)
     receiver_facility_id = serializers.UUIDField(source="receiver_facility.public_id", read_only=True)
     receiver_facility_name = serializers.CharField(source="receiver_facility.name", read_only=True)
     receiver_practitioner_id = serializers.UUIDField(source="receiver_practitioner.public_id", read_only=True, allow_null=True)
@@ -32,6 +36,16 @@ class ReferralSerializer(serializers.ModelSerializer):
             "reason",
             "patient_id",
             "patient_name",
+            "patient_system_id",
+            "patient_has_account",
+            "initiated_by_id",
+            "consent_request_id",
+            "idempotency_key",
+            "is_partial",
+            "completeness_status",
+            "missing_fields",
+            "reconciled_at",
+            "reconciliation_metadata",
             "sender_facility_id",
             "sender_facility_name",
             "sender_practitioner_id",
@@ -56,6 +70,13 @@ class ReferralSerializer(serializers.ModelSerializer):
             "acknowledged_at",
             "escalated_at",
         ]
+
+    def get_patient_system_id(self, obj):
+        ident = obj.patient.identifiers.filter(system="system_id").first()
+        return ident.value if ident else None
+
+    def get_patient_has_account(self, obj):
+        return hasattr(obj.patient, "account") and obj.patient.account is not None
 
     def get_consent_state(self, obj):
         if obj.emergency_mode and not obj.consent:
@@ -86,6 +107,36 @@ class ReferralCreateSerializer(serializers.Serializer):
     urgency = serializers.ChoiceField(choices=Referral.URGENCY_CHOICES, default="routine")
     reason = serializers.CharField()
     summary = serializers.DictField(required=False, default=dict)
+    provisional_code = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    idempotency_key = serializers.UUIDField(required=False, allow_null=True)
+
+
+class PartialReferralIntakeSerializer(serializers.Serializer):
+    """Minimum viable payload for receiving-facility partial intake when full referral has not synced."""
+    provisional_code = serializers.CharField(max_length=50)
+    reason = serializers.CharField()
+    urgency = serializers.ChoiceField(choices=Referral.URGENCY_CHOICES, default="urgent")
+    receiver_facility_id = serializers.UUIDField(required=False, allow_null=True)
+
+    # Optional patient identification (no phone, email, or account required)
+    patient_id = serializers.UUIDField(required=False, allow_null=True)
+    patient_system_id = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    patient_name = serializers.CharField(max_length=150, required=False, allow_blank=True, allow_null=True)
+    patient_name_bn = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    unverified_identity_description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    estimated_age = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=150)
+    birth_date = serializers.DateField(required=False, allow_null=True)
+    sex = serializers.ChoiceField(choices=["male", "female", "other", "unknown"], required=False, default="unknown")
+
+    # Optional slip / clinical details (never fabricated if omitted)
+    sender_facility_id = serializers.UUIDField(required=False, allow_null=True)
+    referring_worker_name = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    referred_at_device = serializers.DateTimeField(required=False, allow_null=True)
+    presenting_symptoms = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    vitals = serializers.DictField(required=False, allow_null=True)
+    allergies = serializers.ListField(child=serializers.CharField(), required=False, allow_null=True)
+    treatment_given = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    idempotency_key = serializers.UUIDField(required=False, allow_null=True)
 
 
 class ReferralUpdateSerializer(serializers.Serializer):

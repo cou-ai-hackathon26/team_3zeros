@@ -5,12 +5,14 @@ from .views import (
     ReferralGenerateDraftView,
     ReferralActionView,
     EmergencyReferralView,
+    PartialReferralIntakeView,
     ReferralByReferenceView,
 )
 
 urlpatterns = [
     path("", ReferralListCreateView.as_view(), name="referral-list-create"),
     path("emergency", EmergencyReferralView.as_view(), name="referral-emergency"),
+    path("partial-intake", PartialReferralIntakeView.as_view(), name="referral-partial-intake"),
     path("by-reference/<str:code>", ReferralByReferenceView.as_view(), name="referral-by-reference"),
     path("<uuid:public_id>", ReferralDetailView.as_view(), name="referral-detail"),
     path("<uuid:public_id>/generate-draft", ReferralGenerateDraftView.as_view(), name="referral-generate-draft"),

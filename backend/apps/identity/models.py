@@ -1,6 +1,16 @@
+import secrets
 from django.db import models
 from django.conf import settings
 from apps.common.models import TimeStamped
+
+# Crockford Base32 alphabet (no I, L, O, U to avoid verbal/visual confusion)
+SYSTEM_ID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+
+def generate_system_patient_id(length: int = 8) -> str:
+    """Cryptographically random human-readable patient identifier (e.g. MWP-A7K29QX4)."""
+    token = "".join(secrets.choice(SYSTEM_ID_ALPHABET) for _ in range(length))
+    return f"MWP-{token}"
 
 class Patient(TimeStamped):
     """
@@ -43,6 +53,7 @@ class PatientIdentifier(TimeStamped):
     National IDs, birth registration, or facility MRN per BACKEND §4.2.
     """
     SYSTEM_CHOICES = [
+        ("system_id", "Medi Waypoint Patient ID"),
         ("nid", "National ID"),
         ("birth_reg", "Birth Registration"),
         ("health_id", "National Health ID"),

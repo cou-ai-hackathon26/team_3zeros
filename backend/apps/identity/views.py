@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import views, permissions, status
 from rest_framework.response import Response
 from .serializers import (
@@ -12,6 +13,7 @@ from .selectors import (
     get_duplicate_candidates_for_patient,
 )
 from .services import create_patient_record, resolve_duplicate_candidate
+from apps.common.idempotency import resolve_idempotent_replay, persist_idempotent_response
 from apps.common.pagination import CursorPagination
 
 class PatientListCreateView(views.APIView):
@@ -26,11 +28,17 @@ class PatientListCreateView(views.APIView):
         return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
+        replayed = resolve_idempotent_replay(request)
+        if replayed is not None:
+            return replayed
         serializer = PatientCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         request_id = getattr(request, "request_id", "")
-        patient = create_patient_record(request.user, serializer.validated_data, request_id=request_id)
-        return Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
+        with transaction.atomic():
+            patient = create_patient_record(request.user, serializer.validated_data, request_id=request_id)
+            response = Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
+            persist_idempotent_response(request, response)
+        return response
 
 
 class PatientDetailView(views.APIView):

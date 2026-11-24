@@ -158,7 +158,7 @@ class TestStaffManagement:
         u, s = mk_admin("fa@example.org", facilities[0])
         r = client_for(u, s).get("/api/v1/admin/permissions")
         assert r.status_code == 200
-        assert [p["code"] for p in r.data["results"]] == ["schedule.manage", "referral.acknowledge", "referral.create", "emergency.create", "ed.manage"]
+        assert [p["code"] for p in r.data["results"]] == ["schedule.manage", "referral.acknowledge", "referral.create", "emergency.create", "ed.manage", "consent.record_assisted"]
 
     def test_facility_admin_creates_staff_in_own_facility_and_the_password_is_shown_once(self, facilities):
         u, s = mk_admin("fa@example.org", facilities[0])

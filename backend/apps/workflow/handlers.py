@@ -14,7 +14,7 @@ def _referral(event):
     r = Referral.objects.select_related("sender_facility", "receiver_facility", "patient").filter(public_id=event.aggregate_id).first()
     if not r:
         return
-    sender = lambda: facility_users(r.sender_facility)
+    sender = lambda: facility_users(r.sender_facility) if r.sender_facility else []
     receiver = lambda: facility_users(r.receiver_facility, permission="referral.acknowledge")
     action = event.payload.get("action")
     if action == "request_consent":
@@ -31,7 +31,8 @@ def _referral(event):
         notify(sender(), "referral.outcome_returned", r.public_id)
     elif action == "sync_failed":
         notify(sender() + facility_users(r.receiver_facility), "referral.sync_failed", r.public_id)
-    broadcast_event(f"facility_{r.sender_facility_id}", "referral.state_changed", event.payload)
+    if r.sender_facility_id:
+        broadcast_event(f"facility_{r.sender_facility_id}", "referral.state_changed", event.payload)
     broadcast_event(f"facility_{r.receiver_facility_id}", "referral.state_changed", event.payload)
 
 

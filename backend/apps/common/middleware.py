@@ -64,8 +64,17 @@ class IdempotencyMiddleware(MiddlewareMixin):
         request.idempotency_hash = request_hash
 
         endpoint = request.path_info
+        # Referral creation & partial intake enforce facility-scoped, DB-backed idempotency after DRF auth/permissions.
+        if endpoint in ("/api/v1/referrals/", "/api/v1/referrals/partial-intake"):
+            return None
+
         record = IdempotencyRecord.objects.filter(key=key, endpoint=endpoint).first()
         if record:
+            req_user = getattr(request, "user", None)
+            req_user_id = req_user.pk if (req_user and getattr(req_user, "is_authenticated", False)) else None
+            # Never replay a user-scoped cached response to a different or unauthenticated caller
+            if record.user_id is not None and record.user_id != req_user_id:
+                return None
             if record.request_hash != request_hash:
                 return JsonResponse(
                     {
@@ -92,6 +101,8 @@ class IdempotencyMiddleware(MiddlewareMixin):
 
         if key and request_hash and 200 <= response.status_code < 300:
             endpoint = request.path_info
+            if endpoint in ("/api/v1/referrals/", "/api/v1/referrals/partial-intake"):
+                return response
             user = request.user if getattr(request, "user", None) and request.user.is_authenticated else None
             try:
                 body_data = json.loads(response.content.decode("utf-8")) if response.content else None

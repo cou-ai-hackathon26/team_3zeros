@@ -13,11 +13,15 @@ class PatientSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source="public_id", read_only=True)
     area_id = serializers.UUIDField(source="area.public_id", read_only=True, allow_null=True)
     identifiers = PatientIdentifierSerializer(many=True, read_only=True)
+    system_id = serializers.SerializerMethodField()
+    has_account = serializers.SerializerMethodField()
 
     class Meta:
         model = Patient
         fields = [
             "id",
+            "system_id",
+            "has_account",
             "given_name",
             "family_name",
             "name_bn",
@@ -34,6 +38,15 @@ class PatientSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def get_system_id(self, obj):
+        for ident in obj.identifiers.all():
+            if ident.system == "system_id":
+                return ident.value
+        return None
+
+    def get_has_account(self, obj):
+        return hasattr(obj, "account") and obj.account is not None
+
 
 class PatientCreateSerializer(serializers.Serializer):
     given_name = serializers.CharField(max_length=150)
@@ -42,7 +55,7 @@ class PatientCreateSerializer(serializers.Serializer):
     birth_date = serializers.DateField(required=False, allow_null=True)
     estimated_age = serializers.IntegerField(required=False, allow_null=True)
     sex = serializers.ChoiceField(choices=Patient.SEX_CHOICES, default="unknown")
-    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
     area_id = serializers.UUIDField(required=False, allow_null=True)
     identifiers = serializers.ListField(
         child=serializers.DictField(),

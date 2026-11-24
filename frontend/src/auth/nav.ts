@@ -28,13 +28,22 @@ const NAV: Record<Area, NavItem[]> = {
   ],
   clinical: [
     { id: "queue", labelKey: "nav.queue", href: "/dashboard", icon: "inbox" },
-    { id: "patients", labelKey: "nav.patients", href: "/patients", icon: "users", visible: clinicianOnly },
+    {
+      id: "patients",
+      labelKey: "nav.patients",
+      href: "/patients",
+      icon: "users",
+      visible: (me) => clinicianOnly(me) || can(me, PERMISSIONS.referralCreate),
+    },
     {
       id: "referrals",
       labelKey: "nav.referrals",
       href: "/referrals",
       icon: "arrows",
-      visible: (me) => clinicianOnly(me) || can(me, PERMISSIONS.referralAcknowledge),
+      visible: (me) =>
+        clinicianOnly(me) ||
+        can(me, PERMISSIONS.referralAcknowledge) ||
+        can(me, PERMISSIONS.referralCreate),
     },
     {
       id: "ed",

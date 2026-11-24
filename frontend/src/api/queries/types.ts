@@ -95,6 +95,15 @@ export interface Referral extends Stateful {
   reason: string;
   patient_id: string;
   patient_name: string;
+  patient_system_id?: string | null;
+  patient_has_account?: boolean;
+  initiated_by_id?: string | null;
+  consent_request_id?: string | null;
+  is_partial?: boolean;
+  completeness_status?: string;
+  missing_fields?: string[];
+  reconciled_at?: string | null;
+  reconciliation_metadata?: Record<string, unknown>;
   sender_facility_id: string;
   sender_facility_name: string;
   sender_practitioner_name?: string | null;
@@ -116,6 +125,8 @@ export interface Referral extends Stateful {
 
 export interface Patient {
   id: string;
+  system_id?: string | null;
+  has_account?: boolean;
   given_name: string;
   family_name?: string;
   name_bn?: string;
