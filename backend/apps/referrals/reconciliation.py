@@ -300,7 +300,7 @@ def reconcile_partial_referral(
 
     with transaction.atomic():
         matches = list(
-            Referral.objects.select_for_update()
+            Referral.objects.select_for_update(of=("self",))  # lock the referral row only: Postgres cannot lock joined tables
             .select_related("patient", "sender_facility", "receiver_facility")
             .filter(receiver_facility=receiver_facility, provisional_code=code)
         )

@@ -226,9 +226,14 @@ def test_standard_referral_idempotency_replay_conflict_and_scope(phase3a_env):
 
     # 5. Cross-facility scope isolation: another facility using the same key cannot steal Facility A's referral
     other_client = _client_for(phase3a_env["other_chw"])
-    r5 = other_client.post("/api/v1/referrals/", payload, format="json", HTTP_IDEMPOTENCY_KEY=key)
+    # The other facility's own new patient (a facility cannot refer a patient already under another facility's care: that
+    # is a 404, MASTERPLAN §6.2 and SECURITY §4.3), sent with the same key: keys are scoped per facility.
+    other_patient = Patient.objects.create(given_name="Other", family_name="Facility", sex="female", phone=None)
+    r5 = other_client.post("/api/v1/referrals/", {**payload, "patient_id": str(other_patient.public_id)}, format="json", HTTP_IDEMPOTENCY_KEY=key)
     assert r5.status_code == 201
     assert r5.json()["id"] != ref_id
+    # And it cannot reach Facility A's patient at all.
+    assert other_client.post("/api/v1/referrals/", payload, format="json", HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4())).status_code == 404
 
     # 6. Unauthorized staff cannot probe idempotency keys
     unpriv_client = _client_for(phase3a_env["unpriv_staff"])
@@ -307,9 +312,10 @@ def test_chw_can_create_edit_and_request_consent_but_cannot_approve_or_send(phas
     )
     assert patch_resp.status_code == 200
 
-    # Other facility CHW cannot edit this draft
+    # Other facility CHW cannot edit this draft. It is outside their scope, so it answers 404 and does not reveal that the
+    # referral exists (MASTERPLAN §6.2, INV-9). A user who can see it but may not act gets 403.
     other_client = _client_for(phase3a_env["other_chw"])
-    assert other_client.patch(f"/api/v1/referrals/{ref_id}", {"reason": "Hack"}, format="json").status_code == 403
+    assert other_client.patch(f"/api/v1/referrals/{ref_id}", {"reason": "Hack"}, format="json").status_code == 404
 
     # CHW can request consent
     req_resp = chw_client.post(f"/api/v1/referrals/{ref_id}/actions/request_consent", {}, format="json")

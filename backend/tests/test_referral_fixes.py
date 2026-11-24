@@ -1,4 +1,4 @@
-"""Referral creation, editing and AI draft rules (TRIAGE_RAG_REFERRAL_PLAN §6)."""
+"""Referral creation, editing and AI draft rules (D-30)."""
 import uuid
 from datetime import timedelta
 
@@ -50,9 +50,15 @@ def test_only_the_draft_state_is_editable(world):  # noqa: F811
 @pytest.mark.django_db
 def test_creating_needs_a_care_relationship_a_practitioner_and_a_different_facility(world):  # noqa: F811
     w = world
-    stranger = Patient.objects.create(given_name="No", family_name="Relationship")
+    # A patient already under another facility's care is not visible to this clinician (404). A brand-new patient with no
+    # care anywhere is allowed: registering them is what starts the relationship (CHW intake).
+    other_fac = Facility.objects.create(name="Elsewhere Clinic", type="upazila_health_complex")
+    elsewhere = Patient.objects.create(given_name="Under", family_name="OtherCare")
+    Encounter.objects.create(patient=elsewhere, facility=other_fac, period_start=timezone.now())
     with pytest.raises(NotFoundError):
-        create_referral_draft(w["sender"], {**_data(w), "patient_id": stranger.public_id})
+        create_referral_draft(w["sender"], {**_data(w), "patient_id": elsewhere.public_id})
+    brand_new = Patient.objects.create(given_name="Brand", family_name="New")
+    assert create_referral_draft(w["sender"], {**_data(w), "patient_id": brand_new.public_id}).state == "DRAFT"
 
     fac_s = Membership.objects.get(user=w["sender"]).facility
     with pytest.raises(ValidationError):
