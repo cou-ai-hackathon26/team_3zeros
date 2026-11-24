@@ -60,5 +60,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Vercel services do not support the Edge runtime; Next 15.5+ runs middleware on Node.js.
+  runtime: "nodejs",
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };
